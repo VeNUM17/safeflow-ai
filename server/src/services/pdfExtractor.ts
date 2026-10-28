@@ -53,7 +53,9 @@ export async function extractTextFromDocument(
       const fullText = parsed.text || pages.map((p: any) => p.text).join('\n');
 
       const trimmed = fullText.trim();
-      if (trimmed.length < 40) {
+      const wordCount = trimmed ? trimmed.split(/\s+/).filter(Boolean).length : 0;
+      const isScannedOrEmpty = trimmed.length < 100 || wordCount < 15;
+      if (isScannedOrEmpty) {
         return {
           text: trimmed,
           pages: pages.length ? pages : [{ pageNumber: 1, text: trimmed }],
@@ -61,7 +63,7 @@ export async function extractTextFromDocument(
           isReadable: false,
           isScanned: true,
           unreadableReason:
-            'Document contains virtually no extractable digital text. It appears to be a scanned image or flattened drawing. OCR processing or a high-resolution vector PDF is required.',
+            'Document contains virtually no extractable digital text (< 100 characters or < 15 words). It appears to be a scanned image or flattened drawing. OCR processing or a high-resolution vector PDF is required.',
         };
       }
 
@@ -78,16 +80,17 @@ export async function extractTextFromDocument(
       const fullText = data.text || '';
       const pagesCount = data.numpages || 1;
       const trimmed = fullText.trim();
+      const wordCount = trimmed ? trimmed.split(/\s+/).filter(Boolean).length : 0;
+      const isScannedOrEmpty = trimmed.length < 100 || wordCount < 15;
       return {
         text: fullText,
         pages: [{ pageNumber: 1, text: fullText }],
         pagesCount,
-        isReadable: trimmed.length >= 40,
-        isScanned: trimmed.length < 40,
-        unreadableReason:
-          trimmed.length < 40
-            ? 'Document contains virtually no extractable digital text.'
-            : undefined,
+        isReadable: !isScannedOrEmpty,
+        isScanned: isScannedOrEmpty,
+        unreadableReason: isScannedOrEmpty
+          ? 'Document contains virtually no extractable digital text (< 100 characters or < 15 words). It appears to be a scanned image or flattened drawing. OCR processing or a high-resolution vector PDF is required.'
+          : undefined,
       };
     }
   } catch (error: any) {

@@ -1,4 +1,58 @@
-export type ReviewStatus = 'needs_review' | 'confirmed' | 'rejected' | 'missing';
+export type ReviewStatus =
+  | 'needs_review'
+  | 'confirmed'
+  | 'rejected'
+  | 'missing'
+  | 'extracted'
+  | 'not_found'
+  | 'extraction_failed';
+
+export type CategoryExtractionStatus =
+  | 'extracted'
+  | 'not_found'
+  | 'needs_review'
+  | 'extraction_failed';
+
+export interface CategoryFinding {
+  field?: string;
+  value: string;
+  units?: string | null;
+  qualifier?: string | null;
+  test_conditions?: string | null;
+}
+
+export interface CategoryExtractionResult {
+  status: CategoryExtractionStatus;
+  findings: CategoryFinding[];
+  source_sections: string[];
+  evidence: string[];
+  summary?: string | null;
+  missing_reason?: string | null;
+}
+
+export interface StructuredSdsExtraction {
+  chemical_identity: {
+    name: string | null;
+    cas_number: string | null;
+    molecular_formula: string | null;
+    molecular_weight: string | null;
+  };
+  psi: {
+    toxicity: CategoryExtractionResult;
+    exposure_limits: CategoryExtractionResult;
+    physical_data: CategoryExtractionResult;
+    reactivity: CategoryExtractionResult;
+    corrosivity: CategoryExtractionResult;
+    thermal_chemical_stability: CategoryExtractionResult;
+    hazardous_effects_of_inadvertent_mixing: CategoryExtractionResult;
+  };
+  extraction_metadata: {
+    document_name: string | null;
+    pages_processed: number[];
+    extraction_status: 'complete' | 'partial' | 'failed';
+    warnings: string[];
+  };
+}
 
 export interface FieldSource {
   document: string;
@@ -23,6 +77,10 @@ export interface PsiFieldRecord {
   units?: string | null;
   updated_at?: string;
   missing_reason?: string | null;
+  category_status?: CategoryExtractionStatus;
+  findings?: CategoryFinding[];
+  source_sections?: string[];
+  evidence?: string[];
 }
 
 export interface PsiParameters {
@@ -161,6 +219,7 @@ export interface ChemicalRecord {
   concentration?: string | null;
   description?: string | null;
   structured_psi?: StructuredPsiParameters;
+  structured_extraction?: StructuredSdsExtraction;
   audit_history?: ChemicalAuditEntry[];
   created_at: string;
   updated_at: string;

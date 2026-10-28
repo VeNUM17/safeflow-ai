@@ -141,8 +141,14 @@ export const PsiReviewWorkspace: React.FC<Props> = ({
   // Filter fields
   const filteredFields = PSI_FIELDS_CONFIG.filter((cfg) => {
     const fieldData = activeChemical.psi_parameters[cfg.key];
-    if (statusFilter !== 'all' && fieldData.review_status !== statusFilter) {
-      return false;
+    if (statusFilter !== 'all') {
+      if (statusFilter === 'missing' && (fieldData.review_status === 'missing' || fieldData.category_status === 'not_found')) {
+        // match
+      } else if (statusFilter === 'needs_review' && (fieldData.review_status === 'needs_review' || fieldData.category_status === 'extracted')) {
+        // match
+      } else if (fieldData.review_status !== statusFilter && fieldData.category_status !== statusFilter) {
+        return false;
+      }
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -152,6 +158,25 @@ export const PsiReviewWorkspace: React.FC<Props> = ({
       return val.includes(q) || label.includes(q) || snippet.includes(q);
     }
     return true;
+  });
+
+  // Calculate coverage across all 7 OSHA categories
+  let extractedCount = 0;
+  let notFoundCount = 0;
+  let confirmedCount = 0;
+  let failedCount = 0;
+
+  PSI_FIELDS_CONFIG.forEach((cfg) => {
+    const f = activeChemical.psi_parameters[cfg.key];
+    if (f.review_status === 'confirmed') {
+      confirmedCount++;
+    } else if (f.review_status === 'extraction_failed' || f.category_status === 'extraction_failed') {
+      failedCount++;
+    } else if (f.category_status === 'extracted' || f.value) {
+      extractedCount++;
+    } else {
+      notFoundCount++;
+    }
   });
 
   return (
@@ -291,6 +316,50 @@ export const PsiReviewWorkspace: React.FC<Props> = ({
               {activeChemical.sds_revision_date.user_value || activeChemical.sds_revision_date.value || 'Undated'}
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* 7-Category Pipeline Coverage Status Banner */}
+      <div
+        className={`p-3.5 rounded-xl border text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+          failedCount > 0
+            ? 'bg-rose-950/20 border-rose-800/40 text-rose-300'
+            : extractedCount + confirmedCount === 7
+            ? 'bg-emerald-950/20 border-emerald-800/40 text-emerald-300'
+            : extractedCount + confirmedCount === 1
+            ? 'bg-amber-950/30 border-amber-800/50 text-amber-300'
+            : 'bg-slate-900 border-slate-800 text-slate-300'
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          {extractedCount + confirmedCount === 7 ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          ) : extractedCount + confirmedCount === 1 ? (
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+          ) : (
+            <Info className="w-4 h-4 text-cyan-400 shrink-0" />
+          )}
+          <div>
+            <span className="font-semibold">
+              {extractedCount + confirmedCount === 7
+                ? 'Complete 7-Category Extraction: '
+                : extractedCount + confirmedCount === 1
+                ? 'Partial Extraction Notice: '
+                : 'PSI Parameter Coverage: '}
+            </span>
+            <span>
+              {extractedCount + confirmedCount} of 7 Categories Extracted
+              {notFoundCount > 0 && ` • ${notFoundCount} Absent from Document`}
+              {confirmedCount > 0 && ` • ${confirmedCount} Verified`}
+              {failedCount > 0 && ` • ${failedCount} Extraction Failed`}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0 text-[11px] font-mono">
+          <span className="bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-slate-300">
+            {Math.round(((extractedCount + confirmedCount) / 7) * 100)}% Coverage
+          </span>
         </div>
       </div>
 

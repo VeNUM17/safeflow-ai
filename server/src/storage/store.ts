@@ -334,6 +334,56 @@ export class PsiDataStore {
   public addChemical(chem: ChemicalRecord): void {
     const existingIdx = this.data.chemicals.findIndex((c) => c.id === chem.id);
     if (existingIdx >= 0) {
+      const existing = this.data.chemicals[existingIdx];
+      const psiKeys: (keyof PsiParameters)[] = [
+        'toxicity',
+        'permissible_exposure_limits',
+        'physical_data',
+        'reactivity_data',
+        'corrosivity_data',
+        'thermal_and_chemical_stability_data',
+        'inadvertent_mixing_hazards',
+      ];
+
+      for (const k of psiKeys) {
+        const existField = existing.psi_parameters[k];
+        const newField = chem.psi_parameters[k];
+
+        // If user already confirmed or provided manual value, preserve user_value and verification status
+        if (
+          existField.user_value !== null ||
+          existField.verification_status === 'verified' ||
+          existField.review_status === 'confirmed'
+        ) {
+          newField.user_value = existField.user_value;
+          newField.review_status = existField.review_status;
+          newField.verification_status = existField.verification_status;
+          newField.verified_by = existField.verified_by;
+          newField.verified_at = existField.verified_at;
+          newField.notes = existField.notes || newField.notes;
+          newField.value = existField.user_value;
+        } else if (newField.category_status === 'not_found' && existField.category_status === 'extracted') {
+          // Do not let a partial/empty re-extraction wipe out a previously valid extraction
+          chem.psi_parameters[k] = existField;
+        }
+      }
+
+      // Preserve origin and audit history
+      if (existing.origin === 'manual_entry') {
+        chem.origin = 'hybrid';
+      } else if (existing.origin) {
+        chem.origin = existing.origin;
+      }
+      chem.audit_history = [
+        ...(existing.audit_history || []),
+        {
+          timestamp: new Date().toISOString(),
+          author: 'SafeFlow SDS Extractor',
+          action: 'sds_linked',
+          change_summary: `Linked SDS extraction without overwriting manual/verified values`,
+        },
+      ];
+
       this.data.chemicals[existingIdx] = chem;
     } else {
       this.data.chemicals.push(chem);
@@ -807,6 +857,11 @@ export class PsiDataStore {
         param.user_value = updates.user_value;
       }
       param.review_status = updates.review_status;
+      if (updates.review_status === 'confirmed') {
+        param.verification_status = 'verified';
+      } else if (updates.review_status === 'rejected') {
+        param.verification_status = 'unverified';
+      }
       if (updates.notes !== undefined) {
         param.notes = updates.notes;
       }

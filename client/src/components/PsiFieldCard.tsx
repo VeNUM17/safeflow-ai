@@ -100,10 +100,11 @@ export const PsiFieldCard: React.FC<Props> = ({
           </span>
         );
       case 'needs_review':
+      case 'extracted':
         return (
           <span className="flex items-center gap-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-semibold px-2 py-0.5 rounded-md animate-pulse">
             <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-            Needs Review
+            Extracted (Needs Review)
           </span>
         );
       case 'rejected':
@@ -113,12 +114,20 @@ export const PsiFieldCard: React.FC<Props> = ({
             Rejected
           </span>
         );
+      case 'extraction_failed':
+        return (
+          <span className="flex items-center gap-1 bg-rose-950/60 text-rose-300 border border-rose-700/60 text-[11px] font-semibold px-2 py-0.5 rounded-md">
+            <XCircle className="w-3.5 h-3.5 text-rose-400" />
+            Extraction Failed
+          </span>
+        );
       case 'missing':
+      case 'not_found':
       default:
         return (
           <span className="flex items-center gap-1 bg-slate-800 text-slate-400 border border-slate-700 text-[11px] font-semibold px-2 py-0.5 rounded-md">
             <HelpCircle className="w-3.5 h-3.5 text-slate-500" />
-            Missing / Unknown
+            Not Stated in SDS
           </span>
         );
     }
@@ -127,11 +136,11 @@ export const PsiFieldCard: React.FC<Props> = ({
   return (
     <div
       className={`rounded-xl border transition-all ${
-        status === 'needs_review'
+        status === 'needs_review' || status === 'extracted'
           ? 'bg-slate-900/90 border-amber-500/40 shadow-sm'
           : status === 'confirmed'
           ? 'bg-slate-900/70 border-slate-800'
-          : status === 'rejected'
+          : status === 'rejected' || status === 'extraction_failed'
           ? 'bg-slate-900/50 border-rose-800/40'
           : 'bg-slate-900/40 border-slate-800/80'
       } p-4`}
@@ -159,18 +168,34 @@ export const PsiFieldCard: React.FC<Props> = ({
 
       {/* Body: Value presentation */}
       <div className="mt-3 space-y-3">
-        {/* If Missing */}
-        {status === 'missing' && !isEditing && (
-          <div className="bg-slate-950/80 p-3 rounded-lg border border-dashed border-slate-800 text-slate-400 text-xs flex items-start gap-2">
-            <HelpCircle className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+        {/* If Extraction Failed */}
+        {(status === 'extraction_failed' || fieldData.category_status === 'extraction_failed') && !isEditing && (
+          <div className="bg-rose-950/40 p-3 rounded-lg border border-dashed border-rose-500/50 text-rose-300 text-xs flex items-start gap-2">
+            <XCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
             <div>
-              <div className="font-semibold text-slate-300">Explicit Missing State</div>
-              <p className="mt-0.5 text-slate-400">
-                {fieldData.missing_reason || 'This parameter is not stated in the source SDS. It must not be assumed safe or zero.'}
+              <div className="font-semibold text-rose-200">Extraction Technical Failure</div>
+              <p className="mt-0.5 text-rose-300/90">
+                {fieldData.missing_reason || 'Technical failure during document parsing or text extraction. OCR or manual entry required.'}
               </p>
             </div>
           </div>
         )}
+
+        {/* If Missing / Not Found */}
+        {(status === 'missing' || status === 'not_found' || fieldData.category_status === 'not_found') &&
+          status !== 'extraction_failed' &&
+          !isEditing &&
+          !fieldData.value && (
+            <div className="bg-slate-950/80 p-3 rounded-lg border border-dashed border-slate-800 text-slate-400 text-xs flex items-start gap-2">
+              <HelpCircle className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+              <div>
+                <div className="font-semibold text-slate-300">Information Absent in SDS</div>
+                <p className="mt-0.5 text-slate-400">
+                  {fieldData.missing_reason || 'This parameter was evaluated but is not documented in the source SDS. Under OSHA 1910.119(d)(1), absent data must not be assumed safe or zero.'}
+                </p>
+              </div>
+            </div>
+          )}
 
         {/* If Editing Mode */}
         {isEditing ? (
@@ -264,6 +289,35 @@ export const PsiFieldCard: React.FC<Props> = ({
                 <div className="text-slate-200 text-xs font-mono leading-relaxed whitespace-pre-wrap">
                   {fieldData.value}
                 </div>
+
+                {/* Structured Findings List (if available) */}
+                {fieldData.findings && fieldData.findings.length > 0 && (
+                  <div className="mt-2.5 pt-2 border-t border-slate-800 space-y-1.5">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-cyan-400">
+                      Granular Source Findings ({fieldData.findings.length}):
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {fieldData.findings.map((f, idx) => (
+                        <div
+                          key={idx}
+                          className="bg-slate-900/90 border border-slate-800 p-1.5 rounded text-[11px] font-sans flex flex-col"
+                        >
+                          <div className="flex items-center justify-between text-slate-300">
+                            <span className="font-semibold text-cyan-300">{f.field || 'Measurement'}:</span>
+                            <span className="font-mono text-emerald-300 font-medium">
+                              {f.value} {f.units || ''}
+                            </span>
+                          </div>
+                          {f.qualifier && (
+                            <span className="text-[10px] text-slate-400 italic mt-0.5 truncate" title={f.qualifier}>
+                              {f.qualifier}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {fieldData.notes && (
                   <div className="mt-2 pt-2 border-t border-slate-800 text-[11px] text-slate-400 italic">
                     Note: {fieldData.notes}

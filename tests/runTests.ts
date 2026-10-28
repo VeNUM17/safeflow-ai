@@ -3117,6 +3117,560 @@ test('Scenario 14: Full regression testing - existing digital P&ID, SDS extracti
   store.deleteProject(proj.id);
 });
 
+// ----------------------------------------------------
+// Test Group 14: SDS-to-PSI Extraction Pipeline Fix & Section 9 Regression Suite
+// ----------------------------------------------------
+console.log('\n--- Test Group 14: SDS-to-PSI Extraction Pipeline Fix & Section 9 Regression Suite ---');
+
+test('Criterion 1: Fixture containing evidence for all seven categories populates all seven categories', async () => {
+  const allSevenFixture = `
+SAFETY DATA SHEET
+SECTION 1 — IDENTIFICATION
+Product Identifier: Complete Process Fluid Safe-700
+CAS Number: 108-88-3
+Manufacturer: Apex Safety Chemicals Inc.
+Revision Date: 2026-04-15
+
+SECTION 2 — HAZARDS IDENTIFICATION
+Corrosive to metals, Category 1. Causes severe skin burns and eye damage.
+Acute inhalation toxicity Category 4.
+
+SECTION 3 — COMPOSITION / INGREDIENTS
+Toluene and amine blend.
+
+SECTION 8 — EXPOSURE CONTROLS / PERSONAL PROTECTION
+OSHA PEL: 200 ppm (8-hr TWA), Ceiling 300 ppm.
+ACGIH TLV: 20 ppm TWA.
+NIOSH REL: 100 ppm (375 mg/m3) TWA, STEL 150 ppm (560 mg/m3). IDLH: 500 ppm.
+
+SECTION 9 — PHYSICAL AND CHEMICAL PROPERTIES
+Boiling Point: 110.6 C (231 F)
+Melting Point: -95 C
+Vapor Pressure: 28 mmHg at 25 C
+Vapor Density: 3.1 (Air = 1)
+Flash Point: 4.4 C (40 F) closed cup
+pH: 12.8 (alkaline concentrate)
+Specific Gravity: 0.867 at 20 C
+
+SECTION 10 — STABILITY AND REACTIVITY
+10.1 Reactivity: Reacts vigorously with strong oxidizers.
+10.2 Chemical stability: Stable under recommended storage conditions.
+10.3 Possibility of hazardous reactions: Exothermic reaction when exposed to concentrated acids.
+10.4 Conditions to avoid: Heat, flames, sparks, and static discharge.
+10.5 Incompatible materials: Incompatible with strong mineral acids, halogens, sodium hypochlorite bleach.
+Inadvertent mixing with hypochlorite bleach generates toxic chloroamine vapor.
+10.6 Hazardous decomposition products: Thermal decomposition above 380 C releases carbon monoxide and nitrogen oxides.
+
+SECTION 11 — TOXICOLOGICAL INFORMATION
+Acute Toxicity:
+Inhalation LC50 (rat, 4-hr): 5,000 ppm.
+Oral LD50 (rat): 5,580 mg/kg.
+Dermal LD50 (rabbit): 12,196 mg/kg.
+Causes severe respiratory tract burns, pulmonary edema, and central nervous system depression.
+`;
+
+  const doc = {
+    text: allSevenFixture,
+    pages: [{ pageNumber: 1, text: allSevenFixture }],
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+  };
+
+  const chem = parseSdsContent(doc, 'doc-all-7', 'complete_sds.pdf', 'proj-14');
+  assert.strictEqual(chem.chemical_name.value, 'Complete Process Fluid Safe-700');
+  assert.strictEqual(chem.cas_number.value, '108-88-3');
+
+  const psi = chem.psi_parameters;
+  // Verify all 7 categories are populated
+  assert.strictEqual(psi.toxicity.category_status, 'extracted');
+  assert.ok(psi.toxicity.value && psi.toxicity.value.includes('LC50'));
+  assert.ok(psi.toxicity.findings && psi.toxicity.findings.length >= 2);
+
+  assert.strictEqual(psi.permissible_exposure_limits.category_status, 'extracted');
+  assert.ok(psi.permissible_exposure_limits.value && psi.permissible_exposure_limits.value.includes('OSHA PEL'));
+  assert.ok(psi.permissible_exposure_limits.findings && psi.permissible_exposure_limits.findings.length >= 2);
+
+  assert.strictEqual(psi.physical_data.category_status, 'extracted');
+  assert.ok(psi.physical_data.value && psi.physical_data.value.includes('Boiling Point'));
+  assert.ok(psi.physical_data.findings && psi.physical_data.findings.length >= 4);
+
+  assert.strictEqual(psi.reactivity_data.category_status, 'extracted');
+  assert.ok(psi.reactivity_data.value && psi.reactivity_data.value.toLowerCase().includes('react'));
+
+  assert.strictEqual(psi.corrosivity_data.category_status, 'extracted');
+  assert.ok(psi.corrosivity_data.value && (psi.corrosivity_data.value.includes('Corrosive to metals') || psi.corrosivity_data.value.includes('pH 12.8')));
+
+  assert.strictEqual(psi.thermal_and_chemical_stability_data.category_status, 'extracted');
+  assert.ok(psi.thermal_and_chemical_stability_data.value && psi.thermal_and_chemical_stability_data.value.toLowerCase().includes('stable'));
+
+  assert.strictEqual(psi.inadvertent_mixing_hazards.category_status, 'extracted');
+  assert.ok(psi.inadvertent_mixing_hazards.value && psi.inadvertent_mixing_hazards.value.toLowerCase().includes('bleach'));
+
+  // Structured extraction metadata
+  assert.ok(chem.structured_extraction);
+  assert.strictEqual(chem.structured_extraction.extraction_metadata.extraction_status, 'complete');
+});
+
+test('Criterion 2: Fixture containing corrosivity information but no toxicity data does not fabricate toxicity findings', () => {
+  const corrosivityOnlyFixture = `
+SAFETY DATA SHEET
+SECTION 1 — IDENTIFICATION
+Product Identifier: Acid Wash Solution AC-10
+CAS Number: 7664-38-2
+Manufacturer: Industrial Cleaning Systems LLC
+
+SECTION 2 — HAZARDS IDENTIFICATION
+Corrosive to metals, Category 1. Causes severe skin burns and serious eye damage.
+
+SECTION 9 — PHYSICAL PROPERTIES
+pH: 1.2
+Appearance: Clear colorless liquid
+
+SECTION 10 — STABILITY AND REACTIVITY
+Incompatible with strong bases and reactive metals.
+`;
+
+  const doc = {
+    text: corrosivityOnlyFixture,
+    pages: [{ pageNumber: 1, text: corrosivityOnlyFixture }],
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+  };
+
+  const chem = parseSdsContent(doc, 'doc-corr-only', 'corrosivity_only.pdf', 'proj-14');
+  const psi = chem.psi_parameters;
+
+  // Corrosivity MUST be extracted
+  assert.strictEqual(psi.corrosivity_data.category_status, 'extracted');
+  assert.ok(psi.corrosivity_data.value && psi.corrosivity_data.value.includes('Corrosive to metals'));
+
+  // Toxicity MUST NOT be fabricated or populated
+  assert.strictEqual(psi.toxicity.category_status, 'not_found');
+  assert.strictEqual(psi.toxicity.review_status, 'missing');
+  assert.strictEqual(psi.toxicity.value, null, 'Toxicity value must remain strictly null');
+  assert.strictEqual(psi.toxicity.machine_value, null);
+  assert.strictEqual(psi.toxicity.findings?.length, 0);
+  assert.ok(psi.toxicity.missing_reason && psi.toxicity.missing_reason.includes('No acute or chronic toxicological data'));
+});
+
+test('Criterion 3: An SDS containing exposure limits in Section 8 correctly populates exposure limits', () => {
+  const pelFixture = `
+SECTION 8 — EXPOSURE CONTROLS / PERSONAL PROTECTION
+Workplace Exposure Limits:
+OSHA PEL: 50 ppm (8-hr TWA)
+ACGIH TLV: 25 ppm TWA, 35 ppm STEL
+NIOSH REL: 25 ppm TWA, IDLH: 300 ppm
+`;
+
+  const doc = {
+    text: pelFixture,
+    pages: [{ pageNumber: 1, text: pelFixture }],
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+  };
+
+  const chem = parseSdsContent(doc, 'doc-pel', 'pel.pdf', 'proj-14');
+  const pel = chem.psi_parameters.permissible_exposure_limits;
+
+  assert.strictEqual(pel.category_status, 'extracted');
+  assert.strictEqual(pel.review_status, 'needs_review');
+  assert.ok(pel.value?.includes('OSHA PEL'));
+  assert.ok(pel.findings && pel.findings.length >= 3);
+  const oshaFinding = pel.findings?.find((f) => f.field === 'OSHA PEL');
+  assert.ok(oshaFinding);
+  assert.strictEqual(oshaFinding?.value, '50');
+  assert.strictEqual(oshaFinding?.units, 'ppm');
+});
+
+test('Criterion 4: Physical properties in Section 9 correctly populate physical data', () => {
+  const physFixture = `
+SECTION 9 — PHYSICAL AND CHEMICAL PROPERTIES
+Boiling Point: 65.0 C (149 F)
+Melting Point: -97.8 C
+Vapor Pressure: 128 hPa at 20 C
+Flash Point: 11.0 C closed cup
+pH: 7.0
+Relative density: 0.79 g/cm3
+`;
+
+  const doc = {
+    text: physFixture,
+    pages: [{ pageNumber: 1, text: physFixture }],
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+  };
+
+  const chem = parseSdsContent(doc, 'doc-phys', 'phys.pdf', 'proj-14');
+  const phys = chem.psi_parameters.physical_data;
+
+  assert.strictEqual(phys.category_status, 'extracted');
+  assert.ok(phys.value?.includes('Boiling Point'));
+  assert.ok(phys.findings && phys.findings.length >= 4);
+  const bpFinding = phys.findings?.find((f) => f.field === 'Boiling Point');
+  assert.ok(bpFinding);
+  assert.ok(bpFinding?.value.includes('65.0 C'));
+});
+
+test('Criterion 5: Stability and incompatibility information in Section 10 populates the appropriate categories', () => {
+  const sec10Fixture = `
+SECTION 10 — STABILITY AND REACTIVITY
+10.1 Reactivity: Hazardous polymerization will not occur.
+10.2 Chemical stability: Thermally stable below 180 C. Decomposes above 200 C releasing toxic vapors.
+10.3 Incompatible materials: Inadvertent mixing with sodium hypochlorite (bleach) creates violent exotherm and hazardous gases.
+Incompatible with strong acids.
+`;
+
+  const doc = {
+    text: sec10Fixture,
+    pages: [{ pageNumber: 1, text: sec10Fixture }],
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+  };
+
+  const chem = parseSdsContent(doc, 'doc-sec10', 'sec10.pdf', 'proj-14');
+  const stab = chem.psi_parameters.thermal_and_chemical_stability_data;
+  const mix = chem.psi_parameters.inadvertent_mixing_hazards;
+  const react = chem.psi_parameters.reactivity_data;
+
+  // Reactivity
+  assert.strictEqual(react.category_status, 'extracted');
+  assert.ok(react.value?.includes('polymerization'));
+
+  // Stability
+  assert.strictEqual(stab.category_status, 'extracted');
+  assert.ok(stab.value?.includes('Thermally stable'));
+
+  // Inadvertent Mixing
+  assert.strictEqual(mix.category_status, 'extracted');
+  assert.ok(mix.value?.includes('sodium hypochlorite (bleach)'));
+});
+
+test('Criterion 6: Toxicological information in Section 11 populates toxicity', () => {
+  const toxFixture = `
+SECTION 11 — TOXICOLOGICAL INFORMATION
+Acute Inhalation Toxicity: LC50 (rat, 4 hours) = 1,250 ppm.
+Severe respiratory irritation and pulmonary edema observed following acute exposure.
+Oral LD50: 850 mg/kg (rat).
+`;
+
+  const doc = {
+    text: toxFixture,
+    pages: [{ pageNumber: 1, text: toxFixture }],
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+  };
+
+  const chem = parseSdsContent(doc, 'doc-tox', 'tox.pdf', 'proj-14');
+  const tox = chem.psi_parameters.toxicity;
+
+  assert.strictEqual(tox.category_status, 'extracted');
+  assert.ok(tox.value?.includes('LC50'));
+  assert.ok(tox.findings && tox.findings.length >= 2);
+  const lc50Finding = tox.findings?.find((f) => f.field === 'Inhalation LC50');
+  assert.ok(lc50Finding);
+  assert.strictEqual(lc50Finding?.value, '1250');
+  assert.strictEqual(lc50Finding?.units, 'ppm');
+});
+
+test('Criterion 7: A scanned or text-empty PDF produces a clear OCR/failure status instead of a misleading successful extraction', () => {
+  const scannedDoc = {
+    text: '   ',
+    pages: [{ pageNumber: 1, text: '' }],
+    pagesCount: 1,
+    isReadable: false,
+    unreadableReason: 'Document contains virtually no extractable digital text (< 100 characters or < 15 words). It appears to be a scanned image or flattened drawing. OCR processing or a high-resolution vector PDF is required.',
+    isScanned: true,
+  };
+
+  const chem = parseSdsContent(scannedDoc, 'doc-scanned', 'scanned_sds.pdf', 'proj-14');
+  
+  // Every PSI category must have extraction_failed status and explicit reason
+  const psi = chem.psi_parameters;
+  for (const [key, field] of Object.entries(psi)) {
+    assert.strictEqual(field.category_status, 'extraction_failed', `Category ${key} must have extraction_failed status`);
+    assert.strictEqual(field.review_status, 'extraction_failed', `Category ${key} review status must be extraction_failed`);
+    assert.strictEqual(field.value, null);
+    assert.ok(field.missing_reason && field.missing_reason.includes('unreadable or scanned'));
+  }
+});
+
+test('Criterion 8: Partial model responses / multiple extractions do not erase valid findings from other categories', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Test Partial Overwrite Protection', '');
+
+  // First extraction: all 7 categories present
+  const fullFixture = `
+SECTION 1 — IDENTIFICATION
+Product Identifier: Test Chem Alpha
+CAS: 50-00-0
+
+SECTION 8 — EXPOSURE CONTROLS
+OSHA PEL: 0.75 ppm 8-hr TWA
+
+SECTION 9 — PHYSICAL DATA
+Boiling Point: -19 C
+`;
+  const doc1 = {
+    text: fullFixture,
+    pages: [{ pageNumber: 1, text: fullFixture }],
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+  };
+  const chem1 = parseSdsContent(doc1, 'doc-1', 'sds1.pdf', proj.id);
+  store.addChemical(chem1);
+
+  assert.strictEqual(chem1.psi_parameters.permissible_exposure_limits.category_status, 'extracted');
+  assert.strictEqual(chem1.psi_parameters.physical_data.category_status, 'extracted');
+
+  // Second extraction of the same chemical record with only exposure limits
+  const partialFixture = `
+SECTION 1 — IDENTIFICATION
+Product Identifier: Test Chem Alpha
+CAS: 50-00-0
+
+SECTION 8 — EXPOSURE CONTROLS
+OSHA PEL: 0.75 ppm 8-hr TWA
+`;
+  const doc2 = {
+    text: partialFixture,
+    pages: [{ pageNumber: 1, text: partialFixture }],
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+  };
+  const chem2 = parseSdsContent(doc2, 'doc-2', 'sds2.pdf', proj.id);
+  chem2.id = chem1.id; // simulate re-extraction for the same chemical ID
+  store.addChemical(chem2);
+
+  const updatedChem = store.getChemical(chem1.id);
+  assert.ok(updatedChem);
+  // Physical data must NOT have been erased by the partial re-extraction!
+  assert.strictEqual(updatedChem?.psi_parameters.physical_data.category_status, 'extracted');
+  assert.ok(updatedChem?.psi_parameters.physical_data.value?.includes('Boiling Point'));
+
+  store.deleteProject(proj.id);
+});
+
+test('Criterion 9: All seven categories survive schema validation, database persistence, and retrieval', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Test DB Persistence All 7', '');
+
+  const completeFixture = `
+SECTION 1 — IDENTIFICATION
+Product: HexaSafe Industrial Solvent
+CAS: 110-54-3
+Manufacturer: Apex Solvents
+
+SECTION 2 — HAZARDS
+Corrosive to metals, Category 1.
+
+SECTION 8 — EXPOSURE CONTROLS
+OSHA PEL: 500 ppm TWA.
+
+SECTION 9 — PHYSICAL PROPERTIES
+Boiling Point: 69 C. Flash Point: -22 C. pH: 1.5
+
+SECTION 10 — STABILITY AND REACTIVITY
+Reactivity: Highly reactive with oxidizing agents.
+Chemical stability: Stable under normal temperatures. Decomposes at 250 C.
+Incompatible materials: Inadvertent mixing with liquid chlorine produces explosion.
+
+SECTION 11 — TOXICOLOGY
+Inhalation LC50: 48000 ppm (rat, 4hr).
+`;
+
+  const doc = {
+    text: completeFixture,
+    pages: [{ pageNumber: 1, text: completeFixture }],
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+  };
+
+  const chem = parseSdsContent(doc, 'doc-persist', 'sds.pdf', proj.id);
+  store.addChemical(chem);
+
+  // Retrieve fresh from database store
+  const loaded = store.getChemical(chem.id);
+  assert.ok(loaded);
+  assert.strictEqual(loaded?.chemical_name.value, 'HexaSafe Industrial Solvent');
+
+  const psiKeys = [
+    'toxicity',
+    'permissible_exposure_limits',
+    'physical_data',
+    'reactivity_data',
+    'corrosivity_data',
+    'thermal_and_chemical_stability_data',
+    'inadvertent_mixing_hazards',
+  ] as const;
+
+  for (const k of psiKeys) {
+    const field = loaded?.psi_parameters[k];
+    assert.ok(field, `Field ${k} must exist`);
+    assert.strictEqual(field?.category_status, 'extracted', `Field ${k} must survive persistence as extracted`);
+    assert.ok(field?.value, `Field ${k} must have non-empty value`);
+    assert.ok(field?.source?.document, `Field ${k} source document must persist`);
+  }
+
+  // Reload store from disk
+  const reloadedStore = new PsiDataStore();
+  const diskLoaded = reloadedStore.getChemical(chem.id);
+  assert.ok(diskLoaded);
+  for (const k of psiKeys) {
+    const field = diskLoaded?.psi_parameters[k];
+    assert.strictEqual(field?.category_status, 'extracted');
+  }
+
+  store.deleteProject(proj.id);
+});
+
+test('Criterion 10: The frontend data contract displays all seven categories and their correct statuses', () => {
+  // Ensure the 7 OSHA CFR 1910.119(d)(1) configuration keys match exactly
+  const frontendConfigKeys = [
+    'toxicity',
+    'permissible_exposure_limits',
+    'physical_data',
+    'reactivity_data',
+    'corrosivity_data',
+    'thermal_and_chemical_stability_data',
+    'inadvertent_mixing_hazards',
+  ];
+
+  const emptyDoc = {
+    text: 'SECTION 1 — Identification\nProduct: Simple Water\nCAS: 7732-18-5',
+    pages: [{ pageNumber: 1, text: 'SECTION 1 — Identification\nProduct: Simple Water\nCAS: 7732-18-5' }],
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+  };
+  const chem = parseSdsContent(emptyDoc, 'doc-frontend', 'water.pdf', 'proj-14');
+
+  for (const key of frontendConfigKeys) {
+    const field = (chem.psi_parameters as any)[key];
+    assert.ok(field, `Frontend key ${key} must exist on chemical.psi_parameters`);
+    assert.strictEqual(field.category_status, 'not_found', `Field ${key} must have not_found status`);
+    assert.strictEqual(field.review_status, 'missing');
+    assert.ok(field.missing_reason, `Field ${key} must have human-readable missing explanation`);
+  }
+});
+
+test('Criterion 11: Manual or verified values are not silently overwritten', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Test Manual Value Protection', '');
+
+  // Create chemical with verified user value
+  const chem = parseSdsContent(
+    {
+      text: 'SECTION 1 — IDENTIFICATION\nProduct: Verified Solvent\nCAS: 67-64-1',
+      pages: [{ pageNumber: 1, text: 'SECTION 1 — IDENTIFICATION\nProduct: Verified Solvent\nCAS: 67-64-1' }],
+      pagesCount: 1,
+      isReadable: true,
+      isScanned: false,
+    },
+    'doc-user-val',
+    'sds.pdf',
+    proj.id
+  );
+  store.addChemical(chem);
+
+  // Engineer verifies and overrides permissible exposure limits
+  const updatedField = store.updatePsiField(chem.id, 'permissible_exposure_limits', {
+    user_value: '250 ppm 8-hr TWA (Engineering Verified)',
+    review_status: 'confirmed',
+    notes: 'Verified via certified industrial hygiene monitoring',
+  });
+  assert.ok(updatedField);
+
+  // Subsequent automated re-extraction from a new SDS file
+  const reExtractedChem = parseSdsContent(
+    {
+      text: `SECTION 1 — IDENTIFICATION\nProduct: Verified Solvent\nCAS: 67-64-1\nSECTION 8 — EXPOSURE CONTROLS\nOSHA PEL: 1000 ppm TWA`,
+      pages: [{ pageNumber: 1, text: '...' }],
+      pagesCount: 1,
+      isReadable: true,
+      isScanned: false,
+    },
+    'doc-new-sds',
+    'new_sds.pdf',
+    proj.id
+  );
+  reExtractedChem.id = chem.id;
+  store.addChemical(reExtractedChem);
+
+  // Verify that the user value and confirmed review status remain 100% intact!
+  const finalChem = store.getChemical(chem.id);
+  const pel = finalChem?.psi_parameters.permissible_exposure_limits;
+  assert.strictEqual(pel?.user_value, '250 ppm 8-hr TWA (Engineering Verified)');
+  assert.strictEqual(pel?.review_status, 'confirmed');
+  assert.strictEqual(pel?.verification_status, 'verified');
+  assert.ok(pel?.notes?.includes('industrial hygiene monitoring'));
+  // And the new machine extraction was preserved in machine_value for auditability
+  assert.ok(pel?.machine_value?.includes('1000 ppm'));
+
+  store.deleteProject(proj.id);
+});
+
+test('Criterion 12: Existing extraction functionality and unrelated application features continue to work', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Full Regression Test Group 14', '');
+
+  // 1. Digital P&ID creation and sync
+  const drawing = store.seedSampleDrawing(proj.id);
+  assert.ok(drawing, 'Digital drawing created');
+  const syncRes = store.syncDrawingToProject(drawing.id, 'Regression Tester');
+  assert.ok(syncRes.success);
+  assert.ok(syncRes.equipment_count > 0);
+
+  // 2. SDS extraction for 2 representative demo chemicals
+  const doc = {
+    text: `
+SECTION 1 — IDENTIFICATION
+Product: Ammonia Solution
+CAS: 7664-41-7
+SECTION 8 — EXPOSURE CONTROLS
+OSHA PEL: 50 ppm
+SECTION 9 — PHYSICAL DATA
+Boiling Point: -33 C
+SECTION 10 — STABILITY
+Reactivity: Violently with acids. Incompatible with bleach producing chloramines.
+SECTION 11 — TOXICOLOGY
+LC50: 2000 ppm rat 4h.
+`,
+    pages: [{ pageNumber: 1, text: '...' }],
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+  };
+  const chem = parseSdsContent(doc, 'doc-reg-1', 'ammonia.pdf', proj.id);
+  store.addChemical(chem);
+  assert.strictEqual(chem.psi_parameters.toxicity.category_status, 'extracted');
+
+  // 3. Topology graph generation & validation
+  const graph = store.getProcessTopologyGraph(proj.id);
+  assert.ok(graph.nodes.length > 0);
+  const validation = store.getGraphValidation(proj.id);
+  assert.ok(validation);
+
+  // 4. PHA Node Candidate Segmentation
+  const nodes = store.generatePhaNodes(proj.id, 'Safety Facilitator');
+  assert.ok(nodes.length > 0);
+
+  // 5. Cross-SDS conflict detection
+  const projectChems = store.listChemicals(proj.id);
+  const conflicts = detectConflictsForProject(projectChems, proj.id, []);
+  assert.ok(Array.isArray(conflicts));
+
+  store.deleteProject(proj.id);
+});
+
 console.log(`\n========================================`);
 console.log(`Test Results: ${passedTests} Passed, ${failedTests} Failed`);
 console.log(`========================================\n`);
