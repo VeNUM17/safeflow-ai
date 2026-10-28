@@ -1,0 +1,47 @@
+{
+  "name": "psi-engine",
+  "version": "1.0.0",
+  "description": "Process-Safety Information (PSI) Identification Engine & Evidence Management Tool (OSHA 29 CFR 1910.119(d)(1))",
+  "main": "server/dist/index.js",
+  "scripts": {
+    "dev:server": "tsx server/src/index.ts",
+    "dev:client": "cd client && npm run dev",
+    "dev": "tsx server/src/index.ts",
+    "build:client": "cd client && npm run build",
+    "build:server": "tsc -p server/tsconfig.json",
+    "build": "npm run build:client && npm run build:server",
+    "start": "node server/dist/index.js",
+    "test": "npx tsx tests/runTests.ts"
+  },
+  "keywords": [
+    "process-safety",
+    "psi",
+    "osha-1910-119",
+    "sds",
+    "pid",
+    "gnn",
+    "hazop"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@types/pdf-parse": "^1.1.5",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.9",
+    "express": "^5.3.0",
+    "multer": "^2.5.0",
+    "pdf-parse": "^2.4.5",
+    "uuid": "^14.0.3",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.3.0",
+    "@types/node": "^26.6.5",
+    "@types/uuid": "^10.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
