@@ -12,6 +12,8 @@ import {
   Info,
   CheckCircle2,
   AlertTriangle,
+  Plus,
+  Edit3,
 } from 'lucide-react';
 import { ChemicalRecord, ReviewStatus, PsiParameters } from '../types';
 import { PsiFieldCard } from './PsiFieldCard';
@@ -31,6 +33,8 @@ interface Props {
   ) => Promise<void>;
   statusFilter: string;
   searchQuery: string;
+  onOpenManualChemicalModal?: () => void;
+  onEditChemical?: (chemical: ChemicalRecord) => void;
 }
 
 const PSI_FIELDS_CONFIG: {
@@ -98,6 +102,8 @@ export const PsiReviewWorkspace: React.FC<Props> = ({
   onUpdateField,
   statusFilter,
   searchQuery,
+  onOpenManualChemicalModal,
+  onEditChemical,
 }) => {
   const [inspectedSnippet, setInspectedSnippet] = useState<{
     text: string;
@@ -108,10 +114,19 @@ export const PsiReviewWorkspace: React.FC<Props> = ({
     return (
       <div className="max-w-7xl mx-auto px-4 py-16 text-center text-slate-400">
         <FlaskConical className="w-12 h-12 mx-auto text-slate-600 mb-3" />
-        <h3 className="text-lg font-semibold text-slate-200">No Chemical SDS Records Available</h3>
+        <h3 className="text-lg font-semibold text-slate-200">No Chemical Process Safety Records Available</h3>
         <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-          Upload Safety Data Sheet (SDS) PDFs or select a project with processed documents to view and verify Process Safety Information.
+          Upload Safety Data Sheet (SDS) PDFs, or create chemical records manually without requiring an SDS upload.
         </p>
+        {onOpenManualChemicalModal && (
+          <button
+            onClick={onOpenManualChemicalModal}
+            className="mt-4 inline-flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-lg text-xs font-semibold shadow-md transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            + Add Chemical Manually
+          </button>
+        )}
       </div>
     );
   }
@@ -181,48 +196,101 @@ export const PsiReviewWorkspace: React.FC<Props> = ({
             </button>
           );
         })}
+
+        {onOpenManualChemicalModal && (
+          <button
+            onClick={onOpenManualChemicalModal}
+            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-dashed border-cyan-500/50 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 text-xs font-medium shrink-0 transition-all"
+            title="Create a new chemical record manually"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Chemical</span>
+          </button>
+        )}
       </div>
 
       {/* Chemical Metadata Bar */}
-      <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-        <div>
-          <span className="text-slate-400 font-medium block flex items-center gap-1">
-            <FlaskConical className="w-3.5 h-3.5 text-cyan-400" />
-            Chemical / Product
-          </span>
-          <span className="font-semibold text-slate-100 mt-0.5 block truncate">
-            {activeChemical.chemical_name.user_value || activeChemical.chemical_name.value}
-          </span>
+      <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-3 text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-slate-200 text-sm">
+              {activeChemical.chemical_name.user_value || activeChemical.chemical_name.value}
+            </span>
+            {/* Origin badge */}
+            <span
+              className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                activeChemical.origin === 'manual_entry'
+                  ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                  : activeChemical.origin === 'hybrid'
+                  ? 'bg-indigo-500/10 text-indigo-300 border-indigo-500/30'
+                  : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30'
+              }`}
+            >
+              {activeChemical.origin === 'manual_entry'
+                ? 'Manual Entry'
+                : activeChemical.origin === 'hybrid'
+                ? 'Hybrid (Manual + SDS)'
+                : 'SDS Extracted'}
+            </span>
+            {/* Draft / Active badge */}
+            {activeChemical.record_status === 'draft' && (
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                Draft
+              </span>
+            )}
+          </div>
+
+          {onEditChemical && (
+            <button
+              onClick={() => onEditChemical(activeChemical)}
+              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-2.5 py-1 rounded text-xs transition-colors"
+            >
+              <Edit3 className="w-3.5 h-3.5 text-cyan-400" />
+              Edit Chemical & Specifications
+            </button>
+          )}
         </div>
 
-        <div>
-          <span className="text-slate-400 font-medium block flex items-center gap-1">
-            <Hash className="w-3.5 h-3.5 text-purple-400" />
-            CAS Number
-          </span>
-          <span className="font-mono font-semibold text-slate-100 mt-0.5 block">
-            {activeChemical.cas_number.user_value || activeChemical.cas_number.value || '(Not Found)'}
-          </span>
-        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div>
+            <span className="text-slate-400 font-medium block flex items-center gap-1">
+              <FlaskConical className="w-3.5 h-3.5 text-cyan-400" />
+              Chemical / Product
+            </span>
+            <span className="font-semibold text-slate-100 mt-0.5 block truncate">
+              {activeChemical.chemical_name.user_value || activeChemical.chemical_name.value}
+            </span>
+          </div>
 
-        <div>
-          <span className="text-slate-400 font-medium block flex items-center gap-1">
-            <Building className="w-3.5 h-3.5 text-amber-400" />
-            Manufacturer / Supplier
-          </span>
-          <span className="font-medium text-slate-200 mt-0.5 block truncate">
-            {activeChemical.manufacturer.user_value || activeChemical.manufacturer.value || 'N/A'}
-          </span>
-        </div>
+          <div>
+            <span className="text-slate-400 font-medium block flex items-center gap-1">
+              <Hash className="w-3.5 h-3.5 text-purple-400" />
+              CAS Number
+            </span>
+            <span className="font-mono font-semibold text-slate-100 mt-0.5 block">
+              {activeChemical.cas_number.user_value || activeChemical.cas_number.value || '(Not Found)'}
+            </span>
+          </div>
 
-        <div>
-          <span className="text-slate-400 font-medium block flex items-center gap-1">
-            <Calendar className="w-3.5 h-3.5 text-emerald-400" />
-            SDS Revision Date
-          </span>
-          <span className="font-mono text-slate-200 mt-0.5 block">
-            {activeChemical.sds_revision_date.user_value || activeChemical.sds_revision_date.value || 'Undated'}
-          </span>
+          <div>
+            <span className="text-slate-400 font-medium block flex items-center gap-1">
+              <Building className="w-3.5 h-3.5 text-amber-400" />
+              Manufacturer / Supplier
+            </span>
+            <span className="font-medium text-slate-200 mt-0.5 block truncate">
+              {activeChemical.manufacturer.user_value || activeChemical.manufacturer.value || 'N/A'}
+            </span>
+          </div>
+
+          <div>
+            <span className="text-slate-400 font-medium block flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+              SDS / Entry Revision Date
+            </span>
+            <span className="font-mono text-slate-200 mt-0.5 block">
+              {activeChemical.sds_revision_date.user_value || activeChemical.sds_revision_date.value || 'Undated'}
+            </span>
+          </div>
         </div>
       </div>
 

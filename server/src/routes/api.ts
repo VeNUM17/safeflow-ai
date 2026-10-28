@@ -250,6 +250,59 @@ router.get('/chemicals/:id', (req: Request, res: Response) => {
   res.json({ success: true, data: chem });
 });
 
+router.post('/projects/:id/chemicals/check-duplicate', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const { chemical_name, cas_number, exclude_id } = req.body;
+  if (!chemical_name && !cas_number) {
+    return res.json({ success: true, is_potential_duplicate: false, matches: [] });
+  }
+  const result = store.checkDuplicateChemical(projectId, chemical_name || '', cas_number, exclude_id);
+  res.json({ success: true, ...result });
+});
+
+router.post('/projects/:id/chemicals', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const { chemical_name } = req.body;
+  if (!chemical_name || !String(chemical_name).trim()) {
+    return res.status(400).json({ success: false, error: 'chemical_name is required' });
+  }
+  const chem = store.createManualChemical(projectId, req.body, req.body.reviewer);
+  res.status(201).json({ success: true, data: chem });
+});
+
+router.put('/chemicals/:id', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const updatedChem = store.updateChemical(id, req.body, req.body.reviewer, req.body.change_reason);
+  if (!updatedChem) {
+    return res.status(404).json({ success: false, error: 'Chemical record not found' });
+  }
+  res.json({ success: true, data: updatedChem });
+});
+
+router.delete('/chemicals/:id', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const reviewer = req.body?.reviewer || 'Process Safety Engineer';
+  const reason = req.body?.reason || 'Manual chemical deletion';
+  const success = store.deleteChemical(id, reviewer, reason);
+  if (!success) {
+    return res.status(404).json({ success: false, error: 'Chemical record not found' });
+  }
+  res.json({ success: true, message: 'Chemical deleted successfully' });
+});
+
+router.post('/chemicals/:id/link-sds', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const { sds_document_id, reviewer } = req.body;
+  if (!sds_document_id) {
+    return res.status(400).json({ success: false, error: 'sds_document_id is required' });
+  }
+  const result = store.linkSdsToChemical(id, sds_document_id, reviewer);
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+  res.json(result);
+});
+
 router.patch('/chemicals/:id/fields/:fieldKey', (req: Request, res: Response) => {
   const chemId = getParam(req.params.id);
   const fieldKey = getParam(req.params.fieldKey);

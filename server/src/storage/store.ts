@@ -28,6 +28,12 @@ import {
   SpecConflictEntry,
   createDefaultSpecifications,
   createEmptySpecProperty,
+  CreateManualChemicalInput,
+  UpdateChemicalInput,
+  ChemicalDuplicateMatch,
+  ChemicalAuditEntry,
+  createEmptyPsiFieldRecord,
+  createEmptyPsiParameters,
 } from '../types';
 import { detectConflictsForProject } from '../services/conflictDetector';
 import { validateProcessGraph } from '../services/graphValidationService';
@@ -290,9 +296,17 @@ export class PsiDataStore {
     this.data.documents.splice(docIdx, 1);
 
     const deletedChemIds = new Set(doc.chemical_ids || []);
-    this.data.chemicals = this.data.chemicals.filter(
-      (c) => c.sds_document_id !== id && !deletedChemIds.has(c.id)
-    );
+    this.data.chemicals = this.data.chemicals.filter((c) => {
+      // Preserve manual chemical records if an attached SDS document is removed
+      if (c.origin === 'manual_entry' || c.origin === 'hybrid') {
+        if (c.sds_document_id === id) {
+          c.sds_document_id = '';
+          c.origin = 'manual_entry';
+        }
+        return true;
+      }
+      return c.sds_document_id !== id && !deletedChemIds.has(c.id);
+    });
 
     this.data.equipment = this.data.equipment.filter((e) => e.document_id !== id);
     this.data.lines = this.data.lines.filter((l) => l.document_id !== id);
@@ -318,7 +332,12 @@ export class PsiDataStore {
   }
 
   public addChemical(chem: ChemicalRecord): void {
-    this.data.chemicals.push(chem);
+    const existingIdx = this.data.chemicals.findIndex((c) => c.id === chem.id);
+    if (existingIdx >= 0) {
+      this.data.chemicals[existingIdx] = chem;
+    } else {
+      this.data.chemicals.push(chem);
+    }
     const projectChems = this.listChemicals(chem.project_id);
     const existingConflicts = this.data.conflicts.filter((c) => c.project_id === chem.project_id);
     const updatedConflicts = detectConflictsForProject(projectChems, chem.project_id, existingConflicts);
@@ -328,6 +347,444 @@ export class PsiDataStore {
       ...updatedConflicts,
     ];
     this.saveDatabase();
+  }
+
+  public checkDuplicateChemical(
+    projectId: string,
+    name: string,
+    casNumber?: string | null,
+    excludeId?: string
+  ): { is_potential_duplicate: boolean; matches: ChemicalDuplicateMatch[] } {
+    const normName = (name || '').trim().toLowerCase();
+    const normCas = (casNumber || '').trim();
+    const matches: ChemicalDuplicateMatch[] = [];
+
+    const existingChems = this.listChemicals(projectId);
+    for (const chem of existingChems) {
+      if (excludeId && chem.id === excludeId) continue;
+
+      // 1. Exact CAS match
+      const chemCas = (chem.cas_number?.value || chem.cas_number?.user_value || '').trim();
+      if (normCas && chemCas && normCas === chemCas) {
+        matches.push({
+          chemical: chem,
+          match_type: 'exact_cas',
+          match_reason: `Exact CAS Registry Number match (${normCas})`,
+        });
+        continue;
+      }
+
+      // 2. Exact Chemical Name match (case-insensitive)
+      const chemName = (chem.chemical_name?.value || chem.chemical_name?.user_value || '').trim().toLowerCase();
+      if (normName && chemName && normName === chemName) {
+        matches.push({
+          chemical: chem,
+          match_type: 'exact_name',
+          match_reason: `Exact chemical name match ("${chem.chemical_name.value || chem.chemical_name.user_value}")`,
+        });
+        continue;
+      }
+
+      // 3. Similar / substring name match
+      if (normName.length >= 3 && chemName.length >= 3) {
+        if (normName.includes(chemName) || chemName.includes(normName)) {
+          matches.push({
+            chemical: chem,
+            match_type: 'similar_name',
+            match_reason: `Similar chemical name match ("${chem.chemical_name.value || chem.chemical_name.user_value}")`,
+          });
+        }
+      }
+    }
+
+    return {
+      is_potential_duplicate: matches.length > 0,
+      matches,
+    };
+  }
+
+  public createManualChemical(
+    projectId: string,
+    input: CreateManualChemicalInput,
+    reviewer = 'Process Safety Engineer'
+  ): ChemicalRecord {
+    if (!input.chemical_name || !String(input.chemical_name).trim()) {
+      throw new Error('chemical_name is required');
+    }
+
+    const now = new Date().toISOString();
+    const chemId = `chem-${uuidv4()}`;
+
+    const psiKeys: (keyof PsiParameters)[] = [
+      'toxicity',
+      'permissible_exposure_limits',
+      'physical_data',
+      'reactivity_data',
+      'corrosivity_data',
+      'thermal_and_chemical_stability_data',
+      'inadvertent_mixing_hazards',
+    ];
+
+    const psiParams = createEmptyPsiParameters('manual');
+
+    // Populate provided PSI parameters
+    if (input.psi_parameters) {
+      for (const k of psiKeys) {
+        const pInput = input.psi_parameters[k];
+        if (pInput && pInput.value !== undefined && pInput.value !== null && String(pInput.value).trim() !== '') {
+          const valStr = String(pInput.value).trim();
+          psiParams[k] = {
+            value: valStr,
+            machine_value: null,
+            user_value: valStr,
+            source: {
+              document: pInput.source_document || 'Manual Entry',
+              document_id: 'manual',
+              page: pInput.source_page ?? null,
+              section: pInput.source_section ?? null,
+              snippet: valStr,
+            },
+            confidence: 1.0,
+            review_status: pInput.review_status || 'needs_review',
+            entry_method: 'manual',
+            verification_status: pInput.verification_status || 'unverified',
+            units: pInput.units || null,
+            notes: pInput.notes || undefined,
+            updated_at: now,
+            missing_reason: null,
+          };
+        }
+      }
+    }
+
+    const chem: ChemicalRecord = {
+      id: chemId,
+      project_id: projectId,
+      sds_document_id: '',
+      origin: 'manual_entry',
+      record_status: input.record_status || 'active',
+      chemical_name: {
+        value: input.chemical_name.trim(),
+        machine_value: null,
+        user_value: input.chemical_name.trim(),
+        source: { document: 'Manual Entry', document_id: 'manual', page: null, section: 'Identity', snippet: input.chemical_name.trim() },
+        confidence: 1.0,
+        review_status: 'confirmed',
+        entry_method: 'manual',
+        verification_status: 'unverified',
+        updated_at: now,
+      },
+      cas_number: {
+        value: input.cas_number?.trim() || null,
+        machine_value: null,
+        user_value: input.cas_number?.trim() || null,
+        source: { document: 'Manual Entry', document_id: 'manual', page: null, section: 'Identity', snippet: input.cas_number?.trim() || null },
+        confidence: input.cas_number ? 1.0 : 0.0,
+        review_status: input.cas_number ? 'confirmed' : 'missing',
+        entry_method: 'manual',
+        verification_status: 'unverified',
+        updated_at: now,
+        missing_reason: input.cas_number ? null : 'Field not provided',
+      },
+      sds_revision_date: {
+        value: input.sds_revision_date?.trim() || null,
+        machine_value: null,
+        user_value: input.sds_revision_date?.trim() || null,
+        source: { document: 'Manual Entry', document_id: 'manual', page: null, section: 'Identity', snippet: input.sds_revision_date?.trim() || null },
+        confidence: input.sds_revision_date ? 1.0 : 0.0,
+        review_status: input.sds_revision_date ? 'confirmed' : 'missing',
+        entry_method: 'manual',
+        verification_status: 'unverified',
+        updated_at: now,
+        missing_reason: input.sds_revision_date ? null : 'Field not provided',
+      },
+      manufacturer: {
+        value: input.manufacturer?.trim() || null,
+        machine_value: null,
+        user_value: input.manufacturer?.trim() || null,
+        source: { document: 'Manual Entry', document_id: 'manual', page: null, section: 'Identity', snippet: input.manufacturer?.trim() || null },
+        confidence: input.manufacturer ? 1.0 : 0.0,
+        review_status: input.manufacturer ? 'confirmed' : 'missing',
+        entry_method: 'manual',
+        verification_status: 'unverified',
+        updated_at: now,
+        missing_reason: input.manufacturer ? null : 'Field not provided',
+      },
+      psi_parameters: psiParams,
+      synonyms: input.synonyms || [],
+      molecular_formula: input.molecular_formula || null,
+      molecular_weight: input.molecular_weight || null,
+      physical_state: input.physical_state || null,
+      composition_type: input.composition_type || 'pure_substance',
+      concentration: input.concentration || null,
+      description: input.description || null,
+      structured_psi: input.structured_psi || {},
+      audit_history: [
+        {
+          timestamp: now,
+          author: reviewer,
+          action: 'create',
+          change_summary: `Manually created chemical record (${input.record_status === 'draft' ? 'Draft' : 'Active'})`,
+        },
+      ],
+      created_at: now,
+      updated_at: now,
+    };
+
+    this.addChemical(chem);
+
+    this.logAudit({
+      project_id: projectId,
+      entity_type: 'chemical' as any,
+      entity_id: chem.id,
+      action: 'create',
+      change_reason: `Manually created chemical "${chem.chemical_name.value}"`,
+      reviewer,
+      revised_value: { name: chem.chemical_name.value, cas: chem.cas_number.value, status: chem.record_status },
+    });
+
+    this.saveDatabase();
+    return chem;
+  }
+
+  public updateChemical(
+    chemicalId: string,
+    input: UpdateChemicalInput,
+    reviewer = 'Process Safety Engineer',
+    changeReason = 'Updated chemical record'
+  ): ChemicalRecord | undefined {
+    const chem = this.getChemical(chemicalId);
+    if (!chem) return undefined;
+
+    const now = new Date().toISOString();
+
+    if (input.chemical_name) {
+      const val = input.chemical_name.trim();
+      chem.chemical_name.value = val;
+      chem.chemical_name.user_value = val;
+      chem.chemical_name.updated_at = now;
+    }
+
+    if (input.cas_number !== undefined) {
+      const val = input.cas_number?.trim() || null;
+      chem.cas_number.value = val;
+      chem.cas_number.user_value = val;
+      chem.cas_number.review_status = val ? 'confirmed' : 'missing';
+      chem.cas_number.updated_at = now;
+      chem.cas_number.missing_reason = val ? null : 'Field not provided';
+    }
+
+    if (input.manufacturer !== undefined) {
+      const val = input.manufacturer?.trim() || null;
+      chem.manufacturer.value = val;
+      chem.manufacturer.user_value = val;
+      chem.manufacturer.review_status = val ? 'confirmed' : 'missing';
+      chem.manufacturer.updated_at = now;
+      chem.manufacturer.missing_reason = val ? null : 'Field not provided';
+    }
+
+    if (input.sds_revision_date !== undefined) {
+      const val = input.sds_revision_date?.trim() || null;
+      chem.sds_revision_date.value = val;
+      chem.sds_revision_date.user_value = val;
+      chem.sds_revision_date.review_status = val ? 'confirmed' : 'missing';
+      chem.sds_revision_date.updated_at = now;
+      chem.sds_revision_date.missing_reason = val ? null : 'Field not provided';
+    }
+
+    if (input.record_status) chem.record_status = input.record_status;
+    if (input.synonyms !== undefined) chem.synonyms = input.synonyms;
+    if (input.molecular_formula !== undefined) chem.molecular_formula = input.molecular_formula;
+    if (input.molecular_weight !== undefined) chem.molecular_weight = input.molecular_weight;
+    if (input.physical_state !== undefined) chem.physical_state = input.physical_state;
+    if (input.composition_type !== undefined) chem.composition_type = input.composition_type;
+    if (input.concentration !== undefined) chem.concentration = input.concentration;
+    if (input.description !== undefined) chem.description = input.description;
+    if (input.structured_psi !== undefined) chem.structured_psi = { ...chem.structured_psi, ...input.structured_psi };
+
+    const psiKeys: (keyof PsiParameters)[] = [
+      'toxicity',
+      'permissible_exposure_limits',
+      'physical_data',
+      'reactivity_data',
+      'corrosivity_data',
+      'thermal_and_chemical_stability_data',
+      'inadvertent_mixing_hazards',
+    ];
+
+    if (input.psi_parameters) {
+      for (const k of psiKeys) {
+        const pInput = input.psi_parameters[k];
+        if (pInput !== undefined) {
+          const currentParam = chem.psi_parameters[k] || createEmptyPsiFieldRecord(k, 'manual');
+          const val = pInput.value !== undefined ? (pInput.value ? String(pInput.value).trim() : null) : currentParam.value;
+
+          chem.psi_parameters[k] = {
+            ...currentParam,
+            value: val,
+            user_value: val,
+            source: {
+              document: pInput.source_document || currentParam.source?.document || 'Manual Entry',
+              document_id: currentParam.source?.document_id || 'manual',
+              page: pInput.source_page ?? currentParam.source?.page ?? null,
+              section: pInput.source_section ?? currentParam.source?.section ?? null,
+              snippet: val || null,
+            },
+            confidence: 1.0,
+            review_status: val ? (pInput.review_status || currentParam.review_status || 'needs_review') : 'missing',
+            entry_method: 'manual',
+            verification_status: pInput.verification_status || currentParam.verification_status || 'unverified',
+            units: pInput.units !== undefined ? pInput.units : currentParam.units,
+            notes: pInput.notes !== undefined ? pInput.notes : currentParam.notes,
+            updated_at: now,
+            missing_reason: val ? null : 'Field not provided',
+          };
+        }
+      }
+    }
+
+    if (!chem.audit_history) chem.audit_history = [];
+    chem.audit_history.push({
+      timestamp: now,
+      author: reviewer,
+      action: 'update',
+      change_summary: changeReason,
+    });
+
+    chem.updated_at = now;
+
+    // Upstream change invalidates graph approval
+    this.invalidateGraphApproval(chem.project_id, `Chemical ${chem.chemical_name.value} updated`);
+
+    // Detect conflicts
+    const projectChems = this.listChemicals(chem.project_id);
+    const existingConflicts = this.data.conflicts.filter((c) => c.project_id === chem.project_id);
+    const updatedConflicts = detectConflictsForProject(projectChems, chem.project_id, existingConflicts);
+    this.data.conflicts = [
+      ...this.data.conflicts.filter((c) => c.project_id !== chem.project_id),
+      ...updatedConflicts,
+    ];
+
+    this.saveDatabase();
+    return chem;
+  }
+
+  public deleteChemical(chemicalId: string, reviewer = 'Process Safety Engineer', reason = 'Deleted chemical record'): boolean {
+    const idx = this.data.chemicals.findIndex((c) => c.id === chemicalId);
+    if (idx === -1) return false;
+
+    const chem = this.data.chemicals[idx];
+    const projectId = chem.project_id;
+
+    this.data.chemicals.splice(idx, 1);
+
+    // Unassign from any equipment or lines
+    for (const eq of this.data.equipment) {
+      if (eq.project_id === projectId && eq.assigned_chemical_id === chemicalId) {
+        eq.assigned_chemical_id = null;
+      }
+    }
+    for (const line of this.data.lines) {
+      if (line.project_id === projectId && line.assigned_chemical_id === chemicalId) {
+        line.assigned_chemical_id = null;
+      }
+    }
+
+    // Remove conflicts
+    this.data.conflicts = this.data.conflicts.filter((c) => {
+      const involvesThis = c.entries.some((e) => e.chemical_id === chemicalId);
+      return !involvesThis;
+    });
+
+    this.logAudit({
+      project_id: projectId,
+      entity_type: 'chemical' as any,
+      entity_id: chemicalId,
+      action: 'delete',
+      change_reason: reason,
+      reviewer,
+      original_value: { name: chem.chemical_name.value, cas: chem.cas_number.value },
+    });
+
+    this.invalidateGraphApproval(projectId, `Chemical ${chem.chemical_name.value} removed`);
+    this.saveDatabase();
+    return true;
+  }
+
+  public linkSdsToChemical(
+    chemicalId: string,
+    sdsDocumentId: string,
+    reviewer = 'Process Safety Engineer'
+  ): { success: boolean; chemical?: ChemicalRecord; conflicts_created?: number; error?: string } {
+    const chem = this.getChemical(chemicalId);
+    if (!chem) return { success: false, error: 'Chemical not found' };
+
+    const doc = this.getDocument(sdsDocumentId);
+    if (!doc) return { success: false, error: 'SDS document not found' };
+
+    const now = new Date().toISOString();
+    chem.sds_document_id = sdsDocumentId;
+    chem.origin = 'hybrid';
+
+    // Find if an extracted chemical already exists for this document within the same project
+    const extractedChem = this.data.chemicals.find(
+      (c) => c.project_id === chem.project_id && c.sds_document_id === sdsDocumentId && c.id !== chemicalId
+    );
+
+    let conflictsCount = 0;
+    if (extractedChem) {
+      const psiKeys: (keyof PsiParameters)[] = [
+        'toxicity',
+        'permissible_exposure_limits',
+        'physical_data',
+        'reactivity_data',
+        'corrosivity_data',
+        'thermal_and_chemical_stability_data',
+        'inadvertent_mixing_hazards',
+      ];
+
+      for (const k of psiKeys) {
+        const manualField = chem.psi_parameters[k];
+        const extractedField = extractedChem.psi_parameters[k];
+
+        // If manual chemical had no value, fill in extracted value without overwriting manual data!
+        if ((!manualField.value || manualField.review_status === 'missing') && extractedField.value) {
+          chem.psi_parameters[k] = {
+            ...extractedField,
+            review_status: 'needs_review',
+            entry_method: 'machine',
+            verification_status: 'unverified',
+            updated_at: now,
+          };
+        } else if (manualField.value && extractedField.value) {
+          // Both have values; if they differ, flag conflict!
+          const normManual = manualField.value.replace(/\s+/g, ' ').trim().toLowerCase();
+          const normExtracted = extractedField.value.replace(/\s+/g, ' ').trim().toLowerCase();
+          if (normManual !== normExtracted) {
+            conflictsCount++;
+          }
+        }
+      }
+    }
+
+    if (!chem.audit_history) chem.audit_history = [];
+    chem.audit_history.push({
+      timestamp: now,
+      author: reviewer,
+      action: 'sds_linked',
+      change_summary: `Linked SDS document ${doc.name}`,
+    });
+
+    const projectChems = this.listChemicals(chem.project_id);
+    const existingConflicts = this.data.conflicts.filter((c) => c.project_id === chem.project_id);
+    const updatedConflicts = detectConflictsForProject(projectChems, chem.project_id, existingConflicts);
+    this.data.conflicts = [
+      ...this.data.conflicts.filter((c) => c.project_id !== chem.project_id),
+      ...updatedConflicts,
+    ];
+
+    this.saveDatabase();
+    return { success: true, chemical: chem, conflicts_created: conflictsCount };
   }
 
   public updatePsiField(

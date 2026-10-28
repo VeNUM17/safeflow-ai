@@ -456,6 +456,34 @@ export function checkHazopReadiness(
     if (unconfirmedChems.length > 0) {
       warnings.push(`${unconfirmedChems.length} chemical record(s) contain unconfirmed PSI parameters.`);
     }
+
+    // Inspect missing or unverified critical fields on assigned chemicals in study nodes
+    for (const node of phaNodes) {
+      const nodeEq = equipment.filter((e) => (node.equipment_tags || []).includes(e.tag));
+      const nodeChemIds = new Set(nodeEq.map((e) => e.assigned_chemical_id).filter((id): id is string => Boolean(id)));
+
+      for (const chemId of nodeChemIds) {
+        const chem = chemicals.find((c) => c.id === chemId);
+        if (chem) {
+          const chemName = chem.chemical_name?.user_value || chem.chemical_name?.value || 'Chemical';
+
+          // Check toxicity
+          if (!chem.psi_parameters.toxicity.value || chem.psi_parameters.toxicity.review_status === 'missing') {
+            warnings.push(`PHA Node ${node.node_id}: Assigned chemical '${chemName}' has missing toxicity data. Health consequence severity cannot be determined.`);
+          }
+
+          // Check exposure limits
+          if (!chem.psi_parameters.permissible_exposure_limits.value || chem.psi_parameters.permissible_exposure_limits.review_status === 'missing') {
+            warnings.push(`PHA Node ${node.node_id}: Assigned chemical '${chemName}' has missing exposure limits (PEL/TLV). Health hazard exceedance cannot be quantitatively evaluated.`);
+          }
+
+          // Check reactivity / mixing
+          if (!chem.psi_parameters.inadvertent_mixing_hazards.value || chem.psi_parameters.inadvertent_mixing_hazards.review_status === 'missing') {
+            warnings.push(`PHA Node ${node.node_id}: Assigned chemical '${chemName}' has unknown inadvertent mixing hazards. Incompatibility cannot be assumed safe.`);
+          }
+        }
+      }
+    }
   }
 
   const isReady = blockingReasons.length === 0 && readyNodesCount > 0 && readyNodesCount === phaNodes.length;

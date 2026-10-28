@@ -15,6 +15,10 @@ export interface PsiFieldRecord {
   source: FieldSource;
   confidence: number;
   review_status: ReviewStatus;
+  entry_method?: 'manual' | 'machine' | 'hybrid';
+  verification_status?: 'unverified' | 'verified';
+  verified_by?: string | null;
+  verified_at?: string | null;
   notes?: string;
   units?: string | null;
   updated_at?: string;
@@ -31,17 +35,172 @@ export interface PsiParameters {
   inadvertent_mixing_hazards: PsiFieldRecord;
 }
 
+export type ChemicalOrigin = 'sds_extracted' | 'manual_entry' | 'hybrid';
+export type ChemicalRecordStatus = 'draft' | 'active' | 'archived';
+export type CompositionType = 'pure_substance' | 'mixture' | 'solution';
+
+export interface StructuredExposureLimit {
+  authority: 'OSHA_PEL' | 'ACGIH_TLV' | 'NIOSH_REL';
+  value: number | null;
+  unit: string | null;
+  averaging_period: string | null;
+  source_reference?: string | null;
+}
+
+export interface StructuredPhysicalProperty {
+  property_name: string;
+  value: number | string | null;
+  unit: string | null;
+  conditions?: string | null;
+}
+
+export interface StructuredPsiParameters {
+  toxicity?: {
+    acute_toxicity_summary?: string | null;
+    exposure_routes?: string[];
+    target_organs?: string[];
+    ghs_classification?: string | null;
+  };
+  permissible_exposure_limits?: {
+    limits?: StructuredExposureLimit[];
+  };
+  physical_data?: {
+    physical_state?: string | null;
+    boiling_point?: StructuredPhysicalProperty | null;
+    melting_point?: StructuredPhysicalProperty | null;
+    vapor_pressure?: StructuredPhysicalProperty | null;
+    vapor_density?: StructuredPhysicalProperty | null;
+    specific_gravity?: StructuredPhysicalProperty | null;
+    solubility?: string | null;
+    flash_point?: StructuredPhysicalProperty | null;
+  };
+  reactivity_data?: {
+    conditions_to_avoid?: string[];
+    incompatible_materials?: string[];
+    polymerization_risk?: boolean | null;
+  };
+  corrosivity_data?: {
+    ph?: number | null;
+    materials_attacked?: string[];
+    corrosion_rate_notes?: string | null;
+  };
+  thermal_and_chemical_stability_data?: {
+    is_stable?: boolean | null;
+    decomposition_temperature?: StructuredPhysicalProperty | null;
+    decomposition_products?: string[];
+  };
+  inadvertent_mixing_hazards?: {
+    incompatible_chemicals?: string[];
+    hazardous_reactions?: string[];
+    mixing_scenarios?: string[];
+  };
+}
+
+export interface ChemicalAuditEntry {
+  timestamp: string;
+  author: string;
+  action: 'create' | 'update' | 'verify' | 'draft_save' | 'conflict_detected' | 'sds_linked';
+  field?: string;
+  change_summary: string;
+}
+
+export interface ChemicalDuplicateMatch {
+  chemical: ChemicalRecord;
+  match_type: 'exact_cas' | 'exact_name' | 'similar_name';
+  match_reason: string;
+}
+
+export interface CreateManualChemicalInput {
+  project_id: string;
+  chemical_name: string;
+  cas_number?: string | null;
+  synonyms?: string[];
+  molecular_formula?: string | null;
+  molecular_weight?: { value: number | null; unit: string } | null;
+  physical_state?: string | null;
+  composition_type?: CompositionType | null;
+  concentration?: string | null;
+  description?: string | null;
+  manufacturer?: string | null;
+  sds_revision_date?: string | null;
+  record_status?: ChemicalRecordStatus;
+  psi_parameters?: Partial<Record<keyof PsiParameters, {
+    value?: string | null;
+    units?: string | null;
+    notes?: string;
+    review_status?: ReviewStatus;
+    verification_status?: 'unverified' | 'verified';
+    source_document?: string | null;
+    source_page?: number | null;
+    source_section?: string | null;
+  }>>;
+  structured_psi?: StructuredPsiParameters;
+  reviewer?: string;
+}
+
+export interface UpdateChemicalInput extends Partial<CreateManualChemicalInput> {
+  change_reason?: string;
+}
+
 export interface ChemicalRecord {
   id: string;
   project_id: string;
   sds_document_id: string;
+  origin?: ChemicalOrigin;
+  record_status?: ChemicalRecordStatus;
   chemical_name: PsiFieldRecord;
   cas_number: PsiFieldRecord;
   sds_revision_date: PsiFieldRecord;
   manufacturer: PsiFieldRecord;
   psi_parameters: PsiParameters;
+  synonyms?: string[];
+  molecular_formula?: string | null;
+  molecular_weight?: { value: number | null; unit: string } | null;
+  physical_state?: string | null;
+  composition_type?: CompositionType | null;
+  concentration?: string | null;
+  description?: string | null;
+  structured_psi?: StructuredPsiParameters;
+  audit_history?: ChemicalAuditEntry[];
   created_at: string;
   updated_at: string;
+}
+
+export function createEmptyPsiFieldRecord(
+  fieldName: string,
+  entryMethod: 'manual' | 'machine' = 'manual'
+): PsiFieldRecord {
+  return {
+    value: null,
+    machine_value: null,
+    user_value: null,
+    source: {
+      document: entryMethod === 'manual' ? 'Manual Entry' : 'SDS',
+      document_id: entryMethod === 'manual' ? 'manual' : '',
+      page: null,
+      section: null,
+      snippet: null,
+    },
+    confidence: entryMethod === 'manual' ? 1.0 : 0.0,
+    review_status: 'missing',
+    entry_method: entryMethod,
+    verification_status: 'unverified',
+    units: null,
+    updated_at: new Date().toISOString(),
+    missing_reason: 'Field not provided',
+  };
+}
+
+export function createEmptyPsiParameters(entryMethod: 'manual' | 'machine' = 'manual'): PsiParameters {
+  return {
+    toxicity: createEmptyPsiFieldRecord('toxicity', entryMethod),
+    permissible_exposure_limits: createEmptyPsiFieldRecord('permissible_exposure_limits', entryMethod),
+    physical_data: createEmptyPsiFieldRecord('physical_data', entryMethod),
+    reactivity_data: createEmptyPsiFieldRecord('reactivity_data', entryMethod),
+    corrosivity_data: createEmptyPsiFieldRecord('corrosivity_data', entryMethod),
+    thermal_and_chemical_stability_data: createEmptyPsiFieldRecord('thermal_and_chemical_stability_data', entryMethod),
+    inadvertent_mixing_hazards: createEmptyPsiFieldRecord('inadvertent_mixing_hazards', entryMethod),
+  };
 }
 
 export type DocumentType = 'sds' | 'pid';

@@ -9,6 +9,7 @@ import { DocumentUploadModal } from './components/DocumentUploadModal';
 import { ConflictResolutionModal } from './components/ConflictResolutionModal';
 import { ExportModal } from './components/ExportModal';
 import { NewProjectModal } from './components/NewProjectModal';
+import { ManualChemicalModal } from './components/ManualChemicalModal';
 import {
   ProcessProject,
   ProjectDashboardSummary,
@@ -42,6 +43,8 @@ export const App: React.FC = () => {
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isConflictsOpen, setIsConflictsOpen] = useState(false);
+  const [isManualChemicalModalOpen, setIsManualChemicalModalOpen] = useState(false);
+  const [editingChemical, setEditingChemical] = useState<ChemicalRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // 1. Fetch initial projects
@@ -143,6 +146,51 @@ export const App: React.FC = () => {
       setProjects((prev) => [...prev, json.data]);
       setCurrentProject(json.data);
       setSelectedChemicalId(null);
+    }
+  };
+
+  // Manual Chemical Actions
+  const handleOpenCreateChemical = () => {
+    setEditingChemical(null);
+    setIsManualChemicalModalOpen(true);
+  };
+
+  const handleOpenEditChemical = (chem: ChemicalRecord) => {
+    setEditingChemical(chem);
+    setIsManualChemicalModalOpen(true);
+  };
+
+  const handleSaveManualChemical = async (payload: any, isDraft: boolean) => {
+    if (!currentProject) return;
+
+    if (editingChemical) {
+      // Updating existing chemical
+      const res = await fetch(`/api/chemicals/${editingChemical.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        throw new Error(json.error || 'Failed to update chemical');
+      }
+      await loadProjectData(currentProject.id);
+      setSelectedChemicalId(editingChemical.id);
+    } else {
+      // Creating new manual chemical
+      const res = await fetch(`/api/projects/${currentProject.id}/chemicals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        throw new Error(json.error || 'Failed to create chemical');
+      }
+      await loadProjectData(currentProject.id);
+      if (json.data && json.data.id) {
+        setSelectedChemicalId(json.data.id);
+      }
     }
   };
 
@@ -313,6 +361,7 @@ export const App: React.FC = () => {
         onSelectProject={handleSelectProject}
         onOpenNewProjectModal={() => setIsNewProjectOpen(true)}
         onOpenUploadModal={() => setIsUploadOpen(true)}
+        onOpenManualChemicalModal={handleOpenCreateChemical}
         onOpenExportModal={() => setIsExportOpen(true)}
         onOpenConflictsModal={() => setIsConflictsOpen(true)}
         activeTab={activeTab}
@@ -344,6 +393,8 @@ export const App: React.FC = () => {
             onUpdateField={handleUpdateField}
             statusFilter={statusFilter}
             searchQuery={searchQuery}
+            onOpenManualChemicalModal={handleOpenCreateChemical}
+            onEditChemical={handleOpenEditChemical}
           />
         ) : activeTab === 'pid-graph' ? (
           <PidGraphViewer
@@ -409,6 +460,18 @@ export const App: React.FC = () => {
         isOpen={isNewProjectOpen}
         onClose={() => setIsNewProjectOpen(false)}
         onCreateProject={handleCreateProject}
+      />
+
+      <ManualChemicalModal
+        isOpen={isManualChemicalModalOpen}
+        onClose={() => {
+          setIsManualChemicalModalOpen(false);
+          setEditingChemical(null);
+        }}
+        projectId={currentProject?.id || ''}
+        existingChemicals={chemicals}
+        initialChemical={editingChemical}
+        onSave={handleSaveManualChemical}
       />
 
       {/* Footer */}

@@ -24,6 +24,11 @@ import {
   CapacityType,
   createDefaultSpecifications,
   createEmptySpecProperty,
+  CreateManualChemicalInput,
+  UpdateChemicalInput,
+  StructuredPsiParameters,
+  createEmptyPsiFieldRecord,
+  createEmptyPsiParameters,
 } from '../server/src/types';
 
 console.log('🧪 Starting SafeFlow AI & PSI Engine Comprehensive Test Suite...\n');
@@ -2492,6 +2497,622 @@ test('Criterion 11: Existing digital P&ID, PSI, graph, and PHA functionality con
   const firstNode = candidateNodes[0];
   assert.ok(firstNode.missing_specifications, 'PHA node has missing specifications evaluated');
   assert.ok(firstNode.applicable_deviations, 'PHA node has applicable deviations evaluated');
+
+  store.deleteProject(proj.id);
+});
+
+// ----------------------------------------------------
+// Test Group 13: Manual Chemical Creation & PSI Entry in PSI Extraction
+// ----------------------------------------------------
+console.log('\n--- Test Group 13: Manual Chemical Creation & PSI Entry in PSI Extraction ---');
+
+test('Scenario 1: Opening manual chemical creation form / validation - validates required chemical identity attributes and prevents empty name', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Test Project 13-1', 'Test manual chemical creation validation');
+
+  // Attempting to create chemical without chemical_name must throw or be rejected
+  assert.throws(() => {
+    store.createManualChemical(proj.id, {
+      chemical_name: '',
+    });
+  }, /chemical_name is required/i);
+
+  assert.throws(() => {
+    store.createManualChemical(proj.id, {
+      chemical_name: '   ',
+    });
+  }, /chemical_name is required/i);
+
+  store.deleteProject(proj.id);
+});
+
+test('Scenario 2: Creating a chemical without uploading an SDS - creates record with origin manual_entry and no sds_document_id', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Test Project 13-2', 'Test manual chemical creation without SDS');
+
+  // Ensure 0 documents exist in project
+  assert.strictEqual(store.listDocuments(proj.id).length, 0, 'No documents uploaded');
+
+  const chem = store.createManualChemical(proj.id, {
+    chemical_name: 'Chlorine Gas',
+    cas_number: '7782-50-5',
+    physical_state: 'gas',
+  }, 'Lead Safety Engineer');
+
+  assert.ok(chem.id, 'Chemical has valid ID');
+  assert.strictEqual(chem.origin, 'manual_entry', 'Chemical origin is manual_entry');
+  assert.strictEqual(chem.sds_document_id, '', 'Chemical has no attached SDS document ID');
+  assert.strictEqual(chem.chemical_name.value, 'Chlorine Gas');
+  assert.strictEqual(chem.cas_number.value, '7782-50-5');
+  assert.strictEqual(chem.record_status, 'active');
+
+  store.deleteProject(proj.id);
+});
+
+test('Scenario 3: Saving a chemical with only its name - succeeds and defaults remaining fields gracefully', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Test Project 13-3', 'Test chemical with name only');
+
+  const chem = store.createManualChemical(proj.id, {
+    chemical_name: 'Nitrogen',
+  });
+
+  assert.strictEqual(chem.chemical_name.value, 'Nitrogen');
+  assert.strictEqual(chem.cas_number.value, null);
+  assert.deepStrictEqual(chem.synonyms, []);
+  assert.strictEqual(chem.composition_type, 'pure_substance');
+  assert.strictEqual(chem.physical_state, null);
+  assert.strictEqual(chem.concentration, null);
+  assert.strictEqual(chem.description, null);
+  assert.strictEqual(chem.molecular_formula, null);
+  assert.strictEqual(chem.molecular_weight, null);
+  assert.ok(chem.structured_psi, 'Structured PSI initialized');
+
+  store.deleteProject(proj.id);
+});
+
+test('Scenario 4: Saving a chemical with all 7 PSI sections incomplete - all 7 remain strictly null with review_status missing', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Test Project 13-4', 'Test incomplete PSI parameters');
+
+  const chem = store.createManualChemical(proj.id, {
+    chemical_name: 'Unknown Solvent Mixture',
+  });
+
+  const psiKeys: (keyof typeof chem.psi_parameters)[] = [
+    'toxicity',
+    'permissible_exposure_limits',
+    'physical_data',
+    'reactivity_data',
+    'corrosivity_data',
+    'thermal_and_chemical_stability_data',
+    'inadvertent_mixing_hazards',
+  ];
+
+  for (const key of psiKeys) {
+    const field = chem.psi_parameters[key];
+    assert.strictEqual(field.value, null, `PSI section ${key} value must be null (never 0 or assumed safe)`);
+    assert.strictEqual(field.review_status, 'missing', `PSI section ${key} review_status must be 'missing'`);
+    assert.strictEqual(field.verification_status, 'unverified', `PSI section ${key} verification_status must be 'unverified'`);
+    assert.strictEqual(field.entry_method, 'manual');
+  }
+
+  store.deleteProject(proj.id);
+});
+
+test('Scenario 5: Entering data into each of the 7 PSI sections - persists structured values, units, notes, and references', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Test Project 13-5', 'Test full PSI parameter entry');
+
+  const structuredPsi: StructuredPsiParameters = {
+    permissible_exposure_limits: {
+      limits: [
+        { authority: 'OSHA_PEL', value: 1000, unit: 'ppm', averaging_period: '8-hr TWA' },
+        { authority: 'ACGIH_TLV', value: 1000, unit: 'ppm', averaging_period: '15-min STEL' },
+      ],
+    },
+    physical_data: {
+      physical_state: 'liquid',
+      boiling_point: { property_name: 'boiling_point', value: 78.37, unit: '°C' },
+      flash_point: { property_name: 'flash_point', value: 13, unit: '°C' },
+      vapor_pressure: { property_name: 'vapor_pressure', value: 0.85, unit: 'psia' },
+      specific_gravity: { property_name: 'specific_gravity', value: 0.789, unit: null },
+    },
+    reactivity_data: {
+      incompatible_materials: ['Strong oxidizers', 'peroxides', 'acids'],
+    },
+    corrosivity_data: {
+      ph: 7.0,
+    },
+    thermal_and_chemical_stability_data: {
+      decomposition_temperature: { property_name: 'decomposition_temperature', value: 425, unit: '°C' },
+    },
+  };
+
+  const chem = store.createManualChemical(proj.id, {
+    chemical_name: 'Ethanol (Ethyl Alcohol)',
+    cas_number: '64-17-5',
+    synonyms: ['Grain alcohol', 'EtOH'],
+    molecular_formula: 'C2H6O',
+    molecular_weight: { value: 46.07, unit: 'g/mol' },
+    physical_state: 'liquid',
+    composition_type: 'pure_substance',
+    concentration: '99.5 vol%',
+    description: 'High purity industrial solvent',
+    structured_psi: structuredPsi,
+    psi_parameters: {
+      toxicity: {
+        value: 'Oral LD50 rat 7060 mg/kg; Inhalation LC50 rat 20000 ppm/10h',
+        units: 'mg/kg, ppm',
+        notes: 'CNS depressant at high concentrations',
+        source_document: 'CRC Handbook of Chemistry & Physics',
+        source_page: 112,
+        source_section: 'Toxicology',
+      },
+      permissible_exposure_limits: {
+        value: 'OSHA PEL: 1000 ppm (1900 mg/m3) 8-hr TWA',
+        units: 'ppm',
+        notes: 'ACGIH TLV 1000 ppm STEL',
+        source_document: '29 CFR 1910.1000 Table Z-1',
+      },
+      physical_data: {
+        value: 'BP: 78.37 °C; Flash Pt: 13 °C; VP: 0.85 psia at 20 °C; SG: 0.789',
+        units: '°C, psia',
+        notes: 'Flammable liquid Class IB; LEL 3.3%, UEL 19%',
+      },
+      reactivity_data: {
+        value: 'Violent reaction with strong oxidizing agents and perchlorates',
+        notes: 'Risk of fire and explosion',
+      },
+      corrosivity_data: {
+        value: 'Neutral pH 7.0; non-corrosive to carbon steel and stainless steel',
+        units: 'pH',
+      },
+      thermal_and_chemical_stability_data: {
+        value: 'Thermally stable at ambient operating conditions; decomposes at >425 °C',
+        units: '°C',
+      },
+      inadvertent_mixing_hazards: {
+        value: 'Violent or explosive reaction with acetyl chloride, calcium hypochlorite, and nitric acid',
+        notes: 'Segregate from strong oxidizers and halogenating agents',
+      },
+    },
+  }, 'Dr. Chemical Engineer');
+
+  // Verify all 7 sections
+  assert.strictEqual(chem.psi_parameters.toxicity.value, 'Oral LD50 rat 7060 mg/kg; Inhalation LC50 rat 20000 ppm/10h');
+  assert.strictEqual(chem.psi_parameters.toxicity.source.document, 'CRC Handbook of Chemistry & Physics');
+  assert.strictEqual(chem.psi_parameters.toxicity.source.page, 112);
+  assert.strictEqual(chem.psi_parameters.permissible_exposure_limits.units, 'ppm');
+  assert.strictEqual(chem.psi_parameters.corrosivity_data.units, 'pH');
+  assert.strictEqual(chem.structured_psi?.physical_data?.boiling_point?.value, 78.37);
+  assert.strictEqual(chem.structured_psi?.permissible_exposure_limits?.limits?.[0].value, 1000);
+
+  store.deleteProject(proj.id);
+});
+
+test('Scenario 6: Saving and reopening a draft - preserves draft status and partial data', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Test Project 13-6', 'Test draft saving');
+
+  // Save as draft
+  const draftChem = store.createManualChemical(proj.id, {
+    chemical_name: 'Sulfuric Acid 98%',
+    cas_number: '7664-93-9',
+    record_status: 'draft',
+    psi_parameters: {
+      corrosivity_data: {
+        value: 'Extremely corrosive; pH < 1.0; attacks mild steel rapidly when dilute',
+        units: 'pH',
+      },
+    },
+  }, 'Process Engineer Intern');
+
+  assert.strictEqual(draftChem.record_status, 'draft', 'Status must be draft');
+  assert.ok(draftChem.psi_parameters.corrosivity_data.value?.includes('Extremely corrosive'));
+  assert.strictEqual(draftChem.psi_parameters.toxicity.value, null, 'Uncompleted fields remain null');
+
+  // Reopen and update draft chemical to active
+  const updatedChem = store.updateChemical(draftChem.id, {
+    record_status: 'active',
+    psi_parameters: {
+      permissible_exposure_limits: {
+        value: 'OSHA PEL: 1 mg/m3 8-hr TWA',
+        units: 'mg/m3',
+        review_status: 'confirmed',
+      },
+    },
+  }, 'Senior PSM Facilitator', 'Finalized chemical review from draft');
+
+  assert.ok(updatedChem);
+  assert.strictEqual(updatedChem.record_status, 'active', 'Status updated to active');
+  // Check prior corrosivity data is preserved
+  assert.ok(updatedChem.psi_parameters.corrosivity_data.value?.includes('Extremely corrosive'));
+  // Check new PEL is present
+  assert.strictEqual(updatedChem.psi_parameters.permissible_exposure_limits.value, 'OSHA PEL: 1 mg/m3 8-hr TWA');
+
+  store.deleteProject(proj.id);
+});
+
+test('Scenario 7: Persistence after store reload / page refresh - saved manual chemicals persist across store instances', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Test Project 13-7', 'Test persistence across store reloads');
+
+  const created = store.createManualChemical(proj.id, {
+    chemical_name: 'Sodium Hypochlorite 12.5%',
+    cas_number: '7681-52-9',
+    composition_type: 'solution',
+    concentration: '12.5 wt%',
+  });
+
+  const chemId = created.id;
+
+  // Retrieve chemical from store
+  const fetched = store.getChemical(chemId);
+  assert.ok(fetched, 'Chemical found in store');
+  assert.strictEqual(fetched.chemical_name.value, 'Sodium Hypochlorite 12.5%');
+  assert.strictEqual(fetched.composition_type, 'solution');
+  assert.strictEqual(fetched.origin, 'manual_entry');
+
+  // Verify chemical is listed in project chemicals
+  const list = store.listChemicals(proj.id);
+  assert.ok(list.some((c) => c.id === chemId));
+
+  store.deleteProject(proj.id);
+});
+
+test('Scenario 8: Duplicate chemical warnings - detects matching CAS or similar name without silent merge', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Test Project 13-8', 'Test duplicate chemical warnings');
+
+  // First chemical
+  const chem1 = store.createManualChemical(proj.id, {
+    chemical_name: 'Anhydrous Ammonia',
+    cas_number: '7664-41-7',
+  });
+
+  // Check duplicate with same CAS
+  const checkCas = store.checkDuplicateChemical(proj.id, 'Ammonia Refrigerant Grade', '7664-41-7');
+  assert.strictEqual(checkCas.is_potential_duplicate, true, 'Flags duplicate for matching CAS');
+  assert.ok(checkCas.matches.some((m) => m.match_type === 'exact_cas'));
+
+  // Check duplicate with exact name
+  const checkName = store.checkDuplicateChemical(proj.id, 'anhydrous ammonia', null);
+  assert.strictEqual(checkName.is_potential_duplicate, true, 'Flags duplicate for exact name match');
+  assert.ok(checkName.matches.some((m) => m.match_type === 'exact_name'));
+
+  // Check duplicate with similar name
+  const checkSimilar = store.checkDuplicateChemical(proj.id, 'Ammonia', null);
+  assert.strictEqual(checkSimilar.is_potential_duplicate, true, 'Flags duplicate for similar name match');
+  assert.ok(checkSimilar.matches.some((m) => m.match_type === 'similar_name'));
+
+  // User decides to proceed and save anyway - must create a separate record, NO silent merge
+  const chem2 = store.createManualChemical(proj.id, {
+    chemical_name: 'Ammonia Aqueous Solution',
+    cas_number: '7664-41-7',
+  });
+
+  assert.notStrictEqual(chem1.id, chem2.id, 'Must create separate record with unique ID');
+  const allChems = store.listChemicals(proj.id);
+  assert.strictEqual(allChems.length, 2, 'Both chemical records preserved without silent overwriting');
+
+  store.deleteProject(proj.id);
+});
+
+test('Scenario 9: Invalid identity or numerical inputs - rejects empty name and handles invalid inputs gracefully', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Test Project 13-9', 'Test invalid input handling');
+
+  // Missing chemical_name
+  assert.throws(() => {
+    store.createManualChemical(proj.id, {
+      chemical_name: '',
+      cas_number: '123-45-6',
+    });
+  }, /chemical_name is required/i);
+
+  // Updating non-existent chemical returns undefined
+  const nonExistent = store.updateChemical('fake-id-999', {
+    chemical_name: 'Ghost Chemical',
+  });
+  assert.strictEqual(nonExistent, undefined);
+
+  store.deleteProject(proj.id);
+});
+
+test('Scenario 10: Preservation of manual values and provenance tracking - audit entries and unverified status', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Test Project 13-10', 'Test provenance and audit history');
+
+  const chem = store.createManualChemical(proj.id, {
+    chemical_name: 'Toluene',
+    cas_number: '108-88-3',
+    psi_parameters: {
+      toxicity: {
+        value: 'Oral LD50 rat 5580 mg/kg; Inhalation LC50 rat 12500 ppm/4h',
+      },
+    },
+  }, 'PSM Compliance Specialist');
+
+  // Verify provenance flags
+  assert.strictEqual(chem.origin, 'manual_entry');
+  assert.strictEqual(chem.psi_parameters.toxicity.entry_method, 'manual');
+  assert.strictEqual(chem.psi_parameters.toxicity.verification_status, 'unverified');
+  assert.strictEqual(chem.psi_parameters.toxicity.review_status, 'needs_review');
+
+  // Verify audit history was created
+  assert.ok(chem.audit_history && chem.audit_history.length >= 1);
+  const firstAudit = chem.audit_history[0];
+  assert.strictEqual(firstAudit.action, 'create');
+  assert.strictEqual(firstAudit.author, 'PSM Compliance Specialist');
+  assert.ok(firstAudit.timestamp);
+
+  // Update chemical and check audit trail grows
+  const updated = store.updateChemical(chem.id, {
+    description: 'Updated industrial solvent specification',
+  }, 'Senior Auditor', 'Annual PSI review verification');
+
+  assert.ok(updated);
+  assert.strictEqual(updated.audit_history.length, 2);
+  const secondAudit = updated.audit_history[1];
+  assert.strictEqual(secondAudit.action, 'update');
+  assert.strictEqual(secondAudit.author, 'Senior Auditor');
+  assert.strictEqual(secondAudit.change_summary, 'Annual PSI review verification');
+
+  store.deleteProject(proj.id);
+});
+
+test('Scenario 11: Subsequent SDS extraction without silent overwriting of manual values', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Test Project 13-11', 'Test subsequent SDS linking');
+
+  // 1. Manually create chemical with custom toxicity
+  const manualChem = store.createManualChemical(proj.id, {
+    chemical_name: 'Anhydrous Ammonia',
+    cas_number: '7664-41-7',
+    psi_parameters: {
+      toxicity: {
+        value: 'Pre-existing plant engineering standard toxicity: 1500 ppm',
+        review_status: 'confirmed',
+      },
+    },
+  });
+
+  // 2. Add an SDS document to the project with parsed extraction
+  const doc = {
+    id: 'sds-doc-11',
+    project_id: proj.id,
+    name: 'Ammonia_SDS_Apex.pdf',
+    original_filename: 'Ammonia_SDS_Apex.pdf',
+    file_path: '/uploads/ammonia.pdf',
+    mime_type: 'application/pdf',
+    size_bytes: 10240,
+    doc_type: 'sds' as const,
+    upload_timestamp: new Date().toISOString(),
+    pages_count: 1,
+    is_readable: true,
+    is_scanned_ocr_attempted: false,
+    chemical_ids: [] as string[],
+  };
+  store.addDocument(doc);
+  const extracted = parseSdsContent(mockDocContent, doc.id, doc.name, proj.id);
+  store.addChemical(extracted);
+  doc.chemical_ids.push(extracted.id);
+
+  // 3. Link SDS to the manual chemical
+  const linkResult = store.linkSdsToChemical(manualChem.id, doc.id, 'Process Safety Lead');
+  assert.strictEqual(linkResult.success, true);
+
+  const updatedChem = store.getChemical(manualChem.id)!;
+
+  // Origin should now be hybrid
+  assert.strictEqual(updatedChem.origin, 'hybrid', 'Origin transitions to hybrid');
+  assert.strictEqual(updatedChem.sds_document_id, doc.id, 'SDS doc linked');
+
+  // Pre-existing manual toxicity MUST NOT be overwritten!
+  assert.strictEqual(
+    updatedChem.psi_parameters.toxicity.value,
+    'Pre-existing plant engineering standard toxicity: 1500 ppm',
+    'Manual toxicity value must NOT be overwritten by SDS linking'
+  );
+
+  // Fields that were null/missing SHOULD be populated from SDS extraction
+  assert.ok(
+    updatedChem.psi_parameters.permissible_exposure_limits.value !== null,
+    'Empty field was populated from SDS extraction'
+  );
+
+  store.deleteProject(proj.id);
+});
+
+test('Scenario 12: Conflict detection when extracted and manual values disagree', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Test Project 13-12', 'Test conflict detection upon SDS linking');
+
+  // Manually enter chemical with conflicting PEL
+  const chem = store.createManualChemical(proj.id, {
+    chemical_name: 'Anhydrous Ammonia',
+    cas_number: '7664-41-7',
+    psi_parameters: {
+      permissible_exposure_limits: {
+        value: 'OSHA PEL: 500 ppm custom threshold',
+      },
+    },
+  });
+
+  // Add SDS document and extracted chemical
+  const doc = {
+    id: 'sds-doc-12',
+    project_id: proj.id,
+    name: 'Ammonia_Vendor_SDS.pdf',
+    original_filename: 'Ammonia_Vendor_SDS.pdf',
+    file_path: '/uploads/ammonia_vendor.pdf',
+    mime_type: 'application/pdf',
+    size_bytes: 10240,
+    doc_type: 'sds' as const,
+    upload_timestamp: new Date().toISOString(),
+    pages_count: 1,
+    is_readable: true,
+    is_scanned_ocr_attempted: false,
+    chemical_ids: [] as string[],
+  };
+  store.addDocument(doc);
+  const extracted = parseSdsContent(mockDocContent, doc.id, doc.name, proj.id);
+  store.addChemical(extracted);
+  doc.chemical_ids.push(extracted.id);
+
+  // Link SDS
+  const linkRes = store.linkSdsToChemical(chem.id, doc.id, 'Safety Auditor');
+  assert.strictEqual(linkRes.success, true);
+  assert.ok(linkRes.conflicts_created! > 0, 'Divergent PEL values flagged as conflict');
+
+  const updatedChem = store.getChemical(chem.id)!;
+  assert.strictEqual(updatedChem.origin, 'hybrid');
+
+  // Chemical audit history records sds_linked
+  const auditEntries = updatedChem.audit_history.filter((a) => a.action === 'sds_linked');
+  assert.ok(auditEntries.length > 0, 'SDS linking recorded in audit history');
+
+  store.deleteProject(proj.id);
+});
+
+test('Scenario 13: Selecting newly created manual chemical in equipment and PHA study nodes', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Test Project 13-13', 'Test chemical assignment & PHA readiness');
+
+  // Create manual chemical with missing toxicity and missing exposure limits
+  const chem = store.createManualChemical(proj.id, {
+    chemical_name: 'Novel Solvent X-1',
+  });
+
+  // Add equipment and line
+  const v201: EquipmentTag = {
+    id: 'eq-v-201',
+    project_id: proj.id,
+    tag: 'V-201',
+    description: 'Solvent Mixing Vessel',
+    equipment_type: 'vessel',
+    assigned_chemical_id: chem.id,
+    source_document_id: null,
+    source_page: null,
+    status: 'confirmed',
+    confidence_score: 1.0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  store.addEquipment([v201]);
+
+  const l201: PipingLine = {
+    id: 'line-l-201',
+    project_id: proj.id,
+    line_number: 'L-201',
+    source_tag: 'V-201',
+    destination_tag: 'P-201',
+    process_fluid: 'Novel Solvent X-1',
+    chemical_id: chem.id,
+    line_size: '2"',
+    piping_spec: 'CS-150',
+    source_document_id: null,
+    status: 'confirmed',
+    confidence_score: 1.0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  store.addLines([l201]);
+
+  // Create PHA study node with V-201
+  const node = store.createPhaNode({
+    project_id: proj.id,
+    node_id: 'N-201',
+    name: 'Solvent Handling Node',
+    design_intent: 'Mix and transfer Novel Solvent X-1 to downstream reactors.',
+    equipment_tags: ['V-201'],
+    line_numbers: ['L-201'],
+    inlet_boundaries: ['Solvent feed'],
+    outlet_boundaries: ['Reactor discharge'],
+    basis_for_grouping: 'Unit node',
+    operating_limits: {
+      temperature_safe_upper: 50,
+      temperature_safe_lower: 10,
+      pressure_safe_upper: 5,
+      pressure_safe_lower: 0,
+      flow_safe_upper: 100,
+      flow_safe_lower: 10,
+      units: { temperature: '°C', pressure: 'bar(g)', flow: 'm3/h' },
+    },
+    unresolved_questions: [],
+    status: 'approved',
+    requires_reassessment: false,
+    reassessment_reasons: [],
+  });
+
+  // Evaluate HAZOP readiness
+  const readiness = checkHazopReadiness(
+    store.listEquipment(proj.id),
+    store.listLines(proj.id),
+    store.listChemicals(proj.id),
+    store.listPhaNodes(proj.id),
+    true // graph approved
+  );
+
+  // Must flag warnings for missing toxicity and missing exposure limits on Novel Solvent X-1
+  assert.ok(
+    readiness.warnings.some((w) => w.includes('Novel Solvent X-1') && w.includes('missing toxicity data')),
+    'Readiness warning surfaced for missing toxicity data'
+  );
+  assert.ok(
+    readiness.warnings.some((w) => w.includes('Novel Solvent X-1') && w.includes('missing exposure limits')),
+    'Readiness warning surfaced for missing exposure limits'
+  );
+  assert.ok(
+    readiness.warnings.some((w) => w.includes('Novel Solvent X-1') && w.includes('unknown inadvertent mixing hazards')),
+    'Readiness warning surfaced for missing mixing hazards'
+  );
+
+  store.deleteProject(proj.id);
+});
+
+test('Scenario 14: Full regression testing - existing digital P&ID, SDS extractions, graph validation, and PHA node generation continue working', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Full Regression Project 14', 'Regression testing across all modules');
+
+  // 1. Digital P&ID drawing & synchronization
+  const drawing = store.seedSampleDrawing(proj.id);
+  assert.ok(drawing, 'Digital drawing created');
+  const syncRes = store.syncDrawingToProject(drawing.id, 'Regression Tester');
+  assert.ok(syncRes.success);
+  assert.ok(syncRes.equipment_count > 0);
+
+  // 2. Topology graph generation & validation
+  const graph = store.getProcessTopologyGraph(proj.id);
+  assert.ok(graph.nodes.length > 0);
+  const validation = store.getGraphValidation(proj.id);
+  assert.ok(validation);
+
+  // 3. Manual chemical creation along with existing records
+  const manualChem = store.createManualChemical(proj.id, {
+    chemical_name: 'Purified Water (PW)',
+    cas_number: '7732-18-5',
+    psi_parameters: {
+      physical_data: {
+        value: 'BP: 100 °C; Density: 1.0 g/cm3',
+      },
+    },
+  });
+  assert.ok(manualChem);
+
+  // 4. PHA generation & readiness
+  const candidateNodes = store.generatePhaNodes(proj.id, 'Lead Facilitator');
+  assert.ok(candidateNodes.length > 0);
+  const readiness = checkHazopReadiness(
+    store.listEquipment(proj.id),
+    store.listLines(proj.id),
+    store.listChemicals(proj.id),
+    candidateNodes,
+    false
+  );
+  assert.ok(readiness);
+  assert.strictEqual(readiness.ready, false, 'Blocked because graph not approved');
 
   store.deleteProject(proj.id);
 });

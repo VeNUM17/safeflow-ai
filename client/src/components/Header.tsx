@@ -19,6 +19,7 @@ interface HeaderProps {
   onSelectProject: (projectId: string) => void;
   onOpenNewProjectModal: () => void;
   onOpenUploadModal: () => void;
+  onOpenManualChemicalModal?: () => void;
   onOpenExportModal: () => void;
   onOpenConflictsModal: () => void;
   activeTab: 'workspace' | 'pid-graph' | 'documents';
@@ -32,6 +33,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectProject,
   onOpenNewProjectModal,
   onOpenUploadModal,
+  onOpenManualChemicalModal,
   onOpenExportModal,
   onOpenConflictsModal,
   activeTab,
@@ -148,6 +150,18 @@ export const Header: React.FC<HeaderProps> = ({
               <Upload className="w-3.5 h-3.5 text-cyan-400" />
               Upload Files
             </button>
+
+            {/* Add Chemical Manually Button */}
+            {onOpenManualChemicalModal && (
+              <button
+                onClick={onOpenManualChemicalModal}
+                className="flex items-center gap-1.5 bg-cyan-600/90 hover:bg-cyan-500 text-white px-3 py-1.5 rounded-md text-xs font-medium transition-all shadow-sm"
+                title="Create a new chemical record manually without requiring SDS"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add Chemical Manually
+              </button>
+            )}
 
             {/* Export Button */}
             <button
