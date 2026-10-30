@@ -12,13 +12,22 @@ import {
   Info,
   Clock,
   User,
+  Waves,
+  Gauge,
+  Activity,
+  ArrowLeftRight,
+  Check,
+  CheckCircle,
 } from 'lucide-react';
 import {
   PhaStudyNode,
   HazopReadinessResult,
   EquipmentTag,
   PipingLine,
+  ProcessStream,
+  ChemicalRecord,
 } from '../types';
+import { StreamModal } from './StreamModal';
 
 interface PhaNodesViewProps {
   projectId: string;
@@ -27,12 +36,17 @@ interface PhaNodesViewProps {
   readiness: HazopReadinessResult | null;
   equipment: EquipmentTag[];
   lines: PipingLine[];
+  streams?: ProcessStream[];
+  chemicals?: ChemicalRecord[];
   onGenerateNodes: () => Promise<void>;
   onCreateNode: (nodeData: any) => Promise<void>;
   onUpdateNode: (nodeId: string, updates: any) => Promise<void>;
   onApproveNode: (nodeId: string, reviewer: string) => Promise<void>;
   onDeleteNode: (nodeId: string) => Promise<void>;
   onRefreshReadiness: () => Promise<void>;
+  onSaveStream?: (streamData: any) => Promise<void>;
+  onVerifyStream?: (streamId: string) => Promise<void>;
+  onDeleteStream?: (streamId: string) => Promise<void>;
 }
 
 export const PhaNodesView: React.FC<PhaNodesViewProps> = ({
@@ -42,17 +56,26 @@ export const PhaNodesView: React.FC<PhaNodesViewProps> = ({
   readiness,
   equipment,
   lines,
+  streams = [],
+  chemicals = [],
   onGenerateNodes,
   onCreateNode,
   onUpdateNode,
   onApproveNode,
   onDeleteNode,
   onRefreshReadiness,
+  onSaveStream,
+  onVerifyStream,
+  onDeleteStream,
 }) => {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(
     phaNodes[0]?.id || null
   );
   const [isEditingModalOpen, setIsEditingModalOpen] = useState(false);
+  const [isStreamModalOpen, setIsStreamModalOpen] = useState(false);
+  const [editingStream, setEditingStream] = useState<ProcessStream | null>(null);
+  const [defaultStreamSource, setDefaultStreamSource] = useState<string>('');
+  const [defaultStreamDest, setDefaultStreamDest] = useState<string>('');
   const [editingNode, setEditingNode] = useState<PhaStudyNode | null>(null);
   const [isNewNode, setIsNewNode] = useState(false);
   const [reviewerName, setReviewerName] = useState('PHA Team Leader / Facilitator');
@@ -633,6 +656,491 @@ export const PhaNodesView: React.FC<PhaNodesViewProps> = ({
                 </div>
               )}
 
+              {/* Process Streams & Flow Baseline (OSHA 1910.119(d)(2)) */}
+              <div className="space-y-4 pt-4 border-t border-slate-800">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Waves className="w-4 h-4 text-cyan-400" />
+                    <span className="text-[11px] font-bold text-slate-200 uppercase tracking-wider">
+                      Process Streams & Boundary Flow Baseline
+                    </span>
+                    {selectedNode.stream_summary && (
+                      <span
+                        className={`text-[9px] font-mono uppercase px-2 py-0.5 rounded font-bold ${
+                          selectedNode.stream_summary.unknown_flow_count === 0 && (selectedNode.stream_summary.incoming_count + selectedNode.stream_summary.outgoing_count) > 0
+                            ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/40'
+                            : selectedNode.stream_summary.known_flow_count > 0
+                            ? 'bg-amber-950/80 text-amber-300 border border-amber-500/40'
+                            : 'bg-rose-950/80 text-rose-300 border border-rose-500/40'
+                        }`}
+                      >
+                        {selectedNode.stream_summary.unknown_flow_count === 0 && (selectedNode.stream_summary.incoming_count + selectedNode.stream_summary.outgoing_count) > 0
+                          ? `${selectedNode.stream_summary.known_flow_count}/${selectedNode.stream_summary.incoming_count + selectedNode.stream_summary.outgoing_count} Streams Documented`
+                          : selectedNode.stream_summary.unknown_flow_count > 0
+                          ? `${selectedNode.stream_summary.unknown_flow_count} Stream(s) Missing Flow`
+                          : 'No Streams Documented'}
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setEditingStream(null);
+                      setDefaultStreamSource(selectedNode.equipment_tags[0] || '');
+                      setDefaultStreamDest('');
+                      setIsStreamModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-cyan-950 text-cyan-300 hover:bg-cyan-900 border border-cyan-700/50 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Add Process Stream</span>
+                  </button>
+                </div>
+
+                {/* Missing Flow Information Notice */}
+                {selectedNode.missing_process_information && selectedNode.missing_process_information.length > 0 && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-1.5 text-xs">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-300 text-[11px]">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>Process Stream Flow Baseline Information Notice:</span>
+                    </div>
+                    <div className="space-y-1 text-[11px] text-amber-200/90 leading-relaxed">
+                      {selectedNode.missing_process_information.map((info, idx) => (
+                        <div key={idx} className="flex items-start gap-1.5">
+                          <span className="text-amber-400">•</span>
+                          <span>{info}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Inlets & Outlets Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Incoming Streams (Inlets) */}
+                  <div className="space-y-2">
+                    <span className="text-[11px] font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1">
+                      <ArrowRight className="w-3.5 h-3.5 text-cyan-400 rotate-180" />
+                      Incoming Streams (Inlets):
+                    </span>
+                    {((selectedNode.incoming_streams && selectedNode.incoming_streams.length > 0)
+                      ? selectedNode.incoming_streams
+                      : streams.filter(
+                          (s) =>
+                            selectedNode.equipment_tags.map((t) => t.toUpperCase()).includes(s.destination_equipment_tag.toUpperCase()) &&
+                            !selectedNode.equipment_tags.map((t) => t.toUpperCase()).includes(s.source_equipment_tag.toUpperCase())
+                        )
+                    ).length > 0 ? (
+                      ((selectedNode.incoming_streams && selectedNode.incoming_streams.length > 0)
+                        ? selectedNode.incoming_streams
+                        : streams.filter(
+                            (s) =>
+                              selectedNode.equipment_tags.map((t) => t.toUpperCase()).includes(s.destination_equipment_tag.toUpperCase()) &&
+                              !selectedNode.equipment_tags.map((t) => t.toUpperCase()).includes(s.source_equipment_tag.toUpperCase())
+                          )
+                      ).map((stream) => (
+                        <div
+                          key={stream.id}
+                          className="p-3 bg-slate-900 rounded-xl border border-slate-800 space-y-2 text-xs"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono font-bold text-cyan-300 text-xs">
+                              {stream.stream_number}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <span
+                                className={`text-[9px] font-mono uppercase px-1.5 py-0.5 rounded ${
+                                  stream.verification_status === 'verified'
+                                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
+                                    : 'bg-slate-800 text-slate-400 border border-slate-700'
+                                }`}
+                              >
+                                {stream.verification_status}
+                              </span>
+                              {onSaveStream && (
+                                <button
+                                  onClick={() => {
+                                    setEditingStream(stream);
+                                    setIsStreamModalOpen(true);
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-cyan-400 hover:bg-slate-800 rounded transition-colors"
+                                  title="Edit Stream"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </button>
+                              )}
+                              {onVerifyStream && stream.verification_status !== 'verified' && (
+                                <button
+                                  onClick={() => onVerifyStream(stream.id)}
+                                  className="p-1 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded transition-colors"
+                                  title="Verify Stream"
+                                >
+                                  <Check className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="text-[11px] font-mono text-slate-300 flex items-center gap-1.5">
+                            <span className="text-slate-400">{stream.source_equipment_tag}</span>
+                            <ArrowRight className="w-3 h-3 text-cyan-400" />
+                            <span className="text-cyan-300 font-bold">{stream.destination_equipment_tag}</span>
+                          </div>
+
+                          <div className="text-[11px] text-slate-400 line-clamp-1">
+                            {stream.material_description || 'Process Fluid'}
+                          </div>
+
+                          {/* Flow Rates Table */}
+                          <div className="bg-slate-950 p-2 rounded-lg border border-slate-800/80 font-mono text-[10px] space-y-1">
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Normal Flow:</span>
+                              <span className={stream.flow_rates.normal !== null ? 'text-cyan-300 font-bold' : 'text-amber-400 italic'}>
+                                {stream.flow_rates.normal !== null ? `${stream.flow_rates.normal} ${stream.flow_rates.unit || ''}` : '[UNKNOWN]'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Design Flow:</span>
+                              <span className={stream.flow_rates.design !== null ? 'text-slate-200' : 'text-slate-500'}>
+                                {stream.flow_rates.design !== null ? `${stream.flow_rates.design} ${stream.flow_rates.unit || ''}` : 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Min / Max:</span>
+                              <span className="text-slate-300">
+                                {stream.flow_rates.min ?? 'N/A'} / {stream.flow_rates.max ?? 'N/A'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Conditions & Instruments */}
+                          <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                            {stream.operating_pressure.value !== null && (
+                              <span className="bg-slate-950 text-slate-300 border border-slate-800 px-1.5 py-0.5 rounded font-mono">
+                                {stream.operating_pressure.value} {stream.operating_pressure.unit}
+                              </span>
+                            )}
+                            {stream.operating_temperature.value !== null && (
+                              <span className="bg-slate-950 text-slate-300 border border-slate-800 px-1.5 py-0.5 rounded font-mono">
+                                {stream.operating_temperature.value} {stream.operating_temperature.unit}
+                              </span>
+                            )}
+                            {stream.phase && (
+                              <span className="bg-cyan-950/60 text-cyan-300 border border-cyan-800/40 px-1.5 py-0.5 rounded capitalize">
+                                {stream.phase}
+                              </span>
+                            )}
+                          </div>
+
+                          {stream.associated_instrument_tags && stream.associated_instrument_tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-1 border-t border-slate-800/80">
+                              {stream.associated_instrument_tags.map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="text-[9px] font-mono font-bold bg-slate-950 text-amber-300 border border-amber-500/30 px-1 py-0.5 rounded"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-3 bg-slate-900/40 rounded-xl border border-dashed border-slate-800 text-center text-slate-500 text-[11px] italic">
+                        No incoming boundary streams detected.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Outgoing Streams (Outlets) */}
+                  <div className="space-y-2">
+                    <span className="text-[11px] font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1">
+                      <ArrowRight className="w-3.5 h-3.5 text-cyan-400" />
+                      Outgoing Streams (Outlets):
+                    </span>
+                    {((selectedNode.outgoing_streams && selectedNode.outgoing_streams.length > 0)
+                      ? selectedNode.outgoing_streams
+                      : streams.filter(
+                          (s) =>
+                            selectedNode.equipment_tags.map((t) => t.toUpperCase()).includes(s.source_equipment_tag.toUpperCase()) &&
+                            !selectedNode.equipment_tags.map((t) => t.toUpperCase()).includes(s.destination_equipment_tag.toUpperCase())
+                        )
+                    ).length > 0 ? (
+                      ((selectedNode.outgoing_streams && selectedNode.outgoing_streams.length > 0)
+                        ? selectedNode.outgoing_streams
+                        : streams.filter(
+                            (s) =>
+                              selectedNode.equipment_tags.map((t) => t.toUpperCase()).includes(s.source_equipment_tag.toUpperCase()) &&
+                              !selectedNode.equipment_tags.map((t) => t.toUpperCase()).includes(s.destination_equipment_tag.toUpperCase())
+                          )
+                      ).map((stream) => (
+                        <div
+                          key={stream.id}
+                          className="p-3 bg-slate-900 rounded-xl border border-slate-800 space-y-2 text-xs"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono font-bold text-cyan-300 text-xs">
+                              {stream.stream_number}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <span
+                                className={`text-[9px] font-mono uppercase px-1.5 py-0.5 rounded ${
+                                  stream.verification_status === 'verified'
+                                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
+                                    : 'bg-slate-800 text-slate-400 border border-slate-700'
+                                }`}
+                              >
+                                {stream.verification_status}
+                              </span>
+                              {onSaveStream && (
+                                <button
+                                  onClick={() => {
+                                    setEditingStream(stream);
+                                    setIsStreamModalOpen(true);
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-cyan-400 hover:bg-slate-800 rounded transition-colors"
+                                  title="Edit Stream"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </button>
+                              )}
+                              {onVerifyStream && stream.verification_status !== 'verified' && (
+                                <button
+                                  onClick={() => onVerifyStream(stream.id)}
+                                  className="p-1 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded transition-colors"
+                                  title="Verify Stream"
+                                >
+                                  <Check className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="text-[11px] font-mono text-slate-300 flex items-center gap-1.5">
+                            <span className="text-cyan-300 font-bold">{stream.source_equipment_tag}</span>
+                            <ArrowRight className="w-3 h-3 text-cyan-400" />
+                            <span className="text-slate-400">{stream.destination_equipment_tag}</span>
+                          </div>
+
+                          <div className="text-[11px] text-slate-400 line-clamp-1">
+                            {stream.material_description || 'Process Fluid'}
+                          </div>
+
+                          {/* Flow Rates Table */}
+                          <div className="bg-slate-950 p-2 rounded-lg border border-slate-800/80 font-mono text-[10px] space-y-1">
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Normal Flow:</span>
+                              <span className={stream.flow_rates.normal !== null ? 'text-cyan-300 font-bold' : 'text-amber-400 italic'}>
+                                {stream.flow_rates.normal !== null ? `${stream.flow_rates.normal} ${stream.flow_rates.unit || ''}` : '[UNKNOWN]'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Design Flow:</span>
+                              <span className={stream.flow_rates.design !== null ? 'text-slate-200' : 'text-slate-500'}>
+                                {stream.flow_rates.design !== null ? `${stream.flow_rates.design} ${stream.flow_rates.unit || ''}` : 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Min / Max:</span>
+                              <span className="text-slate-300">
+                                {stream.flow_rates.min ?? 'N/A'} / {stream.flow_rates.max ?? 'N/A'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Conditions & Instruments */}
+                          <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                            {stream.operating_pressure.value !== null && (
+                              <span className="bg-slate-950 text-slate-300 border border-slate-800 px-1.5 py-0.5 rounded font-mono">
+                                {stream.operating_pressure.value} {stream.operating_pressure.unit}
+                              </span>
+                            )}
+                            {stream.operating_temperature.value !== null && (
+                              <span className="bg-slate-950 text-slate-300 border border-slate-800 px-1.5 py-0.5 rounded font-mono">
+                                {stream.operating_temperature.value} {stream.operating_temperature.unit}
+                              </span>
+                            )}
+                            {stream.phase && (
+                              <span className="bg-cyan-950/60 text-cyan-300 border border-cyan-800/40 px-1.5 py-0.5 rounded capitalize">
+                                {stream.phase}
+                              </span>
+                            )}
+                          </div>
+
+                          {stream.associated_instrument_tags && stream.associated_instrument_tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-1 border-t border-slate-800/80">
+                              {stream.associated_instrument_tags.map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="text-[9px] font-mono font-bold bg-slate-950 text-amber-300 border border-amber-500/30 px-1 py-0.5 rounded"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-3 bg-slate-900/40 rounded-xl border border-dashed border-slate-800 text-center text-slate-500 text-[11px] italic">
+                        No outgoing boundary streams detected.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Associated Valves, Instruments & Control Loops */}
+              <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">
+                    Associated Valves, Instrumentation & Control Loops (ISA-5.1):
+                  </span>
+                  <span className="text-[10px] text-cyan-400 font-mono">P&ID Instrumentation</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-slate-400 font-semibold block">Boundary Valves:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedNode.associated_valves && selectedNode.associated_valves.length > 0 ? (
+                        selectedNode.associated_valves.map((v) => (
+                          <span key={v} className="bg-slate-900 text-cyan-300 border border-cyan-700/40 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold">
+                            {v}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-slate-500 text-[10px] italic">No active valves isolated</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-slate-400 font-semibold block">Instruments & Transmitters:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedNode.associated_instruments && selectedNode.associated_instruments.length > 0 ? (
+                        selectedNode.associated_instruments.map((inst) => (
+                          <span key={inst} className="bg-slate-900 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold">
+                            {inst}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-slate-500 text-[10px] italic">No instruments assigned</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-slate-400 font-semibold block">Identified Control Loops:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedNode.control_loops && selectedNode.control_loops.length > 0 ? (
+                        selectedNode.control_loops.map((loop, idx) => (
+                          <span key={idx} className="bg-slate-900 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded text-[10px] font-mono">
+                            {loop}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-slate-500 text-[10px] italic">Manual flow modulation</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Flow-Related HAZOP Deviations (5 Mandatory Deviations) */}
+              {selectedNode.flow_deviations && selectedNode.flow_deviations.length > 0 && (
+                <div className="space-y-3 pt-3 border-t border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                      Flow-Related HAZOP Deviations (OSHA 1910.119(e)(3)(i)):
+                    </span>
+                    <span className="text-[10px] text-cyan-400 font-mono">5 Mandatory Flow Deviations</span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {selectedNode.flow_deviations.map((dev) => (
+                      <div
+                        key={dev.id}
+                        className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-2 text-xs"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-cyan-300 text-xs">
+                              {dev.deviation}
+                            </span>
+                            <span className="text-[9px] font-mono uppercase px-2 py-0.5 rounded font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-500/30">
+                              Guideword: {dev.guideword}
+                            </span>
+                            <span
+                              className={`text-[9px] font-mono uppercase px-2 py-0.5 rounded font-bold ${
+                                dev.status === 'verified_limit'
+                                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40'
+                                  : dev.status === 'unverified_limit'
+                                  ? 'bg-amber-950 text-amber-300 border border-amber-500/40'
+                                  : 'bg-rose-950 text-rose-300 border border-rose-500/40'
+                              }`}
+                            >
+                              {dev.status === 'verified_limit'
+                                ? 'Verified Limit'
+                                : dev.status === 'unverified_limit'
+                                ? 'Unverified Limit'
+                                : 'Limit Unknown'}
+                            </span>
+                          </div>
+                          <span className="font-mono text-[10px] text-slate-400">
+                            {dev.from_to}
+                          </span>
+                        </div>
+
+                        {/* Baseline Limits reference */}
+                        <div className="bg-slate-950 p-2 rounded-lg border border-slate-800/80 text-[10px] font-mono flex items-center justify-between">
+                          <span className="text-slate-400">Documented Limits:</span>
+                          <span className="text-slate-300">
+                            Normal: {dev.documented_limits.normal ?? 'Unknown'} {dev.documented_limits.unit || ''} | Safe Limits: [{dev.documented_limits.min_allowable ?? 'N/A'} - {dev.documented_limits.max_allowable ?? 'N/A'}] | Design: {dev.documented_limits.design_flow ?? 'N/A'}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1">
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">Potential Causes:</span>
+                            <ul className="list-disc list-inside text-slate-300 space-y-0.5 text-[10px]">
+                              {dev.causes.map((c, i) => (
+                                <li key={i}>{c}</li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] font-bold text-rose-400 uppercase">Consequences:</span>
+                            <ul className="list-disc list-inside text-rose-200/90 space-y-0.5 text-[10px]">
+                              {dev.consequences.map((c, i) => (
+                                <li key={i}>{c}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[10px] pt-1 border-t border-slate-800/80">
+                          <div>
+                            <span className="font-bold text-emerald-400 uppercase block">Safeguards:</span>
+                            <span className="text-slate-300">{dev.safeguards.join(', ')}</span>
+                          </div>
+                          <div>
+                            <span className="font-bold text-amber-400 uppercase block">Alarms:</span>
+                            <span className="text-slate-300">{dev.instrumentation_and_alarms.join(', ')}</span>
+                          </div>
+                          <div>
+                            <span className="font-bold text-cyan-400 uppercase block">Recommended Actions:</span>
+                            <span className="text-slate-300">{dev.recommendations.join(', ')}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Equipment Specifications & Applicable Deviations (OSHA 1910.119(d)(3)) */}
               <div className="space-y-3 pt-3 border-t border-slate-800">
                 <div className="flex items-center justify-between">
@@ -905,6 +1413,29 @@ export const PhaNodesView: React.FC<PhaNodesViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Stream Modal */}
+      {isStreamModalOpen && (
+        <StreamModal
+          isOpen={isStreamModalOpen}
+          onClose={() => {
+            setIsStreamModalOpen(false);
+            setEditingStream(null);
+          }}
+          stream={editingStream}
+          projectId={projectId}
+          equipment={equipment}
+          lines={lines}
+          chemicals={chemicals}
+          defaultSourceTag={defaultStreamSource}
+          defaultDestTag={defaultStreamDest}
+          onSave={async (streamData) => {
+            if (onSaveStream) {
+              await onSaveStream(streamData);
+            }
+          }}
+        />
       )}
     </div>
   );

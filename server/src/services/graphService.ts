@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   EquipmentTag,
   PipingLine,
+  ProcessStream,
   ChemicalRecord,
   ChemicalConflict,
   GraphNode,
@@ -16,7 +17,8 @@ export function buildProcessTopologyGraph(
   equipmentList: EquipmentTag[],
   linesList: PipingLine[],
   chemicalsList: ChemicalRecord[],
-  conflictsList: ChemicalConflict[] = []
+  conflictsList: ChemicalConflict[] = [],
+  streamsList: ProcessStream[] = []
 ): TopologyGraph {
   const chemMap = new Map<string, ChemicalRecord>();
   for (const c of chemicalsList) {
@@ -179,17 +181,34 @@ export function buildProcessTopologyGraph(
       provisionalAlerts.push(`Line ${line.line_number} connection is provisional / unconfirmed.`);
     }
 
+    // Match stream for this edge
+    const matchingStream = streamsList.find(
+      (s) =>
+        (line.stream_id && s.id === line.stream_id) ||
+        (s.connected_line_id && s.connected_line_id === line.id) ||
+        (s.line_number && s.line_number === line.line_number) ||
+        (s.source_equipment_tag === line.from_equipment && s.destination_equipment_tag === line.to_equipment)
+    );
+
+    let streamLabel = line.stream_label;
+    if (matchingStream && matchingStream.flow_rates.normal !== null) {
+      streamLabel = `${line.stream_label} (${matchingStream.flow_rates.normal} ${matchingStream.flow_rates.unit || 'm3/h'})`;
+    }
+
     edges.push({
       id: line.id,
       source: line.from_equipment,
       target: line.to_equipment,
       line_number: line.line_number,
-      stream_label: line.stream_label,
+      stream_label: streamLabel,
       size: line.size || '2"',
       material: line.material || 'CS',
       functional_type: line.functional_type || 'piping_line',
       flow_direction: line.flow_direction || 'forward',
       status: line.status,
+      stream_id: matchingStream ? matchingStream.id : (line.stream_id || null),
+      stream_number: matchingStream ? matchingStream.stream_number : null,
+      stream_properties: matchingStream,
       confidence: line.confidence,
       source_evidence: line.source,
       chemical: chem

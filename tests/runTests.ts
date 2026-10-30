@@ -5,7 +5,13 @@ import { buildProcessTopologyGraph } from '../server/src/services/graphService';
 import { exportProjectToJson, exportProjectToCsv } from '../server/src/services/exportService';
 import { parsePidDocument } from '../server/src/services/pidParser';
 import { validateProcessGraph } from '../server/src/services/graphValidationService';
-import { generateCandidatePhaNodes, checkHazopReadiness, evaluateNodeSpecifications } from '../server/src/services/phaService';
+import {
+  generateCandidatePhaNodes,
+  checkHazopReadiness,
+  evaluateNodeSpecifications,
+  generateFlowDeviationsForNode,
+  attachStreamContextToNode,
+} from '../server/src/services/phaService';
 import { validateDigitalDrawing } from '../server/src/services/drawingValidationService';
 import { exportDrawingToJson, exportDrawingToSvg } from '../server/src/services/drawingExportService';
 import { PsiDataStore } from '../server/src/storage/store';
@@ -29,6 +35,11 @@ import {
   StructuredPsiParameters,
   createEmptyPsiFieldRecord,
   createEmptyPsiParameters,
+  ProcessStream,
+  CreateStreamInput,
+  createEmptyProcessStream,
+  FlowDeviationAnalysis,
+  NodeStreamSummary,
 } from '../server/src/types';
 
 console.log('🧪 Starting SafeFlow AI & PSI Engine Comprehensive Test Suite...\n');
@@ -3667,6 +3678,609 @@ LC50: 2000 ppm rat 4h.
   const projectChems = store.listChemicals(proj.id);
   const conflicts = detectConflictsForProject(projectChems, proj.id, []);
   assert.ok(Array.isArray(conflicts));
+
+  store.deleteProject(proj.id);
+});
+
+// Test Group 15: Process Stream Flow-Rate Integration & Flow-Aware Node Identification
+// (Covering all 12 Acceptance Criteria from Section 10)
+// ----------------------------------------------------
+console.log('\n--- Test Group 15: Process Stream Flow-Rate Integration & Flow-Aware Node Identification ---');
+
+test('Criterion 1: Correct identification of process streams from P&ID and line connectivity', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Stream Identification Test', 'Validating process stream identification');
+
+  const pidText = `
+    PROCESS PIPING & INSTRUMENTATION DIAGRAM
+    V-101 Ammonia Storage Receiver Drum
+    P-101A Primary Ammonia Circulation Pump
+    P-101B Standby Ammonia Circulation Pump
+    E-101 Ammonia Chiller Evaporator
+
+    Piping Lines:
+    3"-NH3-101-CS from V-101 to P-101A (Process Liquid Stream)
+    3"-NH3-102-CS from V-101 to P-101B (Process Liquid Stream)
+    2"-NH3-103-CS from P-101A to E-101 (Discharge Process Stream)
+
+    Instrumentation:
+    FIT-101 Flow Indicating Transmitter on line 3"-NH3-101-CS
+    FIC-101 Flow Indicating Controller on line 2"-NH3-103-CS
+    FCV-101 Flow Control Valve on line 2"-NH3-103-CS
+    SIG-101 Electrical Signal line from FIC-101 to FCV-101
+  `;
+
+  const extractedDoc = {
+    text: pidText,
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+  };
+
+  const { equipment, lines, streams } = parsePidDocument(
+    extractedDoc,
+    'doc-pid-stream-test',
+    'ammonia_pid.png',
+    proj.id,
+    []
+  );
+
+  assert.ok(streams.length >= 3, `Expected at least 3 process streams, found ${streams.length}`);
+
+  // Every stream must have a unique ID, stream_number, and connect valid equipment
+  for (const s of streams) {
+    assert.ok(s.id, 'Stream has an ID');
+    assert.ok(s.stream_number, 'Stream has a stream number');
+    assert.strictEqual(s.project_id, proj.id);
+    assert.ok(s.source_equipment_tag, 'Stream has a source tag');
+    assert.ok(s.destination_equipment_tag, 'Stream has a destination tag');
+    assert.notStrictEqual(s.source_equipment_tag, s.destination_equipment_tag, 'Stream connects two distinct entities');
+  }
+
+  // Instrument signal lines must NOT create process streams
+  const signalStreams = streams.filter((s) => s.source_equipment_tag.startsWith('SIG') || s.line_number?.startsWith('SIG'));
+  assert.strictEqual(signalStreams.length, 0, 'Signal lines do not create process streams');
+
+  store.deleteProject(proj.id);
+});
+
+test('Criterion 2: Correct source and destination mapping', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Stream Mapping Test', 'Checking upstream and downstream mapping');
+
+  const pidText = `
+    TK-201 Chemical Storage Tank
+    V-101 Mixing Receiver Drum
+    Line: 1.5"-BL-201-PVC from TK-201 to V-101. Flow rate: 0.15 m3/h.
+  `;
+
+  const doc = { text: pidText, pagesCount: 1, isReadable: true, isScanned: false };
+  const { streams } = parsePidDocument(doc, 'doc-map', 'test.png', proj.id, []);
+
+  const bleachStream = streams.find(
+    (s) => s.source_equipment_tag.toUpperCase() === 'TK-201' && s.destination_equipment_tag.toUpperCase() === 'V-101'
+  );
+
+  assert.ok(bleachStream, 'Found stream connecting TK-201 to V-101');
+  assert.strictEqual(bleachStream?.source_equipment_tag, 'TK-201');
+  assert.strictEqual(bleachStream?.destination_equipment_tag, 'V-101');
+  assert.strictEqual(bleachStream?.flow_direction, 'forward');
+
+  store.deleteProject(proj.id);
+});
+
+test('Criterion 3: Correct flow-direction handling', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Flow Direction Test', 'Handling forward, reverse, and bidirectional flow');
+
+  // Create streams with distinct flow directions
+  const forwardStream = store.createStream({
+    project_id: proj.id,
+    stream_number: 'STR-FWD',
+    source_equipment_tag: 'TK-101',
+    destination_equipment_tag: 'P-101',
+    flow_direction: 'forward',
+  });
+  assert.strictEqual(forwardStream.flow_direction, 'forward');
+
+  const reverseStream = store.createStream({
+    project_id: proj.id,
+    stream_number: 'STR-REV',
+    source_equipment_tag: 'V-101',
+    destination_equipment_tag: 'TK-101',
+    flow_direction: 'reverse',
+  });
+  assert.strictEqual(reverseStream.flow_direction, 'reverse');
+
+  const bidiStream = store.createStream({
+    project_id: proj.id,
+    stream_number: 'STR-BIDI',
+    source_equipment_tag: 'V-101',
+    destination_equipment_tag: 'V-102',
+    flow_direction: 'bidirectional',
+  });
+  assert.strictEqual(bidiStream.flow_direction, 'bidirectional');
+
+  const unknownStream = store.createStream({
+    project_id: proj.id,
+    stream_number: 'STR-UNK',
+    source_equipment_tag: 'V-101',
+    destination_equipment_tag: 'V-103',
+    flow_direction: 'unknown',
+  });
+  assert.strictEqual(unknownStream.flow_direction, 'unknown');
+
+  store.deleteProject(proj.id);
+});
+
+test('Criterion 4: Extraction of flow values and units from supported documents (volumetric, mass, molar)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Flow Extraction Test', 'Extracting volumetric, mass, and molar rates');
+
+  const pidTextWithStreamTable = `
+    PROCESS FLOW DIAGRAM & STREAM TABLE
+    Stream Table:
+    Stream No | From | To | Normal Flow | Design Flow | Unit | Pressure | Temp
+    101 | V-101 | P-101 | 25.5 | 40.0 | m3/h | 13.5 bar | -10 C
+    102 | P-101 | E-101 | 1250 | 1800 | kg/h | 16.0 bar | -8 C
+    103 | E-101 | C-101 | 75.0 | 110.0 | kmol/h | 2.5 bar | -33 C
+    104 | TK-201 | V-101 | 150 | 220 | gpm | 50 psig | 70 F
+  `;
+
+  const doc = { text: pidTextWithStreamTable, pagesCount: 1, isReadable: true, isScanned: false };
+  const { streams } = parsePidDocument(doc, 'doc-table', 'pfd_table.png', proj.id, []);
+
+  assert.ok(streams.length >= 4, `Expected at least 4 extracted streams, got ${streams.length}`);
+
+  // 1. Volumetric stream (m3/h)
+  const str101 = streams.find((s) => s.stream_number.includes('101') || (s.source_equipment_tag === 'V-101' && s.destination_equipment_tag === 'P-101'));
+  assert.ok(str101, 'Stream 101 extracted');
+  assert.strictEqual(str101?.flow_rates.normal, 25.5);
+  assert.strictEqual(str101?.flow_rates.design, 40.0);
+  assert.strictEqual(str101?.flow_rates.unit, 'm3/h');
+  assert.strictEqual(str101?.flow_rates.basis, 'volumetric');
+
+  // 2. Mass stream (kg/h)
+  const str102 = streams.find((s) => s.stream_number.includes('102') || (s.source_equipment_tag === 'P-101' && s.destination_equipment_tag === 'E-101'));
+  assert.ok(str102, 'Stream 102 extracted');
+  assert.strictEqual(str102?.flow_rates.normal, 1250);
+  assert.strictEqual(str102?.flow_rates.design, 1800);
+  assert.strictEqual(str102?.flow_rates.unit, 'kg/h');
+  assert.strictEqual(str102?.flow_rates.basis, 'mass');
+
+  // 3. Molar stream (kmol/h)
+  const str103 = streams.find((s) => s.stream_number.includes('103') || (s.source_equipment_tag === 'E-101' && s.destination_equipment_tag === 'C-101'));
+  assert.ok(str103, 'Stream 103 extracted');
+  assert.strictEqual(str103?.flow_rates.normal, 75.0);
+  assert.strictEqual(str103?.flow_rates.design, 110.0);
+  assert.strictEqual(str103?.flow_rates.unit, 'kmol/h');
+  assert.strictEqual(str103?.flow_rates.basis, 'molar');
+
+  // 4. Volumetric stream (gpm)
+  const str104 = streams.find((s) => s.stream_number.includes('104') || (s.source_equipment_tag === 'TK-201' && s.destination_equipment_tag === 'V-101'));
+  assert.ok(str104, 'Stream 104 extracted');
+  assert.strictEqual(str104?.flow_rates.normal, 150);
+  assert.strictEqual(str104?.flow_rates.unit, 'gpm');
+  assert.strictEqual(str104?.flow_rates.basis, 'volumetric');
+
+  store.deleteProject(proj.id);
+});
+
+test('Criterion 5: Correct handling of missing flow rates (strictly null, not zero)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Missing Flow Rates Test', 'Ensuring missing flow rates are null, not 0');
+
+  const pidTextWithoutFlow = `
+    V-101 Liquid Ammonia Receiver
+    P-101 Ammonia Circulation Pump
+    Line: 3"-NH3-101-CS from V-101 to P-101. Size: 3 inches. Material: Carbon Steel.
+  `;
+
+  const doc = { text: pidTextWithoutFlow, pagesCount: 1, isReadable: true, isScanned: false };
+  const { streams } = parsePidDocument(doc, 'doc-noflow', 'noflow.png', proj.id, []);
+
+  assert.ok(streams.length >= 1, 'Stream created from line');
+  const stream = streams[0];
+
+  // Negative rule: Flow rates MUST be strictly null, never 0
+  assert.strictEqual(stream.flow_rates.normal, null, 'normal flow rate must be null when unstated');
+  assert.notStrictEqual(stream.flow_rates.normal, 0, 'normal flow rate must NOT be 0');
+  assert.strictEqual(stream.flow_rates.min, null, 'min flow rate must be null when unstated');
+  assert.strictEqual(stream.flow_rates.max, null, 'max flow rate must be null when unstated');
+  assert.strictEqual(stream.flow_rates.design, null, 'design flow rate must be null when unstated');
+  assert.strictEqual(stream.flow_rates.actual, null, 'actual flow rate must be null when unmeasured');
+
+  store.deleteProject(proj.id);
+});
+
+test('Criterion 6: No flow-rate invention from pipe diameter', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('No Invention Test', 'Never infer flow rates from pipe diameter');
+
+  const pidTextWithLargePipe = `
+    V-101 Ammonia Receiver
+    C-101 Ammonia Compressor Suction
+    Line: 8"-NH3-105-CS from V-101 to C-101. Diameter: 8". Schedule 40 Carbon Steel.
+  `;
+
+  const doc = { text: pidTextWithLargePipe, pagesCount: 1, isReadable: true, isScanned: false };
+  const { streams } = parsePidDocument(doc, 'doc-large-pipe', 'pid.png', proj.id, []);
+
+  assert.ok(streams.length >= 1);
+  const stream = streams[0];
+
+  assert.strictEqual(stream.pipe_nominal_diameter, '8"', 'Diameter is recognized');
+  // Flow rate MUST remain null, not calculated via area * velocity
+  assert.strictEqual(stream.flow_rates.normal, null, 'Flow rate must NOT be invented from 8" pipe diameter');
+  assert.strictEqual(stream.flow_rates.design, null, 'Design flow rate must NOT be invented');
+
+  store.deleteProject(proj.id);
+});
+
+test('Criterion 7: Distinction between normal, min, max, and design flow', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Flow Distinction Test', 'Distinguishing normal, min, max, and design rates');
+
+  const stream = store.createStream({
+    project_id: proj.id,
+    stream_number: 'STR-DISTINCT',
+    source_equipment_tag: 'V-101',
+    destination_equipment_tag: 'P-101',
+    flow_rates: {
+      normal: 20.0,
+      min: 5.0,
+      max: 28.0,
+      design: 35.0,
+      unit: 'm3/h',
+      basis: 'volumetric',
+    },
+  });
+
+  assert.strictEqual(stream.flow_rates.normal, 20.0, 'Normal flow is distinct');
+  assert.strictEqual(stream.flow_rates.min, 5.0, 'Min flow is distinct');
+  assert.strictEqual(stream.flow_rates.max, 28.0, 'Max flow is distinct');
+  assert.strictEqual(stream.flow_rates.design, 35.0, 'Design flow is distinct');
+
+  // Verify design flow != max flow
+  assert.notStrictEqual(stream.flow_rates.design, stream.flow_rates.max, 'Design flow is not conflated with maximum allowable flow');
+
+  store.deleteProject(proj.id);
+});
+
+test('Criterion 8: Manual stream creation and editing', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Manual Stream CRUD Test', 'Full manual lifecycle');
+
+  // 1. Create manually
+  const newStream = store.createStream(
+    {
+      project_id: proj.id,
+      stream_number: 'STR-MANUAL-01',
+      source_equipment_tag: 'TK-101',
+      destination_equipment_tag: 'V-101',
+      material_description: 'Pure Water Feed',
+      flow_rates: {
+        normal: 10.0,
+        unit: 'm3/h',
+        basis: 'volumetric',
+      },
+      operating_pressure: {
+        value: 3.0,
+        unit: 'bar(g)',
+      },
+      operating_temperature: {
+        value: 25.0,
+        unit: '°C',
+      },
+      phase: 'liquid',
+      pipe_nominal_diameter: '2"',
+      pipe_spec: 'SS316',
+      associated_instrument_tags: ['FIT-201', 'FIC-201'],
+      notes: 'Manually entered water feed line',
+      reviewer: 'Process Engineer Alice',
+    },
+    'Process Engineer Alice'
+  );
+
+  assert.strictEqual(newStream.stream_number, 'STR-MANUAL-01');
+  assert.strictEqual(newStream.data_origin, 'manual');
+  // Manual streams must not be automatically marked as verified
+  assert.strictEqual(newStream.verification_status, 'unverified');
+
+  // 2. Update manually
+  const updated = store.updateStream(
+    newStream.id,
+    {
+      flow_rates: {
+        ...newStream.flow_rates,
+        normal: 12.5,
+        design: 18.0,
+      },
+      notes: 'Revised feed capacity following pump reassessment',
+    },
+    'Process Engineer Bob',
+    'Capacity expansion adjustment'
+  );
+
+  assert.ok(updated);
+  assert.strictEqual(updated?.flow_rates.normal, 12.5);
+  assert.strictEqual(updated?.flow_rates.design, 18.0);
+  assert.strictEqual(updated?.notes, 'Revised feed capacity following pump reassessment');
+
+  // 3. Verify stream
+  const verified = store.verifyStream(newStream.id, 'Senior PE Carol', 'Verified against PFD Rev 3');
+  assert.ok(verified);
+  assert.strictEqual(verified?.verification_status, 'verified');
+  assert.strictEqual(verified?.verified_by, 'Senior PE Carol');
+  assert.ok(verified?.verified_at);
+
+  store.deleteProject(proj.id);
+});
+
+test('Criterion 9: Stream persistence after saving and reopening', () => {
+  const store1 = new PsiDataStore();
+  const proj = store1.createProject('Persistence Stream Test', 'Testing disk persistence');
+
+  const stream = store1.createStream({
+    project_id: proj.id,
+    stream_number: 'STR-PERSIST',
+    source_equipment_tag: 'R-101',
+    destination_equipment_tag: 'C-101',
+    material_description: 'Anhydrous Vapor Product',
+    flow_rates: {
+      normal: 850.0,
+      min: 200.0,
+      max: 1100.0,
+      design: 1200.0,
+      unit: 'kg/h',
+      basis: 'mass',
+    },
+    operating_pressure: {
+      value: 18.2,
+      unit: 'bar(g)',
+      status: 'user_entered',
+    },
+    phase: 'vapor',
+    pipe_nominal_diameter: '4"',
+    associated_instrument_tags: ['FT-301', 'FIC-301', 'FCV-301'],
+  });
+
+  // Reopen the database from disk using a fresh instance
+  const store2 = new PsiDataStore();
+  const loadedStream = store2.getStream(stream.id);
+
+  assert.ok(loadedStream, 'Stream retrieved after reload');
+  assert.strictEqual(loadedStream?.stream_number, 'STR-PERSIST');
+  assert.strictEqual(loadedStream?.source_equipment_tag, 'R-101');
+  assert.strictEqual(loadedStream?.destination_equipment_tag, 'C-101');
+  assert.strictEqual(loadedStream?.flow_rates.normal, 850.0);
+  assert.strictEqual(loadedStream?.flow_rates.unit, 'kg/h');
+  assert.strictEqual(loadedStream?.flow_rates.basis, 'mass');
+  assert.strictEqual(loadedStream?.operating_pressure.value, 18.2);
+  assert.strictEqual(loadedStream?.phase, 'vapor');
+  assert.deepStrictEqual(loadedStream?.associated_instrument_tags, ['FT-301', 'FIC-301', 'FCV-301']);
+
+  store2.deleteProject(proj.id);
+});
+
+test('Criterion 10: Correct association of streams with HAZOP nodes and boundary partitioning', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Node Stream Association Test', 'Associating streams with study nodes');
+
+  // Node boundary: High Pressure Receiver V-101 and Circulation Pump P-101A
+  const nodeEquipment: EquipmentTag[] = [
+    {
+      id: 'eq-v101',
+      project_id: proj.id,
+      document_id: 'doc-pid',
+      tag: 'V-101',
+      description: 'Receiver',
+      equipment_type: 'vessel',
+      assigned_chemical_id: null,
+      confidence: 1.0,
+      status: 'confirmed',
+      source: { document: 'PID', page: 1, snippet: '' },
+      specifications: createDefaultSpecifications('vessel'),
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: 'eq-p101a',
+      project_id: proj.id,
+      document_id: 'doc-pid',
+      tag: 'P-101A',
+      description: 'Pump',
+      equipment_type: 'pump',
+      assigned_chemical_id: null,
+      confidence: 1.0,
+      status: 'confirmed',
+      source: { document: 'PID', page: 1, snippet: '' },
+      specifications: createDefaultSpecifications('pump'),
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: 'eq-tk201',
+      project_id: proj.id,
+      document_id: 'doc-pid',
+      tag: 'TK-201',
+      description: 'Upstream Dosing Tank',
+      equipment_type: 'tank',
+      assigned_chemical_id: null,
+      confidence: 1.0,
+      status: 'confirmed',
+      source: { document: 'PID', page: 1, snippet: '' },
+      specifications: createDefaultSpecifications('tank'),
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: 'eq-e101',
+      project_id: proj.id,
+      document_id: 'doc-pid',
+      tag: 'E-101',
+      description: 'Downstream Chiller',
+      equipment_type: 'heat_exchanger',
+      assigned_chemical_id: null,
+      confidence: 1.0,
+      status: 'confirmed',
+      source: { document: 'PID', page: 1, snippet: '' },
+      specifications: createDefaultSpecifications('heat_exchanger'),
+      created_at: new Date().toISOString(),
+    },
+  ];
+
+  // 1. Incoming stream: TK-201 -> V-101 (enters node boundary)
+  const inStream: ProcessStream = {
+    ...createEmptyProcessStream(proj.id, 'TK-201', 'V-101', null, '1.5"-BL-201-PVC', 'STR-IN-01'),
+    flow_rates: { normal: 0.15, min: 0.05, max: 0.30, design: 0.50, actual: null, unit: 'm3/h', basis: 'volumetric' },
+    associated_instrument_tags: ['FIT-201', 'FIC-201'],
+  };
+
+  // 2. Internal stream: V-101 -> P-101A (stays inside node boundary)
+  const internalStream: ProcessStream = {
+    ...createEmptyProcessStream(proj.id, 'V-101', 'P-101A', null, '3"-NH3-101-CS', 'STR-INT-01'),
+    flow_rates: { normal: 25.0, min: 8.0, max: 35.0, design: 40.0, actual: null, unit: 'm3/h', basis: 'volumetric' },
+  };
+
+  // 3. Outgoing stream: P-101A -> E-101 (exits node boundary)
+  const outStream: ProcessStream = {
+    ...createEmptyProcessStream(proj.id, 'P-101A', 'E-101', null, '2"-NH3-103-CS', 'STR-OUT-01'),
+    flow_rates: { normal: 25.0, min: 8.0, max: 35.0, design: 40.0, actual: null, unit: 'm3/h', basis: 'volumetric' },
+    associated_instrument_tags: ['FIT-101', 'FCV-101'],
+  };
+
+  const node: PhaStudyNode = {
+    id: 'pha-node-n001',
+    project_id: proj.id,
+    node_id: 'N-001',
+    name: 'High Pressure Storage & Pumping',
+    design_intent: 'Accumulate and circulate liquid refrigerant',
+    equipment_tags: ['V-101', 'P-101A'],
+    line_numbers: ['3"-NH3-101-CS'],
+    inlet_boundaries: [],
+    outlet_boundaries: [],
+    basis_for_grouping: 'Liquid inventory subsystem',
+    operating_limits: {},
+    unresolved_questions: [],
+    status: 'candidate_not_authoritative',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  const enrichedNode = attachStreamContextToNode(node, [inStream, internalStream, outStream], nodeEquipment, []);
+
+  // Assert boundary partitioning
+  assert.strictEqual(enrichedNode.incoming_streams?.length, 1, '1 incoming boundary stream');
+  assert.strictEqual(enrichedNode.incoming_streams?.[0].stream_number, 'STR-IN-01');
+
+  assert.strictEqual(enrichedNode.outgoing_streams?.length, 1, '1 outgoing boundary stream');
+  assert.strictEqual(enrichedNode.outgoing_streams?.[0].stream_number, 'STR-OUT-01');
+
+  // Verify stream summary
+  assert.ok(enrichedNode.stream_summary);
+  assert.strictEqual(enrichedNode.stream_summary?.incoming_count, 1);
+  assert.strictEqual(enrichedNode.stream_summary?.outgoing_count, 1);
+  assert.strictEqual(enrichedNode.stream_summary?.known_flow_count, 3);
+  assert.strictEqual(enrichedNode.stream_summary?.unknown_flow_count, 0);
+
+  store.deleteProject(proj.id);
+});
+
+test('Criterion 11: Generation of 5 mandatory flow deviations (No Flow, Less Flow, More Flow, Reverse Flow, Fluctuating Flow)', () => {
+  const stream: ProcessStream = {
+    ...createEmptyProcessStream('proj-1', 'V-101', 'P-101A', null, '3"-NH3-101-CS', 'STR-101'),
+    flow_rates: {
+      normal: 25.0,
+      min: 8.0,
+      max: 35.0,
+      design: 40.0,
+      actual: 24.8,
+      unit: 'm3/h',
+      basis: 'volumetric',
+    },
+    associated_instrument_tags: ['FIT-101', 'FIC-101', 'FCV-101', 'FAL-101', 'FAH-101'],
+  };
+
+  const deviations = generateFlowDeviationsForNode('N-001', ['V-101', 'P-101A'], [stream], []);
+
+  assert.strictEqual(deviations.length, 5, 'Generates exactly 5 mandatory deviations for the process stream');
+
+  const devNames = deviations.map((d) => d.deviation);
+  assert.ok(devNames.includes('NO FLOW'), 'Contains NO FLOW deviation');
+  assert.ok(devNames.includes('LESS FLOW'), 'Contains LESS FLOW deviation');
+  assert.ok(devNames.includes('MORE FLOW'), 'Contains MORE FLOW deviation');
+  assert.ok(devNames.includes('REVERSE FLOW'), 'Contains REVERSE FLOW deviation');
+  assert.ok(devNames.includes('FLUCTUATING FLOW'), 'Contains FLUCTUATING FLOW deviation');
+
+  // Check NO FLOW grounded structure
+  const noFlow = deviations.find((d) => d.deviation === 'NO FLOW')!;
+  assert.strictEqual(noFlow.guideword, 'NO');
+  assert.ok(noFlow.causes.some((c) => c.toLowerCase().includes('pump trip') || c.toLowerCase().includes('valve closed')));
+  assert.ok(noFlow.consequences.some((c) => c.toLowerCase().includes('cavitation') || c.toLowerCase().includes('loss of feed') || c.toLowerCase().includes('dry run')));
+  assert.ok(noFlow.safeguards.length > 0, 'Safeguards documented');
+  assert.ok(noFlow.instrumentation_and_alarms.length > 0, 'Alarms documented');
+  assert.ok(noFlow.recommendations.length > 0, 'Recommendations documented');
+
+  // Check REVERSE FLOW grounded structure
+  const reverseFlow = deviations.find((d) => d.deviation === 'REVERSE FLOW')!;
+  assert.strictEqual(reverseFlow.guideword, 'REVERSE');
+  assert.ok(reverseFlow.causes.some((c) => c.toLowerCase().includes('check valve failure') || c.toLowerCase().includes('differential pressure')));
+  assert.ok(reverseFlow.safeguards.some((s) => s.toLowerCase().includes('check valve') || s.toLowerCase().includes('non-return')));
+
+  // Check FLUCTUATING FLOW grounded structure
+  const flucFlow = deviations.find((d) => d.deviation === 'FLUCTUATING FLOW')!;
+  assert.strictEqual(flucFlow.guideword, 'OTHER THAN');
+  assert.ok(flucFlow.causes.some((c) => c.toLowerCase().includes('hunting') || c.toLowerCase().includes('tuning') || c.toLowerCase().includes('slug')));
+});
+
+test('Criterion 12: Preservation of existing P&ID and node identification functionality', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Full Regression Test Group 15', 'Preservation of complete workflow');
+
+  // 1. Digital P&ID creation and sync
+  const drawing = store.seedSampleDrawing(proj.id);
+  assert.ok(drawing);
+  const syncResult = store.syncDrawingToProject(drawing.id, 'Process Safety Engineer');
+  assert.ok(syncResult.success);
+
+  // 2. SDS ingestion & PSI extraction
+  const sdsText = `
+      SECTION 1: PRODUCT AND COMPANY IDENTIFICATION
+      Product Name: Anhydrous Ammonia
+      CAS Number: 7664-41-7
+      SECTION 2: HAZARDS IDENTIFICATION
+      Toxic if inhaled. Causes severe skin burns.
+      SECTION 8: EXPOSURE CONTROLS
+      OSHA PEL: 50 ppm (35 mg/m3) TWA
+  `;
+  const doc = {
+    text: sdsText,
+    pages: [{ pageNumber: 1, text: sdsText }],
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+  };
+  const chem = parseSdsContent(doc, 'doc-reg-15', 'ammonia.pdf', proj.id);
+  store.addChemical(chem);
+  assert.strictEqual(chem.psi_parameters.toxicity.category_status, 'extracted');
+
+  // 3. Topology graph generation & validation (now includes streams)
+  const graph = store.getProcessTopologyGraph(proj.id);
+  assert.ok(graph.nodes.length > 0);
+  assert.ok(graph.edges.length > 0);
+  const validation = store.getGraphValidation(proj.id);
+  assert.ok(validation);
+
+  // 4. PHA Node Candidate Segmentation (now stream-aware)
+  const nodes = store.generatePhaNodes(proj.id, 'Safety Facilitator');
+  assert.ok(nodes.length > 0);
+
+  // Verify streams attached to candidate nodes
+  const nodeWithStreams = nodes.find((n) => n.stream_summary !== undefined);
+  assert.ok(nodeWithStreams, 'Candidate nodes have stream summary attached');
+  assert.ok(nodeWithStreams?.flow_deviations && nodeWithStreams.flow_deviations.length >= 5, 'Candidate nodes have 5 flow deviations attached');
+
+  // 5. HAZOP readiness check with stream completeness reporting
+  const readiness = store.getHazopReadiness(proj.id);
+  assert.ok(readiness);
 
   store.deleteProject(proj.id);
 });

@@ -23,6 +23,7 @@ import {
   Eye,
   Sliders,
   Radio,
+  Waves,
 } from 'lucide-react';
 import {
   EquipmentTag,
@@ -47,6 +48,7 @@ import {
   CapacityType,
   SpecConflictEntry,
   SpecHistoryEntry,
+  ProcessStream,
 } from '../types';
 import { PhaWorkflowHeader } from './PhaWorkflowHeader';
 import { GraphValidationDrawer } from './GraphValidationDrawer';
@@ -54,6 +56,7 @@ import { GraphApprovalModal } from './GraphApprovalModal';
 import { AuditTrailModal } from './AuditTrailModal';
 import { PhaNodesView } from './PhaNodesView';
 import { DigitalPidEditor } from './pid-editor/DigitalPidEditor';
+import { StreamModal } from './StreamModal';
 
 interface Props {
   projectId: string;
@@ -150,6 +153,13 @@ export const PidGraphViewer: React.FC<Props> = ({
   const [showEditNodeModal, setShowEditNodeModal] = useState(false);
   const [showAddLineModal, setShowAddLineModal] = useState(false);
   const [showEditLineModal, setShowEditLineModal] = useState(false);
+
+  // Process Streams state
+  const [streams, setStreams] = useState<ProcessStream[]>([]);
+  const [showStreamModal, setShowStreamModal] = useState(false);
+  const [editingStream, setEditingStream] = useState<ProcessStream | null>(null);
+  const [streamDefaultSource, setStreamDefaultSource] = useState('');
+  const [streamDefaultDest, setStreamDefaultDest] = useState('');
 
   // Form states
   const [newNodeForm, setNewNodeForm] = useState({
@@ -353,29 +363,81 @@ export const PidGraphViewer: React.FC<Props> = ({
     }
   };
 
-  // Load Validation, Approval, PHA Nodes, and Readiness
+  // Load Validation, Approval, PHA Nodes, Streams, and Readiness
   const loadValidationAndApproval = async () => {
     if (!projectId) return;
     try {
-      const [valRes, appRes, nodesRes, readRes] = await Promise.all([
+      const [valRes, appRes, nodesRes, readRes, streamsRes] = await Promise.all([
         fetch(`/api/projects/${projectId}/graph/validation`),
         fetch(`/api/projects/${projectId}/graph/approval`),
         fetch(`/api/projects/${projectId}/pha/nodes`),
         fetch(`/api/projects/${projectId}/pha/readiness`),
+        fetch(`/api/projects/${projectId}/streams`),
       ]);
-      const [valJson, appJson, nodesJson, readJson] = await Promise.all([
+      const [valJson, appJson, nodesJson, readJson, streamsJson] = await Promise.all([
         valRes.json(),
         appRes.json(),
         nodesRes.json(),
         readRes.json(),
+        streamsRes.json(),
       ]);
 
       if (valJson.success) setValidation(valJson.data);
       if (appJson.success) setApproval(appJson.data);
       if (nodesJson.success) setPhaNodes(nodesJson.data);
       if (readJson.success) setReadiness(readJson.data);
+      if (streamsJson.success) setStreams(streamsJson.data || []);
     } catch (err) {
-      console.error('Failed to load validation/approval/pha:', err);
+      console.error('Failed to load validation/approval/pha/streams:', err);
+    }
+  };
+
+  const handleSaveStream = async (streamData: any) => {
+    try {
+      if (editingStream && editingStream.id) {
+        await fetch(`/api/streams/${editingStream.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(streamData),
+        });
+      } else {
+        await fetch(`/api/projects/${projectId}/streams`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(streamData),
+        });
+      }
+      await loadValidationAndApproval();
+      await onRefreshProject();
+      await onRefreshGraph();
+    } catch (err) {
+      console.error('Failed to save stream:', err);
+    }
+  };
+
+  const handleVerifyStream = async (streamId: string) => {
+    try {
+      await fetch(`/api/streams/${streamId}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reviewer: 'Lead Process Safety Engineer (PE)' }),
+      });
+      await loadValidationAndApproval();
+      await onRefreshProject();
+    } catch (err) {
+      console.error('Failed to verify stream:', err);
+    }
+  };
+
+  const handleDeleteStream = async (streamId: string) => {
+    try {
+      await fetch(`/api/streams/${streamId}`, {
+        method: 'DELETE',
+      });
+      await loadValidationAndApproval();
+      await onRefreshProject();
+    } catch (err) {
+      console.error('Failed to delete stream:', err);
     }
   };
 
@@ -2250,6 +2312,123 @@ export const PidGraphViewer: React.FC<Props> = ({
                     )}
                   </div>
 
+                  {/* Process Stream Flow Rates & Operating Conditions */}
+                  {(() => {
+                    const linkedStream = streams.find(
+                      (s) =>
+                        (selectedLine.stream_id && s.id === selectedLine.stream_id) ||
+                        s.connected_line_id === selectedLine.id ||
+                        (s.source_equipment_tag.toUpperCase() === selectedLine.from_equipment.toUpperCase() &&
+                         s.destination_equipment_tag.toUpperCase() === selectedLine.to_equipment.toUpperCase())
+                    );
+
+                    if (linkedStream) {
+                      return (
+                        <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 font-bold text-slate-200">
+                              <Waves className="w-4 h-4 text-cyan-400" />
+                              <span className="font-mono text-cyan-300">{linkedStream.stream_number}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span
+                                className={`text-[9px] font-mono uppercase px-1.5 py-0.5 rounded ${
+                                  linkedStream.verification_status === 'verified'
+                                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
+                                    : 'bg-slate-800 text-slate-400 border border-slate-700'
+                                }`}
+                              >
+                                {linkedStream.verification_status}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  setEditingStream(linkedStream);
+                                  setShowStreamModal(true);
+                                }}
+                                className="p-1 text-slate-400 hover:text-cyan-400 hover:bg-slate-800 rounded transition-colors"
+                                title="Edit Process Stream Data"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="bg-slate-950 p-2 rounded-lg border border-slate-800/80 font-mono text-[10px] space-y-1">
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Normal Flow:</span>
+                              <span className={linkedStream.flow_rates.normal !== null ? 'text-cyan-300 font-bold' : 'text-amber-400 italic'}>
+                                {linkedStream.flow_rates.normal !== null ? `${linkedStream.flow_rates.normal} ${linkedStream.flow_rates.unit || ''}` : '[NOT DOCUMENTED]'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Design Flow:</span>
+                              <span className={linkedStream.flow_rates.design !== null ? 'text-slate-200' : 'text-slate-500'}>
+                                {linkedStream.flow_rates.design !== null ? `${linkedStream.flow_rates.design} ${linkedStream.flow_rates.unit || ''}` : 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Min / Max:</span>
+                              <span className="text-slate-300">
+                                {linkedStream.flow_rates.min ?? 'N/A'} / {linkedStream.flow_rates.max ?? 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Operating Pressure:</span>
+                              <span className="text-slate-300">
+                                {linkedStream.operating_pressure.value !== null ? `${linkedStream.operating_pressure.value} ${linkedStream.operating_pressure.unit}` : 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Operating Temp:</span>
+                              <span className="text-slate-300">
+                                {linkedStream.operating_temperature.value !== null ? `${linkedStream.operating_temperature.value} ${linkedStream.operating_temperature.unit}` : 'N/A'}
+                              </span>
+                            </div>
+                            {linkedStream.phase && (
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">Phase:</span>
+                                <span className="text-cyan-300 capitalize">{linkedStream.phase}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {linkedStream.associated_instrument_tags && linkedStream.associated_instrument_tags.length > 0 && (
+                            <div className="space-y-1 pt-1">
+                              <span className="text-[10px] text-slate-400 font-semibold block">Associated Flow Instrumentation:</span>
+                              <div className="flex flex-wrap gap-1">
+                                {linkedStream.associated_instrument_tags.map((tag) => (
+                                  <span key={tag} className="bg-slate-950 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold">
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="p-3 bg-slate-900/60 rounded-xl border border-slate-800 space-y-2">
+                        <div className="text-[11px] text-slate-400 italic">
+                          No numerical process stream data associated with this line.
+                        </div>
+                        <button
+                          onClick={() => {
+                            setEditingStream(null);
+                            setStreamDefaultSource(selectedLine.from_equipment);
+                            setStreamDefaultDest(selectedLine.to_equipment);
+                            setShowStreamModal(true);
+                          }}
+                          className="w-full py-1.5 bg-cyan-950 text-cyan-300 hover:bg-cyan-900 border border-cyan-700/50 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <Waves className="w-3.5 h-3.5" />
+                          <span>+ Add Numerical Flow Data</span>
+                        </button>
+                      </div>
+                    );
+                  })()}
+
                   {/* Localized Alerts for this line */}
                   {selectedLine.alerts && selectedLine.alerts.length > 0 && (
                     <div className="space-y-1">
@@ -2321,12 +2500,17 @@ export const PidGraphViewer: React.FC<Props> = ({
           readiness={readiness}
           equipment={equipment}
           lines={lines}
+          streams={streams}
+          chemicals={chemicals}
           onGenerateNodes={handleGeneratePhaNodes}
           onCreateNode={handleCreateCustomPhaNode}
           onUpdateNode={handleUpdatePhaNode}
           onApproveNode={handleApprovePhaNode}
           onDeleteNode={handleDeletePhaNode}
           onRefreshReadiness={loadValidationAndApproval}
+          onSaveStream={handleSaveStream}
+          onVerifyStream={handleVerifyStream}
+          onDeleteStream={handleDeleteStream}
         />
       )}
 
@@ -3424,6 +3608,25 @@ export const PidGraphViewer: React.FC<Props> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Stream Modal */}
+      {showStreamModal && (
+        <StreamModal
+          isOpen={showStreamModal}
+          onClose={() => {
+            setShowStreamModal(false);
+            setEditingStream(null);
+          }}
+          stream={editingStream}
+          projectId={projectId}
+          equipment={equipment}
+          lines={lines}
+          chemicals={chemicals}
+          defaultSourceTag={streamDefaultSource}
+          defaultDestTag={streamDefaultDest}
+          onSave={handleSaveStream}
+        />
       )}
     </div>
   );

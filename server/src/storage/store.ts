@@ -34,6 +34,9 @@ import {
   ChemicalAuditEntry,
   createEmptyPsiFieldRecord,
   createEmptyPsiParameters,
+  ProcessStream,
+  CreateStreamInput,
+  createEmptyProcessStream,
 } from '../types';
 import { detectConflictsForProject } from '../services/conflictDetector';
 import { validateProcessGraph } from '../services/graphValidationService';
@@ -42,6 +45,7 @@ import {
   generateCandidatePhaNodes,
   checkHazopReadiness,
   evaluateNodeSpecifications,
+  attachStreamContextToNode,
 } from '../services/phaService';
 import { validateDigitalDrawing } from '../services/drawingValidationService';
 
@@ -51,6 +55,7 @@ interface DatabaseSchema {
   chemicals: ChemicalRecord[];
   equipment: EquipmentTag[];
   lines: PipingLine[];
+  streams: ProcessStream[];
   conflicts: ChemicalConflict[];
   audit_log: AuditTrailEntry[];
   graph_approvals: Record<string, GraphApprovalRecord>;
@@ -71,6 +76,7 @@ export class PsiDataStore {
     chemicals: [],
     equipment: [],
     lines: [],
+    streams: [],
     conflicts: [],
     audit_log: [],
     graph_approvals: {},
@@ -108,6 +114,7 @@ export class PsiDataStore {
           chemicals: parsed.chemicals || [],
           equipment: parsed.equipment || [],
           lines: parsed.lines || [],
+          streams: parsed.streams || [],
           conflicts: parsed.conflicts || [],
           audit_log: parsed.audit_log || [],
           graph_approvals: parsed.graph_approvals || {},
@@ -116,6 +123,10 @@ export class PsiDataStore {
           drawings: parsed.drawings || [],
           drawing_acknowledged_warnings: parsed.drawing_acknowledged_warnings || {},
         };
+        // Ensure sample streams are seeded if this is the sample project and streams are empty
+        if (this.data.streams.length === 0 && this.data.projects.some((p) => p.id === 'proj-sample-ammonia-demo')) {
+          this.seedSampleStreams('proj-sample-ammonia-demo');
+        }
         // Ensure every equipment item has specifications data structure
         for (const eq of this.data.equipment) {
           if (!eq.specifications) {
@@ -253,6 +264,7 @@ export class PsiDataStore {
     this.data.chemicals = this.data.chemicals.filter((c) => c.project_id !== id);
     this.data.equipment = this.data.equipment.filter((e) => e.project_id !== id);
     this.data.lines = this.data.lines.filter((l) => l.project_id !== id);
+    this.data.streams = this.data.streams.filter((s) => s.project_id !== id);
     this.data.conflicts = this.data.conflicts.filter((c) => c.project_id !== id);
     this.data.pha_nodes = this.data.pha_nodes.filter((n) => n.project_id !== id);
     delete this.data.graph_approvals[id];
@@ -1504,13 +1516,316 @@ export class PsiDataStore {
     return true;
   }
 
+  // --- PROCESS STREAMS ---
+  public listStreams(projectId: string): ProcessStream[] {
+    return this.data.streams.filter((s) => s.project_id === projectId);
+  }
+
+  public getStream(streamId: string): ProcessStream | undefined {
+    return this.data.streams.find((s) => s.id === streamId);
+  }
+
+  public addStreams(
+    streams: ProcessStream[],
+    reviewer = 'Process Engineer',
+    reason = 'Extracted or added process streams'
+  ): void {
+    for (const stream of streams) {
+      const existingIdx = this.data.streams.findIndex((s) => s.id === stream.id);
+      if (existingIdx >= 0) {
+        this.data.streams[existingIdx] = stream;
+      } else {
+        this.data.streams.push(stream);
+      }
+      // If stream has a connected line, associate stream_id with line
+      if (stream.connected_line_id) {
+        const line = this.data.lines.find((l) => l.id === stream.connected_line_id);
+        if (line && !line.stream_id) {
+          line.stream_id = stream.id;
+        }
+      }
+      this.logAudit({
+        project_id: stream.project_id,
+        entity_type: 'stream',
+        entity_id: stream.id,
+        action: existingIdx >= 0 ? 'update' : 'create',
+        change_reason: reason,
+        reviewer,
+        revised_value: {
+          stream_number: stream.stream_number,
+          source: stream.source_equipment_tag,
+          dest: stream.destination_equipment_tag,
+          flow_rates: stream.flow_rates,
+          origin: stream.data_origin,
+        },
+      });
+    }
+    if (streams.length > 0) {
+      this.invalidateGraphApproval(streams[0].project_id, 'Process streams updated');
+    }
+    this.saveDatabase();
+  }
+
+  public createStream(
+    input: CreateStreamInput,
+    reviewer = 'Process Engineer',
+    reason = 'Manual stream entry'
+  ): ProcessStream {
+    const stream = createEmptyProcessStream(
+      input.project_id,
+      input.source_equipment_tag,
+      input.destination_equipment_tag,
+      input.connected_line_id,
+      input.line_number,
+      input.stream_number
+    );
+
+    // Find source & dest equipment IDs
+    const sourceEq = this.data.equipment.find(
+      (e) => e.project_id === input.project_id && e.tag.toUpperCase() === input.source_equipment_tag.trim().toUpperCase()
+    );
+    if (sourceEq) stream.source_equipment_id = sourceEq.id;
+
+    const destEq = this.data.equipment.find(
+      (e) => e.project_id === input.project_id && e.tag.toUpperCase() === input.destination_equipment_tag.trim().toUpperCase()
+    );
+    if (destEq) stream.destination_equipment_id = destEq.id;
+
+    if (input.material_description) stream.material_description = input.material_description;
+    if (input.assigned_chemical_id) stream.assigned_chemical_id = input.assigned_chemical_id;
+    if (input.flow_direction) stream.flow_direction = input.flow_direction;
+    if (input.phase) stream.phase = input.phase;
+    if (input.pipe_nominal_diameter) stream.pipe_nominal_diameter = input.pipe_nominal_diameter;
+    if (input.pipe_spec) stream.pipe_spec = input.pipe_spec;
+    if (input.associated_instrument_tags) stream.associated_instrument_tags = input.associated_instrument_tags;
+
+    // Numerical flow rates: preserve null if not provided, DO NOT default to 0
+    if (input.flow_rates) {
+      if (input.flow_rates.normal !== undefined) {
+        stream.flow_rates.normal = input.flow_rates.normal !== null && input.flow_rates.normal !== undefined && !isNaN(Number(input.flow_rates.normal)) ? Number(input.flow_rates.normal) : null;
+      }
+      if (input.flow_rates.min !== undefined) {
+        stream.flow_rates.min = input.flow_rates.min !== null && input.flow_rates.min !== undefined && !isNaN(Number(input.flow_rates.min)) ? Number(input.flow_rates.min) : null;
+      }
+      if (input.flow_rates.max !== undefined) {
+        stream.flow_rates.max = input.flow_rates.max !== null && input.flow_rates.max !== undefined && !isNaN(Number(input.flow_rates.max)) ? Number(input.flow_rates.max) : null;
+      }
+      if (input.flow_rates.design !== undefined) {
+        stream.flow_rates.design = input.flow_rates.design !== null && input.flow_rates.design !== undefined && !isNaN(Number(input.flow_rates.design)) ? Number(input.flow_rates.design) : null;
+      }
+      if (input.flow_rates.actual !== undefined) {
+        stream.flow_rates.actual = input.flow_rates.actual !== null && input.flow_rates.actual !== undefined && !isNaN(Number(input.flow_rates.actual)) ? Number(input.flow_rates.actual) : null;
+      }
+      if (input.flow_rates.unit) stream.flow_rates.unit = input.flow_rates.unit;
+      if (input.flow_rates.basis) stream.flow_rates.basis = input.flow_rates.basis;
+    }
+
+    if (input.operating_pressure) {
+      if (input.operating_pressure.value !== undefined) {
+        stream.operating_pressure.value = input.operating_pressure.value !== null && !isNaN(Number(input.operating_pressure.value)) ? Number(input.operating_pressure.value) : null;
+      }
+      if (input.operating_pressure.unit) stream.operating_pressure.unit = input.operating_pressure.unit;
+      if (input.operating_pressure.status) stream.operating_pressure.status = input.operating_pressure.status;
+    }
+
+    if (input.operating_temperature) {
+      if (input.operating_temperature.value !== undefined) {
+        stream.operating_temperature.value = input.operating_temperature.value !== null && !isNaN(Number(input.operating_temperature.value)) ? Number(input.operating_temperature.value) : null;
+      }
+      if (input.operating_temperature.unit) stream.operating_temperature.unit = input.operating_temperature.unit;
+      if (input.operating_temperature.status) stream.operating_temperature.status = input.operating_temperature.status;
+    }
+
+    stream.data_origin = input.data_origin || 'manual';
+    // Manually entered streams must not be automatically marked as verified
+    stream.verification_status = input.verification_status || 'unverified';
+    if (input.verified_by) stream.verified_by = input.verified_by;
+    if (input.notes) stream.notes = input.notes;
+
+    if (input.source_document) {
+      stream.source.document = input.source_document;
+      stream.source.page = input.source_page || null;
+      stream.source.snippet = input.source_snippet || null;
+    }
+
+    // Link connected line if line_id provided
+    if (stream.connected_line_id) {
+      const line = this.data.lines.find((l) => l.id === stream.connected_line_id);
+      if (line) {
+        line.stream_id = stream.id;
+      }
+    }
+
+    this.data.streams.push(stream);
+
+    this.logAudit({
+      project_id: stream.project_id,
+      entity_type: 'stream',
+      entity_id: stream.id,
+      action: 'create',
+      change_reason: reason,
+      reviewer,
+      revised_value: {
+        stream_number: stream.stream_number,
+        source: stream.source_equipment_tag,
+        dest: stream.destination_equipment_tag,
+        flow_rates: stream.flow_rates,
+      },
+    });
+
+    this.invalidateGraphApproval(stream.project_id, `Manual stream ${stream.stream_number} created`);
+    this.saveDatabase();
+    return stream;
+  }
+
+  public updateStream(
+    streamId: string,
+    updates: Partial<ProcessStream>,
+    reviewer = 'Process Engineer',
+    reason = 'Manual stream modification'
+  ): ProcessStream | undefined {
+    const stream = this.data.streams.find((s) => s.id === streamId);
+    if (!stream) return undefined;
+
+    const originalSnapshot = { ...stream, flow_rates: { ...stream.flow_rates } };
+
+    if (updates.stream_number !== undefined) stream.stream_number = updates.stream_number;
+    if (updates.source_equipment_tag !== undefined) stream.source_equipment_tag = updates.source_equipment_tag;
+    if (updates.destination_equipment_tag !== undefined) stream.destination_equipment_tag = updates.destination_equipment_tag;
+    if (updates.connected_line_id !== undefined) stream.connected_line_id = updates.connected_line_id;
+    if (updates.line_number !== undefined) stream.line_number = updates.line_number;
+    if (updates.material_description !== undefined) stream.material_description = updates.material_description;
+    if (updates.assigned_chemical_id !== undefined) stream.assigned_chemical_id = updates.assigned_chemical_id;
+    if (updates.flow_direction !== undefined) stream.flow_direction = updates.flow_direction;
+    if (updates.phase !== undefined) stream.phase = updates.phase;
+    if (updates.pipe_nominal_diameter !== undefined) stream.pipe_nominal_diameter = updates.pipe_nominal_diameter;
+    if (updates.pipe_spec !== undefined) stream.pipe_spec = updates.pipe_spec;
+    if (updates.associated_instrument_tags !== undefined) stream.associated_instrument_tags = updates.associated_instrument_tags;
+    if (updates.notes !== undefined) stream.notes = updates.notes;
+    if (updates.data_origin !== undefined) stream.data_origin = updates.data_origin;
+    if (updates.verification_status !== undefined) stream.verification_status = updates.verification_status;
+    if (updates.verified_by !== undefined) stream.verified_by = updates.verified_by;
+    if (updates.verified_at !== undefined) stream.verified_at = updates.verified_at;
+
+    if (updates.flow_rates) {
+      if (updates.flow_rates.normal !== undefined) {
+        stream.flow_rates.normal = updates.flow_rates.normal !== null && !isNaN(Number(updates.flow_rates.normal)) ? Number(updates.flow_rates.normal) : null;
+      }
+      if (updates.flow_rates.min !== undefined) {
+        stream.flow_rates.min = updates.flow_rates.min !== null && !isNaN(Number(updates.flow_rates.min)) ? Number(updates.flow_rates.min) : null;
+      }
+      if (updates.flow_rates.max !== undefined) {
+        stream.flow_rates.max = updates.flow_rates.max !== null && !isNaN(Number(updates.flow_rates.max)) ? Number(updates.flow_rates.max) : null;
+      }
+      if (updates.flow_rates.design !== undefined) {
+        stream.flow_rates.design = updates.flow_rates.design !== null && !isNaN(Number(updates.flow_rates.design)) ? Number(updates.flow_rates.design) : null;
+      }
+      if (updates.flow_rates.actual !== undefined) {
+        stream.flow_rates.actual = updates.flow_rates.actual !== null && !isNaN(Number(updates.flow_rates.actual)) ? Number(updates.flow_rates.actual) : null;
+      }
+      if (updates.flow_rates.unit !== undefined) stream.flow_rates.unit = updates.flow_rates.unit;
+      if (updates.flow_rates.basis !== undefined) stream.flow_rates.basis = updates.flow_rates.basis;
+    }
+
+    if (updates.operating_pressure) {
+      if (updates.operating_pressure.value !== undefined) {
+        stream.operating_pressure.value = updates.operating_pressure.value !== null && !isNaN(Number(updates.operating_pressure.value)) ? Number(updates.operating_pressure.value) : null;
+      }
+      if (updates.operating_pressure.unit !== undefined) stream.operating_pressure.unit = updates.operating_pressure.unit;
+      if (updates.operating_pressure.status !== undefined) stream.operating_pressure.status = updates.operating_pressure.status;
+    }
+
+    if (updates.operating_temperature) {
+      if (updates.operating_temperature.value !== undefined) {
+        stream.operating_temperature.value = updates.operating_temperature.value !== null && !isNaN(Number(updates.operating_temperature.value)) ? Number(updates.operating_temperature.value) : null;
+      }
+      if (updates.operating_temperature.unit !== undefined) stream.operating_temperature.unit = updates.operating_temperature.unit;
+      if (updates.operating_temperature.status !== undefined) stream.operating_temperature.status = updates.operating_temperature.status;
+    }
+
+    stream.updated_at = new Date().toISOString();
+
+    this.logAudit({
+      project_id: stream.project_id,
+      entity_type: 'stream',
+      entity_id: stream.id,
+      action: 'update',
+      original_value: originalSnapshot,
+      revised_value: stream,
+      change_reason: reason,
+      reviewer,
+    });
+
+    this.invalidateGraphApproval(stream.project_id, `Stream ${stream.stream_number} updated`);
+    this.saveDatabase();
+    return stream;
+  }
+
+  public deleteStream(streamId: string, reviewer = 'Process Engineer', reason = 'Deleted process stream'): boolean {
+    const idx = this.data.streams.findIndex((s) => s.id === streamId);
+    if (idx === -1) return false;
+
+    const stream = this.data.streams[idx];
+    const projectId = stream.project_id;
+
+    // Unlink any line pointing to this stream
+    for (const l of this.data.lines) {
+      if (l.stream_id === streamId) {
+        l.stream_id = null;
+      }
+    }
+
+    this.data.streams.splice(idx, 1);
+
+    this.logAudit({
+      project_id: projectId,
+      entity_type: 'stream',
+      entity_id: streamId,
+      action: 'delete',
+      original_value: { stream_number: stream.stream_number, source: stream.source_equipment_tag, dest: stream.destination_equipment_tag },
+      change_reason: reason,
+      reviewer,
+    });
+
+    this.invalidateGraphApproval(projectId, `Stream ${stream.stream_number} deleted`);
+    this.saveDatabase();
+    return true;
+  }
+
+  public verifyStream(streamId: string, reviewer = 'Lead Process Engineer', notes?: string): ProcessStream | undefined {
+    const stream = this.data.streams.find((s) => s.id === streamId);
+    if (!stream) return undefined;
+
+    stream.verification_status = 'verified';
+    stream.verified_by = reviewer;
+    stream.verified_at = new Date().toISOString();
+    if (notes) {
+      stream.notes = stream.notes ? `${stream.notes}; Verification Note: ${notes}` : notes;
+    }
+    stream.updated_at = new Date().toISOString();
+
+    this.logAudit({
+      project_id: stream.project_id,
+      entity_type: 'stream',
+      entity_id: stream.id,
+      action: 'verify',
+      change_reason: `Stream ${stream.stream_number} verified by ${reviewer}`,
+      reviewer,
+      revised_value: { verification_status: 'verified', notes },
+    });
+
+    this.saveDatabase();
+    return stream;
+  }
+
   // --- GRAPH VALIDATION & APPROVAL GATES ---
   public getProcessTopologyGraph(projectId: string): TopologyGraph {
     const eq = this.listEquipment(projectId);
     const lines = this.listLines(projectId);
     const chems = this.listChemicals(projectId);
     const conflicts = this.listConflicts(projectId);
-    return buildProcessTopologyGraph(eq, lines, chems, conflicts);
+    const streams = this.listStreams(projectId);
+    return buildProcessTopologyGraph(eq, lines, chems, conflicts, streams);
   }
 
   public getGraphValidation(projectId: string): GraphValidationResult {
@@ -1612,7 +1927,11 @@ export class PsiDataStore {
 
   // --- PHA STUDY NODES ---
   public listPhaNodes(projectId: string): PhaStudyNode[] {
-    return this.data.pha_nodes.filter((n) => n.project_id === projectId);
+    const nodes = this.data.pha_nodes.filter((n) => n.project_id === projectId);
+    const streams = this.listStreams(projectId);
+    const lines = this.listLines(projectId);
+    const eq = this.listEquipment(projectId);
+    return nodes.map((n) => attachStreamContextToNode(n, streams, eq, lines));
   }
 
   public generatePhaNodes(
@@ -1621,8 +1940,9 @@ export class PsiDataStore {
   ): PhaStudyNode[] {
     const eq = this.listEquipment(projectId);
     const lines = this.listLines(projectId);
+    const streams = this.listStreams(projectId);
 
-    const candidates = generateCandidatePhaNodes(projectId, eq, lines);
+    const candidates = generateCandidatePhaNodes(projectId, eq, lines, streams);
 
     // Replace existing candidate nodes or merge
     this.data.pha_nodes = [
@@ -1757,9 +2077,10 @@ export class PsiDataStore {
     const lines = this.listLines(projectId);
     const chems = this.listChemicals(projectId);
     const nodes = this.listPhaNodes(projectId);
+    const streams = this.listStreams(projectId);
     const approval = this.getGraphApproval(projectId);
 
-    return checkHazopReadiness(eq, lines, chems, nodes, approval.approved);
+    return checkHazopReadiness(eq, lines, chems, nodes, approval.approved, streams);
   }
 
   // --- DIGITAL P&ID DRAWINGS ---
@@ -2148,6 +2469,10 @@ export class PsiDataStore {
       (l) => l.functional_type === 'signal_line'
     ).length;
 
+    const streamsList = this.listStreams(projectId);
+    const streamsWithFlow = streamsList.filter((s) => s.flow_rates.normal !== null || s.flow_rates.design !== null).length;
+    const streamsMissingFlow = streamsList.filter((s) => s.flow_rates.normal === null && s.flow_rates.design === null).length;
+
     return {
       project,
       documents_count: docs.length,
@@ -2175,6 +2500,9 @@ export class PsiDataStore {
       graph_approved: graphApproval.approved,
       pha_nodes_count: phaNodes.length,
       pha_approved_nodes_count: phaNodes.filter((n) => n.status === 'approved').length,
+      streams_count: streamsList.length,
+      streams_with_flow_count: streamsWithFlow,
+      streams_missing_flow_count: streamsMissingFlow,
       hazop_ready: hazopReadiness.ready,
       current_stage: currentStage,
     };
@@ -2552,8 +2880,127 @@ export class PsiDataStore {
     this.data.lines.push(...sampleLines);
     this.data.pha_nodes.push(...samplePhaNodes);
 
+    this.seedSampleStreams(sampleProjId);
     this.seedSampleDrawing();
     this.saveDatabase();
+  }
+
+  public seedSampleStreams(projectId: string = 'proj-sample-ammonia-demo'): ProcessStream[] {
+    const existing = this.data.streams.filter((s) => s.project_id === projectId);
+    if (existing.length > 0) return existing;
+
+    const now = new Date().toISOString();
+    const sampleStreams: ProcessStream[] = [
+      {
+        id: 'stream-nh3-101',
+        project_id: projectId,
+        stream_number: 'STR-101',
+        source_equipment_id: 'eq-v101',
+        source_equipment_tag: 'V-101',
+        destination_equipment_id: 'eq-p101a',
+        destination_equipment_tag: 'P-101A',
+        connected_line_id: 'line-3nh3-101',
+        line_number: '3"-NH3-101-CS',
+        material_description: 'Anhydrous Ammonia (Liquid Refrigerant)',
+        assigned_chemical_id: 'chem-ammonia-apex',
+        flow_direction: 'forward',
+        flow_rates: {
+          normal: 25.0,
+          min: 8.0,
+          max: 35.0,
+          design: 40.0,
+          actual: 24.8,
+          unit: 'm3/h',
+          basis: 'volumetric',
+        },
+        operating_pressure: {
+          value: 13.5,
+          unit: 'bar(g)',
+          status: 'verified',
+        },
+        operating_temperature: {
+          value: -10.0,
+          unit: '°C',
+          status: 'verified',
+        },
+        phase: 'liquid',
+        pipe_nominal_diameter: '3"',
+        pipe_spec: 'CS (ASTM A333 Grade 6)',
+        associated_instrument_tags: ['FIT-101', 'FIC-101', 'FCV-101', 'FAL-101'],
+        source: {
+          document: 'PID-104-NH3-REFRIGERATION-MAIN-P&ID.png',
+          page: 1,
+          snippet: '3"-NH3-101-CS from V-101 sump to P-101A suction. Normal: 25 m3/h, Design: 40 m3/h',
+        },
+        data_origin: 'extracted',
+        verification_status: 'verified',
+        verified_by: 'Lead Process Safety Engineer (PE)',
+        verified_at: new Date('2026-03-15T08:30:00Z').toISOString(),
+        notes: 'Primary liquid ammonia recirculation suction stream.',
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: 'stream-bleach-201',
+        project_id: projectId,
+        stream_number: 'STR-201',
+        source_equipment_id: 'eq-tk201',
+        source_equipment_tag: 'TK-201',
+        destination_equipment_id: 'eq-v101',
+        destination_equipment_tag: 'V-101',
+        connected_line_id: 'line-15bl-201',
+        line_number: '1.5"-BL-201-PVC',
+        material_description: 'Sodium Hypochlorite Solution 12.5%',
+        assigned_chemical_id: 'chem-bleach-apex',
+        flow_direction: 'forward',
+        flow_rates: {
+          normal: 0.15,
+          min: 0.05,
+          max: 0.30,
+          design: 0.50,
+          actual: 0.14,
+          unit: 'm3/h',
+          basis: 'volumetric',
+        },
+        operating_pressure: {
+          value: 2.2,
+          unit: 'bar(g)',
+          status: 'verified',
+        },
+        operating_temperature: {
+          value: 20.0,
+          unit: '°C',
+          status: 'verified',
+        },
+        phase: 'liquid',
+        pipe_nominal_diameter: '1.5"',
+        pipe_spec: 'PVC Schedule 80',
+        associated_instrument_tags: ['FI-201', 'FT-201', 'FCV-201'],
+        source: {
+          document: 'PID-104-NH3-REFRIGERATION-MAIN-P&ID.png',
+          page: 1,
+          snippet: '1.5"-BL-201-PVC dosing tie-in to water cooling loop / receiver jacket. Normal: 0.15 m3/h',
+        },
+        data_origin: 'extracted',
+        verification_status: 'verified',
+        verified_by: 'Lead Process Safety Engineer (PE)',
+        verified_at: new Date('2026-03-15T08:30:00Z').toISOString(),
+        notes: 'Chemical biocide dosing tie-in line.',
+        created_at: now,
+        updated_at: now,
+      },
+    ];
+
+    this.data.streams.push(...sampleStreams);
+    // Link streams to lines
+    for (const stream of sampleStreams) {
+      if (stream.connected_line_id) {
+        const line = this.data.lines.find((l) => l.id === stream.connected_line_id);
+        if (line) line.stream_id = stream.id;
+      }
+    }
+    this.saveDatabase();
+    return sampleStreams;
   }
 
   public seedSampleDrawing(projectId: string = 'proj-sample-ammonia-demo'): DigitalPidDrawing {

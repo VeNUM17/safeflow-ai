@@ -460,6 +460,164 @@ export interface EquipmentTag {
 export type FunctionalType = 'piping_line' | 'signal_line' | 'utility_line';
 export type FlowDirection = 'forward' | 'reverse' | 'bidirectional' | 'unknown';
 
+// --- PROCESS STREAM DATA MODEL ---
+
+export type FlowBasis = 'volumetric' | 'mass' | 'molar';
+export type StreamPhase = 'liquid' | 'gas' | 'vapor' | 'solid' | 'multiphase';
+export type StreamDataOrigin =
+  | 'document_extracted'
+  | 'manual_entry'
+  | 'live_measurement'
+  | 'hybrid'
+  | 'extracted'
+  | 'manual'
+  | 'measured'
+  | 'synthesized';
+export type StreamVerificationStatus = 'unverified' | 'under_review' | 'verified' | 'rejected';
+
+export interface StreamOperatingCondition {
+  value: number | null;
+  unit: string | null;
+  status: 'not_provided' | 'extracted' | 'user_entered' | 'verified';
+}
+
+export interface StreamFlowRates {
+  normal: number | null; // Missing values MUST remain null, NOT zero!
+  min: number | null;
+  max: number | null;
+  design: number | null;
+  actual: number | null; // Live or measured data if available
+  unit: string | null; // e.g. "m3/h", "kg/h", "gpm", "lb/h", "kmol/h", "scfh"
+  basis: FlowBasis | null;
+}
+
+export interface ProcessStream {
+  id: string; // Unique stream ID
+  project_id: string;
+  stream_number: string; // Identifier e.g. "STR-101", "1", "S-01"
+  source_equipment_id: string | null;
+  source_equipment_tag: string; // e.g. "TK-101"
+  destination_equipment_id: string | null;
+  destination_equipment_tag: string; // e.g. "P-101"
+  connected_line_id: string | null;
+  line_number: string | null;
+  material_description: string;
+  assigned_chemical_id: string | null;
+  flow_direction: FlowDirection;
+  flow_rates: StreamFlowRates;
+  operating_pressure: StreamOperatingCondition;
+  operating_temperature: StreamOperatingCondition;
+  phase: StreamPhase | null;
+  pipe_nominal_diameter: string | null;
+  pipe_spec: string | null;
+  associated_instrument_tags: string[]; // e.g. ["FI-101", "FIT-101", "FIC-101", "FCV-101", "FE-101", "FO-101"]
+  source: {
+    document: string;
+    document_id?: string | null;
+    page: number | null;
+    snippet: string | null;
+    section?: string | null;
+  };
+  data_origin: StreamDataOrigin;
+  verification_status: StreamVerificationStatus;
+  verified_by?: string | null;
+  verified_at?: string | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateStreamInput {
+  project_id: string;
+  stream_number?: string;
+  source_equipment_tag: string;
+  destination_equipment_tag: string;
+  connected_line_id?: string | null;
+  line_number?: string | null;
+  material_description?: string;
+  assigned_chemical_id?: string | null;
+  flow_direction?: FlowDirection;
+  flow_rates?: Partial<StreamFlowRates>;
+  operating_pressure?: Partial<StreamOperatingCondition>;
+  operating_temperature?: Partial<StreamOperatingCondition>;
+  phase?: StreamPhase | null;
+  pipe_nominal_diameter?: string | null;
+  pipe_spec?: string | null;
+  associated_instrument_tags?: string[];
+  source_document?: string;
+  source_page?: number | null;
+  source_snippet?: string | null;
+  data_origin?: StreamDataOrigin;
+  verification_status?: StreamVerificationStatus;
+  verified_by?: string | null;
+  notes?: string | null;
+  reviewer?: string;
+}
+
+export function createEmptyProcessStream(
+  projectId: string,
+  sourceTag = '',
+  destTag = '',
+  connectedLineId?: string | null,
+  lineNumber?: string | null,
+  streamNumber?: string,
+  origin: StreamDataOrigin = 'manual_entry'
+): ProcessStream {
+  const now = new Date().toISOString();
+  const randomSuffix = Math.random().toString(36).substring(2, 9);
+  const num = streamNumber || `STR-${Date.now().toString(36).toUpperCase()}`;
+  return {
+    id: `stream-${randomSuffix}`,
+    project_id: projectId,
+    stream_number: num,
+    source_equipment_id: null,
+    source_equipment_tag: sourceTag,
+    destination_equipment_id: null,
+    destination_equipment_tag: destTag,
+    connected_line_id: connectedLineId || null,
+    line_number: lineNumber || null,
+    material_description: 'Process Material',
+    assigned_chemical_id: null,
+    flow_direction: 'forward',
+    flow_rates: {
+      normal: null,
+      min: null,
+      max: null,
+      design: null,
+      actual: null,
+      unit: 'm3/h',
+      basis: 'volumetric',
+    },
+    operating_pressure: {
+      value: null,
+      unit: 'bar(g)',
+      status: 'not_provided',
+    },
+    operating_temperature: {
+      value: null,
+      unit: '°C',
+      status: 'not_provided',
+    },
+    phase: null,
+    pipe_nominal_diameter: null,
+    pipe_spec: null,
+    associated_instrument_tags: [],
+    source: {
+      document: origin === 'manual_entry' ? 'Manual Engineering Entry' : 'P&ID Extraction',
+      document_id: null,
+      page: null,
+      snippet: null,
+    },
+    data_origin: origin,
+    verification_status: 'unverified',
+    verified_by: null,
+    verified_at: null,
+    notes: null,
+    created_at: now,
+    updated_at: now,
+  };
+}
+
 export interface PipingLine {
   id: string;
   project_id: string;
@@ -473,6 +631,7 @@ export interface PipingLine {
   functional_type: FunctionalType;
   flow_direction: FlowDirection;
   assigned_chemical_id: string | null;
+  stream_id?: string | null;
   confidence: number;
   status: EquipmentStatus;
   source: {
@@ -556,9 +715,9 @@ export interface AuditTrailEntry {
   id: string;
   project_id: string;
   timestamp: string;
-  entity_type: 'equipment' | 'line' | 'graph' | 'pha_node';
+  entity_type: 'equipment' | 'line' | 'graph' | 'pha_node' | 'stream' | 'chemical';
   entity_id: string;
-  action: 'create' | 'update' | 'delete' | 'approve' | 'reject' | 'restore';
+  action: 'create' | 'update' | 'delete' | 'approve' | 'reject' | 'restore' | 'verify';
   field_changed?: string;
   original_value?: any;
   revised_value?: any;
@@ -592,6 +751,43 @@ export interface PhaDeviationScenario {
   notes?: string;
 }
 
+export interface FlowDeviationAnalysis {
+  id: string;
+  deviation: 'NO FLOW' | 'LESS FLOW' | 'MORE FLOW' | 'REVERSE FLOW' | 'FLUCTUATING FLOW';
+  parameter: 'Flow';
+  guideword: 'NO' | 'LESS' | 'MORE' | 'REVERSE' | 'OTHER THAN';
+  stream_id: string;
+  stream_number: string;
+  from_to: string;
+  status: 'verified_limit' | 'unverified_limit' | 'limit_unknown';
+  documented_limits: {
+    normal?: number | null;
+    min_allowable?: number | null;
+    max_allowable?: number | null;
+    design_flow?: number | null;
+    unit?: string | null;
+  };
+  causes: string[];
+  consequences: string[];
+  safeguards: string[];
+  instrumentation_and_alarms: string[];
+  recommendations: string[];
+  required_operating_limits: string[];
+}
+
+export interface NodeStreamSummary {
+  incoming_streams: ProcessStream[];
+  outgoing_streams: ProcessStream[];
+  incoming_count: number;
+  outgoing_count: number;
+  known_flow_count: number;
+  unknown_flow_count: number;
+  known_conditions_count: number;
+  missing_critical_count: number;
+  unverified_count: number;
+  verified_count: number;
+}
+
 export interface PhaMissingSpecAlert {
   equipment_tag: string;
   property: string;
@@ -613,6 +809,16 @@ export interface PhaStudyNode {
   status: PhaNodeStatus;
   unresolved_questions: string[];
   operating_limits: PhaOperatingLimits;
+  incoming_stream_ids?: string[];
+  outgoing_stream_ids?: string[];
+  incoming_streams?: ProcessStream[];
+  outgoing_streams?: ProcessStream[];
+  stream_summary?: NodeStreamSummary;
+  associated_valves?: string[];
+  associated_instruments?: string[];
+  control_loops?: string[];
+  missing_process_information?: string[];
+  flow_deviations?: FlowDeviationAnalysis[];
   reviewed_by?: string;
   approved_at?: string;
   requires_reassessment?: boolean;
@@ -669,6 +875,9 @@ export interface ProjectDashboardSummary {
   graph_approved: boolean;
   pha_nodes_count: number;
   pha_approved_nodes_count: number;
+  streams_count?: number;
+  streams_with_flow_count?: number;
+  streams_missing_flow_count?: number;
   hazop_ready: boolean;
   current_stage: PhaWorkflowStage;
 }
@@ -752,6 +961,9 @@ export interface GraphEdge {
   functional_type: FunctionalType;
   flow_direction: FlowDirection;
   status: string;
+  stream_id?: string | null;
+  stream_number?: string | null;
+  stream_properties?: ProcessStream;
   confidence?: number;
   source_evidence?: {
     document: string;

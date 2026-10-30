@@ -10,7 +10,7 @@ import { parsePidDocument } from '../services/pidParser';
 import { buildProcessTopologyGraph } from '../services/graphService';
 import { exportProjectToJson, exportProjectToCsv } from '../services/exportService';
 import { exportDrawingToJson, exportDrawingToSvg } from '../services/drawingExportService';
-import { DocumentRecord, DocumentType, PipingLine, EquipmentTag, createDefaultSpecifications } from '../types';
+import { DocumentRecord, DocumentType, PipingLine, EquipmentTag, createDefaultSpecifications, ProcessStream } from '../types';
 
 const router = Router();
 
@@ -141,6 +141,7 @@ router.post(
     const newChemicals: any[] = [];
     const newEquipment: any[] = [];
     const newLines: any[] = [];
+    const newStreams: any[] = [];
 
     for (const file of files) {
       const docId = uuidv4();
@@ -205,7 +206,7 @@ router.post(
       // If document is P&ID, run P&ID extractor
       if (determinedType === 'pid') {
         const existingChems = store.listChemicals(projectId);
-        const { equipment, lines } = parsePidDocument(
+        const { equipment, lines, streams } = parsePidDocument(
           extracted,
           docId,
           file.originalname,
@@ -214,6 +215,10 @@ router.post(
         );
         store.addEquipment(equipment);
         store.addLines(lines);
+        if (streams && streams.length > 0) {
+          store.addStreams(streams);
+          newStreams.push(...streams);
+        }
         newEquipment.push(...equipment);
         newLines.push(...lines);
       }
@@ -228,6 +233,7 @@ router.post(
         chemicals_added: newChemicals.length,
         equipment_tags_added: newEquipment.length,
         piping_lines_added: newLines.length,
+        streams_added: newStreams.length,
         summary,
       },
     });
@@ -580,14 +586,95 @@ router.delete('/lines/:id', (req: Request, res: Response) => {
   res.json({ success: true, message: 'Piping line deleted successfully' });
 });
 
+// --- PROCESS STREAMS ---
+router.get('/projects/:id/streams', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const streams = store.listStreams(projectId);
+  res.json({ success: true, data: streams });
+});
+
+router.get('/streams/:id', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const stream = store.getStream(id);
+  if (!stream) {
+    return res.status(404).json({ success: false, error: 'Process stream not found' });
+  }
+  res.json({ success: true, data: stream });
+});
+
+router.post('/projects/:id/streams', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const { source_equipment_tag, destination_equipment_tag } = req.body;
+
+  if (!source_equipment_tag || !destination_equipment_tag) {
+    return res.status(400).json({
+      success: false,
+      error: 'source_equipment_tag and destination_equipment_tag are required',
+    });
+  }
+
+  const reviewer = req.body.reviewer || 'Process Engineer';
+  const reason = req.body.change_reason || 'Manual process stream creation';
+
+  const newStream = store.createStream(
+    {
+      ...req.body,
+      project_id: projectId,
+    },
+    reviewer,
+    reason
+  );
+
+  res.status(201).json({ success: true, data: newStream });
+});
+
+router.patch('/streams/:id', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const reviewer = req.body?.reviewer || 'Process Engineer';
+  const reason = req.body?.change_reason || req.body?.reason || 'Manual stream modification';
+  const updated = store.updateStream(id, req.body, reviewer, reason);
+  if (!updated) {
+    return res.status(404).json({ success: false, error: 'Process stream not found' });
+  }
+  res.json({ success: true, data: updated });
+});
+
+router.put('/streams/:id', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const reviewer = req.body?.reviewer || 'Process Engineer';
+  const reason = req.body?.change_reason || req.body?.reason || 'Manual stream modification';
+  const updated = store.updateStream(id, req.body, reviewer, reason);
+  if (!updated) {
+    return res.status(404).json({ success: false, error: 'Process stream not found' });
+  }
+  res.json({ success: true, data: updated });
+});
+
+router.delete('/streams/:id', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const reviewer = req.body?.reviewer || 'Process Engineer';
+  const reason = req.body?.change_reason || req.body?.reason || 'Process stream removed';
+  const deleted = store.deleteStream(id, reviewer, reason);
+  if (!deleted) {
+    return res.status(404).json({ success: false, error: 'Process stream not found' });
+  }
+  res.json({ success: true, message: 'Process stream deleted successfully' });
+});
+
+router.post('/streams/:id/verify', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const reviewer = req.body?.reviewer || 'Lead Process Engineer';
+  const notes = req.body?.notes;
+  const verified = store.verifyStream(id, reviewer, notes);
+  if (!verified) {
+    return res.status(404).json({ success: false, error: 'Process stream not found' });
+  }
+  res.json({ success: true, data: verified });
+});
+
 router.get('/projects/:id/graph', (req: Request, res: Response) => {
   const projectId = getParam(req.params.id);
-  const equipment = store.listEquipment(projectId);
-  const lines = store.listLines(projectId);
-  const chems = store.listChemicals(projectId);
-  const conflicts = store.listConflicts(projectId);
-
-  const graph = buildProcessTopologyGraph(equipment, lines, chems, conflicts);
+  const graph = store.getProcessTopologyGraph(projectId);
   res.json({ success: true, data: graph });
 });
 
