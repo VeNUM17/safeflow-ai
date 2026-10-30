@@ -223,16 +223,33 @@
       ]
     },
     {
-      "id": "1c7722c1-5d8b-4e75-8f33-b46601726938",
+      "id": "4a70eebd-b473-43d7-bb8b-babdaca3d355",
       "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
       "name": "Process Safety Information h2o.pdf",
       "original_filename": "Process Safety Information h2o.pdf",
-      "file_path": "/uploads/1793190688206-995970823.pdf",
+      "file_path": "/uploads/1793192679906-581205223.pdf",
       "mime_type": "application/pdf",
       "size_bytes": 213465,
       "doc_type": "sds",
-      "upload_timestamp": "2026-10-28T12:31:28.324Z",
+      "upload_timestamp": "2026-10-28T13:04:40.119Z",
       "pages_count": 5,
+      "is_readable": true,
+      "is_scanned_ocr_attempted": false,
+      "chemical_ids": [
+        "dce6939c-f134-4748-8772-e7340920c3a9"
+      ]
+    },
+    {
+      "id": "9e08bce4-cf92-4930-b112-9d6f4f6ceb70",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "name": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+      "original_filename": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+      "file_path": "/uploads/1793192755443-791622114.pdf",
+      "mime_type": "application/pdf",
+      "size_bytes": 29723,
+      "doc_type": "pid",
+      "upload_timestamp": "2026-10-28T13:05:55.463Z",
+      "pages_count": 1,
       "is_readable": true,
       "is_scanned_ocr_attempted": false,
       "chemical_ids": []
@@ -3308,190 +3325,6 @@
       "updated_at": "2026-10-28T12:25:44.329Z"
     },
     {
-      "id": "ff37cd59-5fdd-43cc-a9ba-fd1ccd96b64b",
-      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
-      "sds_document_id": "1c7722c1-5d8b-4e75-8f33-b46601726938",
-      "chemical_name": {
-        "value": "Cooling water (utility); CAS 7732-18-5 [S1]",
-        "machine_value": "Cooling water (utility); CAS 7732-18-5 [S1]",
-        "user_value": null,
-        "source": {
-          "document": "Process Safety Information h2o.pdf",
-          "document_id": "1c7722c1-5d8b-4e75-8f33-b46601726938",
-          "page": 1,
-          "section": "Section 1: Identification",
-          "snippet": "Trade Name: Cooling water (utility); CAS 7732-18-5 [S1]"
-        },
-        "confidence": 0.95,
-        "review_status": "needs_review",
-        "missing_reason": null,
-        "updated_at": "2026-10-28T12:31:28.332Z"
-      },
-      "cas_number": {
-        "value": "7732-18-5",
-        "machine_value": "7732-18-5",
-        "user_value": null,
-        "source": {
-          "document": "Process Safety Information h2o.pdf",
-          "document_id": "1c7722c1-5d8b-4e75-8f33-b46601726938",
-          "page": 1,
-          "section": "General Document",
-          "snippet": "ade Name: Cooling water (utility); CAS 7732-18-5 [S1] Manufacturer / Licensor: N/A (Uti"
-        },
-        "confidence": 0.98,
-        "review_status": "needs_review",
-        "missing_reason": null,
-        "updated_at": "2026-10-28T12:31:28.332Z"
-      },
-      "sds_revision_date": {
-        "value": null,
-        "machine_value": null,
-        "user_value": null,
-        "source": {
-          "document": "Process Safety Information h2o.pdf",
-          "document_id": "1c7722c1-5d8b-4e75-8f33-b46601726938",
-          "page": 1,
-          "section": "Header / Section 16",
-          "snippet": null
-        },
-        "confidence": 0,
-        "review_status": "missing",
-        "missing_reason": "Revision or issue date not explicitly identified",
-        "updated_at": "2026-10-28T12:31:28.332Z"
-      },
-      "manufacturer": {
-        "value": null,
-        "machine_value": null,
-        "user_value": null,
-        "source": {
-          "document": "Process Safety Information h2o.pdf",
-          "document_id": "1c7722c1-5d8b-4e75-8f33-b46601726938",
-          "page": 1,
-          "section": "Section 1: Identification",
-          "snippet": null
-        },
-        "confidence": 0,
-        "review_status": "missing",
-        "missing_reason": "Manufacturer/Supplier name not found in Section 1",
-        "updated_at": "2026-10-28T12:31:28.332Z"
-      },
-      "psi_parameters": {
-        "toxicity": {
-          "value": null,
-          "machine_value": null,
-          "user_value": null,
-          "source": {
-            "document": "Process Safety Information h2o.pdf",
-            "document_id": "1c7722c1-5d8b-4e75-8f33-b46601726938",
-            "page": null,
-            "section": "Section 11",
-            "snippet": null
-          },
-          "confidence": 0,
-          "review_status": "missing",
-          "missing_reason": "No toxicity data found in Section 11 of the Safety Data Sheet.",
-          "updated_at": "2026-10-28T12:31:28.331Z"
-        },
-        "permissible_exposure_limits": {
-          "value": null,
-          "machine_value": null,
-          "user_value": null,
-          "source": {
-            "document": "Process Safety Information h2o.pdf",
-            "document_id": "1c7722c1-5d8b-4e75-8f33-b46601726938",
-            "page": null,
-            "section": "Section 8",
-            "snippet": null
-          },
-          "confidence": 0,
-          "review_status": "missing",
-          "missing_reason": "No permissible exposure limits (OSHA PEL / ACGIH TLV / NIOSH REL) stated in Section 8.",
-          "updated_at": "2026-10-28T12:31:28.332Z"
-        },
-        "physical_data": {
-          "value": null,
-          "machine_value": null,
-          "user_value": null,
-          "source": {
-            "document": "Process Safety Information h2o.pdf",
-            "document_id": "1c7722c1-5d8b-4e75-8f33-b46601726938",
-            "page": null,
-            "section": "Section 9",
-            "snippet": null
-          },
-          "confidence": 0,
-          "review_status": "missing",
-          "missing_reason": "No physical data (boiling point, vapor pressure, etc.) found in Section 9.",
-          "updated_at": "2026-10-28T12:31:28.332Z"
-        },
-        "reactivity_data": {
-          "value": null,
-          "machine_value": null,
-          "user_value": null,
-          "source": {
-            "document": "Process Safety Information h2o.pdf",
-            "document_id": "1c7722c1-5d8b-4e75-8f33-b46601726938",
-            "page": null,
-            "section": "Section 10",
-            "snippet": null
-          },
-          "confidence": 0,
-          "review_status": "missing",
-          "missing_reason": "No reactivity data found in Section 10.",
-          "updated_at": "2026-10-28T12:31:28.332Z"
-        },
-        "corrosivity_data": {
-          "value": "Process Note: Water is non-toxic, but hot water/steam causes thermal burns. Biocides/additives require separate records. | 2.6 Corrosivity Data & Metallurgy Compatibility (OSHA 1910.119(d)(1)(v)) | Corrosion rates reflect standard system acceptance classes [S8]. Actual performance depends on treatme...",
-          "machine_value": "Process Note: Water is non-toxic, but hot water/steam causes thermal burns. Biocides/additives require separate records. | 2.6 Corrosivity Data & Metallurgy Compatibility (OSHA 1910.119(d)(1)(v)) | Corrosion rates reflect standard system acceptance classes [S8]. Actual performance depends on treatme...",
-          "user_value": null,
-          "source": {
-            "document": "Process Safety Information h2o.pdf",
-            "document_id": "1c7722c1-5d8b-4e75-8f33-b46601726938",
-            "page": 1,
-            "section": "Section 2 / Section 9: Corrosivity & Hazards",
-            "snippet": "Process Note: Water is non-toxic, but hot water/steam causes thermal burns. Biocides/additives require separate records. | 2.6 Corrosivity Data & Metallurgy Compatibility (OSHA 1910.119(d)(1)(v)) | Corrosion rates reflect standard system acceptance classes [S8]. Actual performance depends on treatme..."
-          },
-          "confidence": 0.9,
-          "review_status": "needs_review",
-          "updated_at": "2026-10-28T12:31:28.332Z"
-        },
-        "thermal_and_chemical_stability_data": {
-          "value": null,
-          "machine_value": null,
-          "user_value": null,
-          "source": {
-            "document": "Process Safety Information h2o.pdf",
-            "document_id": "1c7722c1-5d8b-4e75-8f33-b46601726938",
-            "page": null,
-            "section": "Section 10",
-            "snippet": null
-          },
-          "confidence": 0,
-          "review_status": "missing",
-          "missing_reason": "No thermal and chemical stability data found in Section 10.",
-          "updated_at": "2026-10-28T12:31:28.332Z"
-        },
-        "inadvertent_mixing_hazards": {
-          "value": null,
-          "machine_value": null,
-          "user_value": null,
-          "source": {
-            "document": "Process Safety Information h2o.pdf",
-            "document_id": "1c7722c1-5d8b-4e75-8f33-b46601726938",
-            "page": null,
-            "section": "Section 10",
-            "snippet": null
-          },
-          "confidence": 0,
-          "review_status": "missing",
-          "missing_reason": "Section 10 (Stability and Reactivity / Incompatible Materials) not present in document.",
-          "updated_at": "2026-10-28T12:31:28.332Z"
-        }
-      },
-      "created_at": "2026-10-28T12:31:28.332Z",
-      "updated_at": "2026-10-28T12:31:28.332Z"
-    },
-    {
       "id": "cea513e3-81d0-4e8d-a6ee-c7a42b3ec341",
       "project_id": "f6d0af32-3231-4abe-8a51-29732290ed95",
       "sds_document_id": "doc-new-sds",
@@ -3826,10 +3659,3214 @@
           "change_summary": "Linked SDS extraction without overwriting manual/verified values"
         }
       ]
+    },
+    {
+      "id": "dce6939c-f134-4748-8772-e7340920c3a9",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "sds_document_id": "4a70eebd-b473-43d7-bb8b-babdaca3d355",
+      "chemical_name": {
+        "value": "Cooling water (utility)",
+        "machine_value": "Cooling water (utility)",
+        "user_value": null,
+        "source": {
+          "document": "Process Safety Information h2o.pdf",
+          "document_id": "4a70eebd-b473-43d7-bb8b-babdaca3d355",
+          "page": 1,
+          "section": "Section 1: Identification",
+          "snippet": "Trade Name: Cooling water (utility)"
+        },
+        "confidence": 0.95,
+        "review_status": "needs_review",
+        "category_status": "extracted",
+        "missing_reason": null,
+        "updated_at": "2026-10-28T13:04:40.137Z"
+      },
+      "cas_number": {
+        "value": "7732-18-5",
+        "machine_value": "7732-18-5",
+        "user_value": null,
+        "source": {
+          "document": "Process Safety Information h2o.pdf",
+          "document_id": "4a70eebd-b473-43d7-bb8b-babdaca3d355",
+          "page": 1,
+          "section": "General Document",
+          "snippet": "ade Name: Cooling water (utility); CAS 7732-18-5 [S1] Manufacturer / Licensor: N/A (Uti"
+        },
+        "confidence": 0.98,
+        "review_status": "needs_review",
+        "category_status": "extracted",
+        "missing_reason": null,
+        "updated_at": "2026-10-28T13:04:40.137Z"
+      },
+      "sds_revision_date": {
+        "value": null,
+        "machine_value": null,
+        "user_value": null,
+        "source": {
+          "document": "Process Safety Information h2o.pdf",
+          "document_id": "4a70eebd-b473-43d7-bb8b-babdaca3d355",
+          "page": 1,
+          "section": "Header / Section 16",
+          "snippet": null
+        },
+        "confidence": 0,
+        "review_status": "missing",
+        "category_status": "not_found",
+        "missing_reason": "Revision or issue date not explicitly identified",
+        "updated_at": "2026-10-28T13:04:40.137Z"
+      },
+      "manufacturer": {
+        "value": null,
+        "machine_value": null,
+        "user_value": null,
+        "source": {
+          "document": "Process Safety Information h2o.pdf",
+          "document_id": "4a70eebd-b473-43d7-bb8b-babdaca3d355",
+          "page": 1,
+          "section": "Section 1: Identification",
+          "snippet": null
+        },
+        "confidence": 0,
+        "review_status": "missing",
+        "category_status": "not_found",
+        "missing_reason": "Manufacturer/Supplier name not found in Section 1",
+        "updated_at": "2026-10-28T13:04:40.137Z"
+      },
+      "psi_parameters": {
+        "toxicity": {
+          "value": "Toxicological Endpoint Species & Route Numerical Threshold GHS Class Source | Acute Inhalation (LC50) Rat (4-hr) > 50 mg/L (vapour) / No | Carcinogenicity IARC / NTP Not listed as hazardous Not classified S2",
+          "machine_value": "Toxicological Endpoint Species & Route Numerical Threshold GHS Class Source | Acute Inhalation (LC50) Rat (4-hr) > 50 mg/L (vapour) / No | Carcinogenicity IARC / NTP Not listed as hazardous Not classified S2",
+          "user_value": null,
+          "source": {
+            "document": "Process Safety Information h2o.pdf",
+            "document_id": "4a70eebd-b473-43d7-bb8b-babdaca3d355",
+            "page": 1,
+            "section": "Section 2 / Full Document",
+            "snippet": "Toxicological Endpoint Species & Route Numerical Threshold GHS Class Source Acute Inhalation (LC50) Rat (4-hr) > 50 mg/L (vapour) / No Carcinogenicity IARC / NTP Not listed as hazardous Not classified S2"
+          },
+          "confidence": 0.85,
+          "review_status": "confirmed",
+          "category_status": "extracted",
+          "findings": [
+            {
+              "field": "Toxicological Hazard & Effects",
+              "value": "Toxicological Endpoint \tSpecies & Route \tNumerical Threshold \tGHS Class \tSource"
+            },
+            {
+              "field": "Inhalation LC50",
+              "value": "0",
+              "units": "mg/L",
+              "qualifier": "Inhalation acute lethal concentration",
+              "test_conditions": "Acute Inhalation (LC50) \tRat (4-hr) \t> 50 mg/L (vapour) / No"
+            },
+            {
+              "field": "Toxicological Hazard & Effects",
+              "value": "Carcinogenicity \tIARC / NTP \tNot listed as hazardous \tNot classified S2"
+            }
+          ],
+          "source_sections": [
+            "Section 2 / Full Document"
+          ],
+          "evidence": [
+            "Toxicological Endpoint \tSpecies & Route \tNumerical Threshold \tGHS Class \tSource",
+            "Acute Inhalation (LC50) \tRat (4-hr) \t> 50 mg/L (vapour) / No",
+            "Carcinogenicity \tIARC / NTP \tNot listed as hazardous \tNot classified S2"
+          ],
+          "updated_at": "2026-10-28T13:04:52.231Z",
+          "verification_status": "verified",
+          "notes": "Confirmed machine extraction based on SDS source evidence."
+        },
+        "permissible_exposure_limits": {
+          "value": null,
+          "machine_value": null,
+          "user_value": null,
+          "source": {
+            "document": "Process Safety Information h2o.pdf",
+            "document_id": "4a70eebd-b473-43d7-bb8b-babdaca3d355",
+            "page": null,
+            "section": "Section 8: Exposure Controls",
+            "snippet": null
+          },
+          "confidence": 0,
+          "review_status": "confirmed",
+          "category_status": "not_found",
+          "findings": [],
+          "source_sections": [
+            "Section 8: Exposure Controls"
+          ],
+          "evidence": [],
+          "missing_reason": "No permissible exposure limits (OSHA PEL / ACGIH TLV / NIOSH REL) stated in Section 8 or available document text.",
+          "updated_at": "2026-10-28T13:04:54.131Z",
+          "verification_status": "verified",
+          "notes": "Confirmed machine extraction based on SDS source evidence."
+        },
+        "physical_data": {
+          "value": "Boiling Point °C 100 °C (212 °F) S5, S9 | Freezing Point °C 0 °C (32 °F) S9 | Vapor Pressure mmHg 17.54 mmHg at 20 °C (0.339 | Liquid Density / SG g/cm3 0.9982 g/cm3 at 20 °C (SG ≈ | Flash Point / Limits — / Vol% None (non-flammable) / Not",
+          "machine_value": "Boiling Point °C 100 °C (212 °F) S5, S9 | Freezing Point °C 0 °C (32 °F) S9 | Vapor Pressure mmHg 17.54 mmHg at 20 °C (0.339 | Liquid Density / SG g/cm3 0.9982 g/cm3 at 20 °C (SG ≈ | Flash Point / Limits — / Vol% None (non-flammable) / Not",
+          "user_value": null,
+          "source": {
+            "document": "Process Safety Information h2o.pdf",
+            "document_id": "4a70eebd-b473-43d7-bb8b-babdaca3d355",
+            "page": 1,
+            "section": "Full Document",
+            "snippet": "Boiling Point °C 100 °C (212 °F) S5, S9 Freezing Point °C 0 °C (32 °F) S9 Vapor Pressure mmHg 17.54 mmHg at 20 °C (0.339 Liquid Density / SG g/cm3 0.9982 g/cm3 at 20 °C (SG ≈ Flash Point / Limits — / Vol% None (non-flammable) / Not Chemical pH: 7 (pure water) [S1]; 5–9 (SDS range) [S4]. Operating pH managed by treatment program. S1 ScienceLab Water MSDS (HMDB): hmdb.ca CAS, synonyms, pH 7, LD50, v..."
+          },
+          "confidence": 0.82,
+          "review_status": "confirmed",
+          "category_status": "extracted",
+          "findings": [
+            {
+              "field": "Boiling Point",
+              "value": "°C \t100 °C (212 °F) \tS5, S9"
+            },
+            {
+              "field": "Melting/Freezing Point",
+              "value": "°C \t0 °C (32 °F) \tS9"
+            },
+            {
+              "field": "Vapor Pressure",
+              "value": "mmHg \t17.54 mmHg at 20 °C (0.339"
+            },
+            {
+              "field": "Specific Gravity / Density",
+              "value": "/ SG \tg/cm3 \t0.9982 g/cm3 at 20 °C (SG ≈"
+            },
+            {
+              "field": "Flash Point",
+              "value": "/ Limits \t— / Vol% \tNone (non-flammable) / Not"
+            },
+            {
+              "field": "pH",
+              "value": "7"
+            },
+            {
+              "field": "pH",
+              "value": "7"
+            },
+            {
+              "field": "Vapor Pressure",
+              "value": ", exposure limits, stability"
+            },
+            {
+              "field": "Vapor Pressure",
+              "value": ", ΔHvap, Cp"
+            },
+            {
+              "field": "Flash Point",
+              "value": ", LEL/UEL, state"
+            },
+            {
+              "field": "Flammability Limits",
+              "value": "/UEL, state"
+            }
+          ],
+          "source_sections": [
+            "Full Document"
+          ],
+          "evidence": [
+            "Boiling Point \t°C \t100 °C (212 °F) \tS5, S9",
+            "Freezing Point \t°C \t0 °C (32 °F) \tS9",
+            "Vapor Pressure \tmmHg \t17.54 mmHg at 20 °C (0.339",
+            "Liquid Density / SG \tg/cm3 \t0.9982 g/cm3 at 20 °C (SG ≈",
+            "Flash Point / Limits \t— / Vol% \tNone (non-flammable) / Not"
+          ],
+          "updated_at": "2026-10-28T13:04:55.890Z",
+          "verification_status": "verified",
+          "notes": "Confirmed machine extraction based on SDS source evidence."
+        },
+        "reactivity_data": {
+          "value": "2.5 Reactivity Data (OSHA 1910.119(d)(1)(iv)) | Self-Reactivity: [ ] Yes [x] No — None under normal processing [S2] | Polymerization: [ ] Yes [x] No — Hazardous polymerization does not occur [S2], [S3] | Conditions to Avoid: None under normal use [S2]. Freezing (pipe expansion), overheating/flashing",
+          "machine_value": "2.5 Reactivity Data (OSHA 1910.119(d)(1)(iv)) | Self-Reactivity: [ ] Yes [x] No — None under normal processing [S2] | Polymerization: [ ] Yes [x] No — Hazardous polymerization does not occur [S2], [S3] | Conditions to Avoid: None under normal use [S2]. Freezing (pipe expansion), overheating/flashing",
+          "user_value": null,
+          "source": {
+            "document": "Process Safety Information h2o.pdf",
+            "document_id": "4a70eebd-b473-43d7-bb8b-babdaca3d355",
+            "page": 1,
+            "section": "Full Document",
+            "snippet": "2.5 Reactivity Data (OSHA 1910.119(d)(1)(iv)) Self-Reactivity: [ ] Yes [x] No — None under normal processing [S2] Polymerization: [ ] Yes [x] No — Hazardous polymerization does not occur [S2], [S3] Conditions to Avoid: None under normal use [S2]. Freezing (pipe expansion), overheating/flashing Neutralization exotherm; potential metal attack or"
+          },
+          "confidence": 0.8,
+          "review_status": "confirmed",
+          "category_status": "extracted",
+          "findings": [
+            {
+              "field": "Reactivity Hazard",
+              "value": "2.5 Reactivity Data (OSHA 1910.119(d)(1)(iv))"
+            },
+            {
+              "field": "Reactivity Hazard",
+              "value": "Self-Reactivity: \t[ ] Yes [x] No — None under normal processing [S2]"
+            },
+            {
+              "field": "Reactivity Hazard",
+              "value": "Polymerization: \t[ ] Yes [x] No — Hazardous polymerization does not occur [S2], [S3]"
+            },
+            {
+              "field": "Reactivity Hazard",
+              "value": "Conditions to Avoid: \tNone under normal use [S2]. Freezing (pipe expansion), overheating/flashing"
+            },
+            {
+              "field": "Reactivity Hazard",
+              "value": "Neutralization exotherm; potential metal attack or"
+            }
+          ],
+          "source_sections": [
+            "Full Document"
+          ],
+          "evidence": [
+            "2.5 Reactivity Data (OSHA 1910.119(d)(1)(iv))",
+            "Self-Reactivity: \t[ ] Yes [x] No — None under normal processing [S2]",
+            "Polymerization: \t[ ] Yes [x] No — Hazardous polymerization does not occur [S2], [S3]",
+            "Conditions to Avoid: \tNone under normal use [S2]. Freezing (pipe expansion), overheating/flashing",
+            "Neutralization exotherm; potential metal attack or"
+          ],
+          "updated_at": "2026-10-28T13:04:57.251Z",
+          "verification_status": "verified",
+          "notes": "Confirmed machine extraction based on SDS source evidence."
+        },
+        "corrosivity_data": {
+          "value": "sulfide attacks copper and carbon",
+          "machine_value": "sulfide attacks copper and carbon",
+          "user_value": null,
+          "source": {
+            "document": "Process Safety Information h2o.pdf",
+            "document_id": "4a70eebd-b473-43d7-bb8b-babdaca3d355",
+            "page": 1,
+            "section": "Sections 2, 9, 10: Corrosivity & Metallurgy",
+            "snippet": "sulfide attacks copper and carbon"
+          },
+          "confidence": 0.94,
+          "review_status": "confirmed",
+          "category_status": "extracted",
+          "findings": [
+            {
+              "field": "Metal Corrosivity",
+              "value": "sulfide attacks copper and carbon"
+            }
+          ],
+          "source_sections": [
+            "Sections 2, 9, 10: Corrosivity & Metallurgy"
+          ],
+          "evidence": [
+            "sulfide attacks copper and carbon"
+          ],
+          "updated_at": "2026-10-28T13:04:58.491Z",
+          "verification_status": "verified",
+          "notes": "Confirmed machine extraction based on SDS source evidence."
+        },
+        "thermal_and_chemical_stability_data": {
+          "value": "Decomposition Products: None under normal use conditions [S2]. | 2.7 Thermal & Chemical Stability (OSHA 1910.119(d)(1)(vi)) | Thermal Decomposition Not applicable (stable) [S2] No hazardous decomposition",
+          "machine_value": "Decomposition Products: None under normal use conditions [S2]. | 2.7 Thermal & Chemical Stability (OSHA 1910.119(d)(1)(vi)) | Thermal Decomposition Not applicable (stable) [S2] No hazardous decomposition",
+          "user_value": null,
+          "source": {
+            "document": "Process Safety Information h2o.pdf",
+            "document_id": "4a70eebd-b473-43d7-bb8b-babdaca3d355",
+            "page": 1,
+            "section": "Full Document",
+            "snippet": "Decomposition Products: None under normal use conditions [S2]. 2.7 Thermal & Chemical Stability (OSHA 1910.119(d)(1)(vi)) Thermal Decomposition Not applicable (stable) [S2] No hazardous decomposition"
+          },
+          "confidence": 0.8,
+          "review_status": "confirmed",
+          "category_status": "extracted",
+          "findings": [
+            {
+              "field": "Thermal/Chemical Stability",
+              "value": "Decomposition Products: \tNone under normal use conditions [S2]."
+            },
+            {
+              "field": "Thermal/Chemical Stability",
+              "value": "2.7 Thermal & Chemical Stability (OSHA 1910.119(d)(1)(vi))"
+            },
+            {
+              "field": "Thermal/Chemical Stability",
+              "value": "Thermal Decomposition \tNot applicable (stable) [S2] \tNo hazardous decomposition"
+            }
+          ],
+          "source_sections": [
+            "Full Document"
+          ],
+          "evidence": [
+            "Decomposition Products: \tNone under normal use conditions [S2].",
+            "2.7 Thermal & Chemical Stability (OSHA 1910.119(d)(1)(vi))",
+            "Thermal Decomposition \tNot applicable (stable) [S2] \tNo hazardous decomposition"
+          ],
+          "updated_at": "2026-10-28T13:04:59.756Z",
+          "verification_status": "verified",
+          "notes": "Confirmed machine extraction based on SDS source evidence."
+        },
+        "inadvertent_mixing_hazards": {
+          "value": "Composition Pure / Mixture Selection Pure base water (~100 | Elastomers PTFE / EPDM Not available Compatibility depends on oxidizers | 2.8 Inadvertent Mixing Hazards (OSHA 1910.119(d)(1)(vii)) | Strong Acids / Bases Chemical dosing failure / cross-",
+          "machine_value": "Composition Pure / Mixture Selection Pure base water (~100 | Elastomers PTFE / EPDM Not available Compatibility depends on oxidizers | 2.8 Inadvertent Mixing Hazards (OSHA 1910.119(d)(1)(vii)) | Strong Acids / Bases Chemical dosing failure / cross-",
+          "user_value": null,
+          "source": {
+            "document": "Process Safety Information h2o.pdf",
+            "document_id": "4a70eebd-b473-43d7-bb8b-babdaca3d355",
+            "page": 1,
+            "section": "Full Document",
+            "snippet": "Composition Pure / Mixture Selection Pure base water (~100 Elastomers PTFE / EPDM Not available Compatibility depends on oxidizers 2.8 Inadvertent Mixing Hazards (OSHA 1910.119(d)(1)(vii)) Strong Acids / Bases Chemical dosing failure / cross- Oxidizing Biocides Bleach / chlorine dosing Combined with ammonia leaks, can form toxic chloramines. Ammonia / Sulfides Process leak into cooling water Sever..."
+          },
+          "confidence": 0.82,
+          "review_status": "confirmed",
+          "category_status": "extracted",
+          "findings": [
+            {
+              "field": "Inadvertent Mixing Hazard",
+              "value": "Composition \tPure / Mixture \tSelection \tPure base water (~100"
+            },
+            {
+              "field": "Inadvertent Mixing Hazard",
+              "value": "Elastomers \tPTFE / EPDM Not available \tCompatibility depends on oxidizers"
+            },
+            {
+              "field": "Inadvertent Mixing Hazard",
+              "value": "2.8 Inadvertent Mixing Hazards (OSHA 1910.119(d)(1)(vii))"
+            },
+            {
+              "field": "Inadvertent Mixing Hazard",
+              "value": "Strong Acids / Bases \tChemical dosing failure / cross-"
+            },
+            {
+              "field": "Inadvertent Mixing Hazard",
+              "value": "Oxidizing Biocides \tBleach / chlorine dosing \tCombined with ammonia leaks, can form toxic"
+            },
+            {
+              "field": "Inadvertent Mixing Hazard",
+              "value": "chloramines."
+            },
+            {
+              "field": "Inadvertent Mixing Hazard",
+              "value": "Ammonia / Sulfides \tProcess leak into cooling water \tSevere corrosion of copper alloys; toxic gas release"
+            }
+          ],
+          "source_sections": [
+            "Full Document"
+          ],
+          "evidence": [
+            "Composition \tPure / Mixture \tSelection \tPure base water (~100",
+            "Elastomers \tPTFE / EPDM Not available \tCompatibility depends on oxidizers",
+            "2.8 Inadvertent Mixing Hazards (OSHA 1910.119(d)(1)(vii))",
+            "Strong Acids / Bases \tChemical dosing failure / cross-",
+            "Oxidizing Biocides \tBleach / chlorine dosing \tCombined with ammonia leaks, can form toxic"
+          ],
+          "updated_at": "2026-10-28T13:05:00.803Z",
+          "verification_status": "verified",
+          "notes": "Confirmed machine extraction based on SDS source evidence."
+        }
+      },
+      "structured_extraction": {
+        "chemical_identity": {
+          "name": "Cooling water (utility)",
+          "cas_number": "7732-18-5",
+          "molecular_formula": null,
+          "molecular_weight": null
+        },
+        "psi": {
+          "toxicity": {
+            "status": "extracted",
+            "findings": [
+              {
+                "field": "Toxicological Hazard & Effects",
+                "value": "Toxicological Endpoint \tSpecies & Route \tNumerical Threshold \tGHS Class \tSource"
+              },
+              {
+                "field": "Inhalation LC50",
+                "value": "0",
+                "units": "mg/L",
+                "qualifier": "Inhalation acute lethal concentration",
+                "test_conditions": "Acute Inhalation (LC50) \tRat (4-hr) \t> 50 mg/L (vapour) / No"
+              },
+              {
+                "field": "Toxicological Hazard & Effects",
+                "value": "Carcinogenicity \tIARC / NTP \tNot listed as hazardous \tNot classified S2"
+              }
+            ],
+            "source_sections": [
+              "Section 2 / Full Document"
+            ],
+            "evidence": [
+              "Toxicological Endpoint \tSpecies & Route \tNumerical Threshold \tGHS Class \tSource",
+              "Acute Inhalation (LC50) \tRat (4-hr) \t> 50 mg/L (vapour) / No",
+              "Carcinogenicity \tIARC / NTP \tNot listed as hazardous \tNot classified S2"
+            ],
+            "summary": "Toxicological Endpoint Species & Route Numerical Threshold GHS Class Source | Acute Inhalation (LC50) Rat (4-hr) > 50 mg/L (vapour) / No | Carcinogenicity IARC / NTP Not listed as hazardous Not classified S2"
+          },
+          "exposure_limits": {
+            "status": "not_found",
+            "findings": [],
+            "source_sections": [],
+            "evidence": [],
+            "summary": null,
+            "missing_reason": "No permissible exposure limits (OSHA PEL / ACGIH TLV / NIOSH REL) stated in Section 8 or available document text."
+          },
+          "physical_data": {
+            "status": "extracted",
+            "findings": [
+              {
+                "field": "Boiling Point",
+                "value": "°C \t100 °C (212 °F) \tS5, S9"
+              },
+              {
+                "field": "Melting/Freezing Point",
+                "value": "°C \t0 °C (32 °F) \tS9"
+              },
+              {
+                "field": "Vapor Pressure",
+                "value": "mmHg \t17.54 mmHg at 20 °C (0.339"
+              },
+              {
+                "field": "Specific Gravity / Density",
+                "value": "/ SG \tg/cm3 \t0.9982 g/cm3 at 20 °C (SG ≈"
+              },
+              {
+                "field": "Flash Point",
+                "value": "/ Limits \t— / Vol% \tNone (non-flammable) / Not"
+              },
+              {
+                "field": "pH",
+                "value": "7"
+              },
+              {
+                "field": "pH",
+                "value": "7"
+              },
+              {
+                "field": "Vapor Pressure",
+                "value": ", exposure limits, stability"
+              },
+              {
+                "field": "Vapor Pressure",
+                "value": ", ΔHvap, Cp"
+              },
+              {
+                "field": "Flash Point",
+                "value": ", LEL/UEL, state"
+              },
+              {
+                "field": "Flammability Limits",
+                "value": "/UEL, state"
+              }
+            ],
+            "source_sections": [
+              "Full Document"
+            ],
+            "evidence": [
+              "Boiling Point \t°C \t100 °C (212 °F) \tS5, S9",
+              "Freezing Point \t°C \t0 °C (32 °F) \tS9",
+              "Vapor Pressure \tmmHg \t17.54 mmHg at 20 °C (0.339",
+              "Liquid Density / SG \tg/cm3 \t0.9982 g/cm3 at 20 °C (SG ≈",
+              "Flash Point / Limits \t— / Vol% \tNone (non-flammable) / Not"
+            ],
+            "summary": "Boiling Point °C 100 °C (212 °F) S5, S9 | Freezing Point °C 0 °C (32 °F) S9 | Vapor Pressure mmHg 17.54 mmHg at 20 °C (0.339 | Liquid Density / SG g/cm3 0.9982 g/cm3 at 20 °C (SG ≈ | Flash Point / Limits — / Vol% None (non-flammable) / Not"
+          },
+          "reactivity": {
+            "status": "extracted",
+            "findings": [
+              {
+                "field": "Reactivity Hazard",
+                "value": "2.5 Reactivity Data (OSHA 1910.119(d)(1)(iv))"
+              },
+              {
+                "field": "Reactivity Hazard",
+                "value": "Self-Reactivity: \t[ ] Yes [x] No — None under normal processing [S2]"
+              },
+              {
+                "field": "Reactivity Hazard",
+                "value": "Polymerization: \t[ ] Yes [x] No — Hazardous polymerization does not occur [S2], [S3]"
+              },
+              {
+                "field": "Reactivity Hazard",
+                "value": "Conditions to Avoid: \tNone under normal use [S2]. Freezing (pipe expansion), overheating/flashing"
+              },
+              {
+                "field": "Reactivity Hazard",
+                "value": "Neutralization exotherm; potential metal attack or"
+              }
+            ],
+            "source_sections": [
+              "Full Document"
+            ],
+            "evidence": [
+              "2.5 Reactivity Data (OSHA 1910.119(d)(1)(iv))",
+              "Self-Reactivity: \t[ ] Yes [x] No — None under normal processing [S2]",
+              "Polymerization: \t[ ] Yes [x] No — Hazardous polymerization does not occur [S2], [S3]",
+              "Conditions to Avoid: \tNone under normal use [S2]. Freezing (pipe expansion), overheating/flashing",
+              "Neutralization exotherm; potential metal attack or"
+            ],
+            "summary": "2.5 Reactivity Data (OSHA 1910.119(d)(1)(iv)) | Self-Reactivity: [ ] Yes [x] No — None under normal processing [S2] | Polymerization: [ ] Yes [x] No — Hazardous polymerization does not occur [S2], [S3] | Conditions to Avoid: None under normal use [S2]. Freezing (pipe expansion), overheating/flashing"
+          },
+          "corrosivity": {
+            "status": "extracted",
+            "findings": [
+              {
+                "field": "Metal Corrosivity",
+                "value": "sulfide attacks copper and carbon"
+              }
+            ],
+            "source_sections": [
+              "Sections 2, 9, 10: Corrosivity & Metallurgy"
+            ],
+            "evidence": [
+              "sulfide attacks copper and carbon"
+            ],
+            "summary": "sulfide attacks copper and carbon"
+          },
+          "thermal_chemical_stability": {
+            "status": "extracted",
+            "findings": [
+              {
+                "field": "Thermal/Chemical Stability",
+                "value": "Decomposition Products: \tNone under normal use conditions [S2]."
+              },
+              {
+                "field": "Thermal/Chemical Stability",
+                "value": "2.7 Thermal & Chemical Stability (OSHA 1910.119(d)(1)(vi))"
+              },
+              {
+                "field": "Thermal/Chemical Stability",
+                "value": "Thermal Decomposition \tNot applicable (stable) [S2] \tNo hazardous decomposition"
+              }
+            ],
+            "source_sections": [
+              "Full Document"
+            ],
+            "evidence": [
+              "Decomposition Products: \tNone under normal use conditions [S2].",
+              "2.7 Thermal & Chemical Stability (OSHA 1910.119(d)(1)(vi))",
+              "Thermal Decomposition \tNot applicable (stable) [S2] \tNo hazardous decomposition"
+            ],
+            "summary": "Decomposition Products: None under normal use conditions [S2]. | 2.7 Thermal & Chemical Stability (OSHA 1910.119(d)(1)(vi)) | Thermal Decomposition Not applicable (stable) [S2] No hazardous decomposition"
+          },
+          "hazardous_effects_of_inadvertent_mixing": {
+            "status": "extracted",
+            "findings": [
+              {
+                "field": "Inadvertent Mixing Hazard",
+                "value": "Composition \tPure / Mixture \tSelection \tPure base water (~100"
+              },
+              {
+                "field": "Inadvertent Mixing Hazard",
+                "value": "Elastomers \tPTFE / EPDM Not available \tCompatibility depends on oxidizers"
+              },
+              {
+                "field": "Inadvertent Mixing Hazard",
+                "value": "2.8 Inadvertent Mixing Hazards (OSHA 1910.119(d)(1)(vii))"
+              },
+              {
+                "field": "Inadvertent Mixing Hazard",
+                "value": "Strong Acids / Bases \tChemical dosing failure / cross-"
+              },
+              {
+                "field": "Inadvertent Mixing Hazard",
+                "value": "Oxidizing Biocides \tBleach / chlorine dosing \tCombined with ammonia leaks, can form toxic"
+              },
+              {
+                "field": "Inadvertent Mixing Hazard",
+                "value": "chloramines."
+              },
+              {
+                "field": "Inadvertent Mixing Hazard",
+                "value": "Ammonia / Sulfides \tProcess leak into cooling water \tSevere corrosion of copper alloys; toxic gas release"
+              }
+            ],
+            "source_sections": [
+              "Full Document"
+            ],
+            "evidence": [
+              "Composition \tPure / Mixture \tSelection \tPure base water (~100",
+              "Elastomers \tPTFE / EPDM Not available \tCompatibility depends on oxidizers",
+              "2.8 Inadvertent Mixing Hazards (OSHA 1910.119(d)(1)(vii))",
+              "Strong Acids / Bases \tChemical dosing failure / cross-",
+              "Oxidizing Biocides \tBleach / chlorine dosing \tCombined with ammonia leaks, can form toxic"
+            ],
+            "summary": "Composition Pure / Mixture Selection Pure base water (~100 | Elastomers PTFE / EPDM Not available Compatibility depends on oxidizers | 2.8 Inadvertent Mixing Hazards (OSHA 1910.119(d)(1)(vii)) | Strong Acids / Bases Chemical dosing failure / cross-"
+          }
+        },
+        "extraction_metadata": {
+          "document_name": "Process Safety Information h2o.pdf",
+          "pages_processed": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "extraction_status": "partial",
+          "warnings": []
+        }
+      },
+      "created_at": "2026-10-28T13:04:40.137Z",
+      "updated_at": "2026-10-28T13:05:00.803Z"
     }
   ],
-  "equipment": [],
-  "lines": [],
+  "equipment": [
+    {
+      "id": "0eba4b2b-969b-4095-bb0b-e4f92c305e12",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "9e08bce4-cf92-4930-b112-9d6f4f6ceb70",
+      "tag": "TK-101",
+      "description": "Storage Tank",
+      "equipment_type": "tank",
+      "assigned_chemical_id": null,
+      "confidence": 0.85,
+      "status": "provisional",
+      "source": {
+        "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+        "page": 1,
+        "snippet": "Rev 2\nSOFTWARE TEST ONLY — NOT FOR CONSTRUCTION / OPERATION\nTK-101\nNaOH feed tank\nVENT-101\nHV-101\nP-101\nFeed pump\nNRV-101\nL-10",
+        "bbox": {
+          "x": 463,
+          "y": 193,
+          "w": 90,
+          "h": 55
+        }
+      },
+      "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+      "machine_tag": "TK-101",
+      "machine_type": "tank",
+      "machine_description": "Storage Tank",
+      "is_manual_entry": false,
+      "specifications": {
+        "material_of_construction": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_temperature": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "capacity": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": "total_volume",
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "operating_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "operating_temperature": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "relief_device_set_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_code": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "corrosion_allowance": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        }
+      },
+      "specifications_revision": 1,
+      "specifications_updated_at": "2026-10-28T13:05:55.472Z",
+      "created_at": "2026-10-28T13:05:55.472Z"
+    },
+    {
+      "id": "15364d76-f138-4768-8044-493e95fe73b7",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "9e08bce4-cf92-4930-b112-9d6f4f6ceb70",
+      "tag": "TK-102",
+      "description": "Storage Tank",
+      "equipment_type": "tank",
+      "assigned_chemical_id": null,
+      "confidence": 0.85,
+      "status": "provisional",
+      "source": {
+        "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+        "page": 1,
+        "snippet": "gnal\nL-103\nE-101\nCooler\nCooling IN\nCooling OUT\nHV-103\nL-104 TK-102\nProduct tank\nVENT-103\nHV-104\nL-105\nProduct\nLT\nLIT-101\nTT\nTI",
+        "bbox": {
+          "x": 174,
+          "y": 106,
+          "w": 90,
+          "h": 55
+        }
+      },
+      "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+      "machine_tag": "TK-102",
+      "machine_type": "tank",
+      "machine_description": "Storage Tank",
+      "is_manual_entry": false,
+      "specifications": {
+        "material_of_construction": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_temperature": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "capacity": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": "total_volume",
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "operating_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "operating_temperature": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "relief_device_set_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_code": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "corrosion_allowance": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        }
+      },
+      "specifications_revision": 1,
+      "specifications_updated_at": "2026-10-28T13:05:55.473Z",
+      "created_at": "2026-10-28T13:05:55.473Z"
+    },
+    {
+      "id": "5bf364a9-5d9b-4000-8834-d6ed59ac1aca",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "9e08bce4-cf92-4930-b112-9d6f4f6ceb70",
+      "tag": "MX-101",
+      "description": "Mixing / Blending Tank",
+      "equipment_type": "mixing_tank",
+      "assigned_chemical_id": null,
+      "confidence": 0.85,
+      "status": "provisional",
+      "source": {
+        "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+        "page": 1,
+        "snippet": "aOH feed tank\nVENT-101\nHV-101\nP-101\nFeed pump\nNRV-101\nL-101 MX-101\nAgitated mixing tank\nAG-101 VENT-102\nDV-101\nDrain\nWater sup",
+        "bbox": {
+          "x": 513,
+          "y": 192,
+          "w": 90,
+          "h": 55
+        }
+      },
+      "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+      "machine_tag": "MX-101",
+      "machine_type": "mixing_tank",
+      "machine_description": "Mixing / Blending Tank",
+      "is_manual_entry": false,
+      "specifications": {
+        "material_of_construction": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_temperature": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "capacity": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": "total_volume",
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "operating_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "operating_temperature": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "relief_device_set_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_code": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "corrosion_allowance": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        }
+      },
+      "specifications_revision": 1,
+      "specifications_updated_at": "2026-10-28T13:05:55.473Z",
+      "created_at": "2026-10-28T13:05:55.473Z"
+    },
+    {
+      "id": "b083e937-1ed8-4302-8c75-0c863413d052",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "9e08bce4-cf92-4930-b112-9d6f4f6ceb70",
+      "tag": "AG-101",
+      "description": "Tank Agitator / Mixer",
+      "equipment_type": "agitator",
+      "assigned_chemical_id": null,
+      "confidence": 0.85,
+      "status": "provisional",
+      "source": {
+        "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+        "page": 1,
+        "snippet": "1\nP-101\nFeed pump\nNRV-101\nL-101 MX-101\nAgitated mixing tank\nAG-101 VENT-102\nDV-101\nDrain\nWater supply\nHV-102\nL-102\nFT\nFIT-101",
+        "bbox": {
+          "x": 211,
+          "y": 250,
+          "w": 90,
+          "h": 55
+        }
+      },
+      "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+      "machine_tag": "AG-101",
+      "machine_type": "agitator",
+      "machine_description": "Tank Agitator / Mixer",
+      "is_manual_entry": false,
+      "specifications": {
+        "material_of_construction": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_temperature": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "capacity": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": "total_volume",
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "operating_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "operating_temperature": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "relief_device_set_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_code": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "corrosion_allowance": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        }
+      },
+      "specifications_revision": 1,
+      "specifications_updated_at": "2026-10-28T13:05:55.473Z",
+      "created_at": "2026-10-28T13:05:55.473Z"
+    },
+    {
+      "id": "877dd5e0-6dc3-4e67-9902-f2eed8b5b0fa",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "9e08bce4-cf92-4930-b112-9d6f4f6ceb70",
+      "tag": "P-101",
+      "description": "Centrifugal / Transfer Pump",
+      "equipment_type": "pump",
+      "assigned_chemical_id": null,
+      "confidence": 0.85,
+      "status": "provisional",
+      "source": {
+        "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+        "page": 1,
+        "snippet": "STRUCTION / OPERATION\nTK-101\nNaOH feed tank\nVENT-101\nHV-101\nP-101\nFeed pump\nNRV-101\nL-101 MX-101\nAgitated mixing tank\nAG-101",
+        "bbox": {
+          "x": 563,
+          "y": 136,
+          "w": 90,
+          "h": 55
+        }
+      },
+      "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+      "machine_tag": "P-101",
+      "machine_type": "pump",
+      "machine_description": "Centrifugal / Transfer Pump",
+      "is_manual_entry": false,
+      "specifications": {
+        "material_of_construction": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_temperature": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "capacity": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": "total_volume",
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "operating_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "operating_temperature": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "relief_device_set_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_code": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "corrosion_allowance": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        }
+      },
+      "specifications_revision": 1,
+      "specifications_updated_at": "2026-10-28T13:05:55.473Z",
+      "created_at": "2026-10-28T13:05:55.473Z"
+    },
+    {
+      "id": "716cad32-97c3-421b-94ce-58c13caf37f1",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "9e08bce4-cf92-4930-b112-9d6f4f6ceb70",
+      "tag": "E-101",
+      "description": "Heat Exchanger / Cooler",
+      "equipment_type": "heat_exchanger",
+      "assigned_chemical_id": null,
+      "confidence": 0.85,
+      "status": "provisional",
+      "source": {
+        "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+        "page": 1,
+        "snippet": "ter supply\nHV-102\nL-102\nFT\nFIT-101\nFIC\nFIC-101\nSignal\nL-103\nE-101\nCooler\nCooling IN\nCooling OUT\nHV-103\nL-104 TK-102\nProduct t",
+        "bbox": {
+          "x": 325,
+          "y": 87,
+          "w": 90,
+          "h": 55
+        }
+      },
+      "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+      "machine_tag": "E-101",
+      "machine_type": "heat_exchanger",
+      "machine_description": "Heat Exchanger / Cooler",
+      "is_manual_entry": false,
+      "specifications": {
+        "material_of_construction": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_temperature": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "capacity": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": "total_volume",
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "operating_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "operating_temperature": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "relief_device_set_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_code": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "corrosion_allowance": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        }
+      },
+      "specifications_revision": 1,
+      "specifications_updated_at": "2026-10-28T13:05:55.473Z",
+      "created_at": "2026-10-28T13:05:55.473Z"
+    },
+    {
+      "id": "863ffb40-5872-4b48-a024-67d5c2452d04",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "9e08bce4-cf92-4930-b112-9d6f4f6ceb70",
+      "tag": "HV-101",
+      "description": "Manual Process Valve",
+      "equipment_type": "manual_valve",
+      "assigned_chemical_id": null,
+      "confidence": 0.85,
+      "status": "provisional",
+      "source": {
+        "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+        "page": 1,
+        "snippet": "FOR CONSTRUCTION / OPERATION\nTK-101\nNaOH feed tank\nVENT-101\nHV-101\nP-101\nFeed pump\nNRV-101\nL-101 MX-101\nAgitated mixing tank\nA",
+        "bbox": {
+          "x": 90,
+          "y": 100,
+          "w": 90,
+          "h": 55
+        }
+      },
+      "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+      "machine_tag": "HV-101",
+      "machine_type": "manual_valve",
+      "machine_description": "Manual Process Valve",
+      "is_manual_entry": false,
+      "specifications": {
+        "material_of_construction": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_temperature": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "capacity": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": "total_volume",
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "operating_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "operating_temperature": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "relief_device_set_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_code": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "corrosion_allowance": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        }
+      },
+      "specifications_revision": 1,
+      "specifications_updated_at": "2026-10-28T13:05:55.474Z",
+      "created_at": "2026-10-28T13:05:55.474Z"
+    },
+    {
+      "id": "6c8860bc-b963-4ca2-a6a5-5312f39a7555",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "9e08bce4-cf92-4930-b112-9d6f4f6ceb70",
+      "tag": "HV-102",
+      "description": "Manual Process Valve",
+      "equipment_type": "manual_valve",
+      "assigned_chemical_id": null,
+      "confidence": 0.85,
+      "status": "provisional",
+      "source": {
+        "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+        "page": 1,
+        "snippet": "tated mixing tank\nAG-101 VENT-102\nDV-101\nDrain\nWater supply\nHV-102\nL-102\nFT\nFIT-101\nFIC\nFIC-101\nSignal\nL-103\nE-101\nCooler\nCool",
+        "bbox": {
+          "x": 158,
+          "y": 228,
+          "w": 90,
+          "h": 55
+        }
+      },
+      "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+      "machine_tag": "HV-102",
+      "machine_type": "manual_valve",
+      "machine_description": "Manual Process Valve",
+      "is_manual_entry": false,
+      "specifications": {
+        "material_of_construction": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_temperature": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "capacity": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": "total_volume",
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "operating_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "operating_temperature": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "relief_device_set_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_code": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "corrosion_allowance": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        }
+      },
+      "specifications_revision": 1,
+      "specifications_updated_at": "2026-10-28T13:05:55.474Z",
+      "created_at": "2026-10-28T13:05:55.474Z"
+    },
+    {
+      "id": "330b6482-9d97-4346-8bc3-75957aeea641",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "9e08bce4-cf92-4930-b112-9d6f4f6ceb70",
+      "tag": "HV-103",
+      "description": "Manual Process Valve",
+      "equipment_type": "manual_valve",
+      "assigned_chemical_id": null,
+      "confidence": 0.85,
+      "status": "provisional",
+      "source": {
+        "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+        "page": 1,
+        "snippet": "IC\nFIC-101\nSignal\nL-103\nE-101\nCooler\nCooling IN\nCooling OUT\nHV-103\nL-104 TK-102\nProduct tank\nVENT-103\nHV-104\nL-105\nProduct\nLT",
+        "bbox": {
+          "x": 331,
+          "y": 173,
+          "w": 90,
+          "h": 55
+        }
+      },
+      "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+      "machine_tag": "HV-103",
+      "machine_type": "manual_valve",
+      "machine_description": "Manual Process Valve",
+      "is_manual_entry": false,
+      "specifications": {
+        "material_of_construction": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_temperature": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "capacity": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": "total_volume",
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "operating_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "operating_temperature": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "relief_device_set_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_code": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "corrosion_allowance": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        }
+      },
+      "specifications_revision": 1,
+      "specifications_updated_at": "2026-10-28T13:05:55.474Z",
+      "created_at": "2026-10-28T13:05:55.474Z"
+    },
+    {
+      "id": "b3c5793d-4e70-43d7-b04f-a708ff0384f4",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "9e08bce4-cf92-4930-b112-9d6f4f6ceb70",
+      "tag": "HV-104",
+      "description": "Manual Process Valve",
+      "equipment_type": "manual_valve",
+      "assigned_chemical_id": null,
+      "confidence": 0.85,
+      "status": "provisional",
+      "source": {
+        "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+        "page": 1,
+        "snippet": "ng IN\nCooling OUT\nHV-103\nL-104 TK-102\nProduct tank\nVENT-103\nHV-104\nL-105\nProduct\nLT\nLIT-101\nTT\nTIT-101\nLevel monitor Temperatu",
+        "bbox": {
+          "x": 180,
+          "y": 160,
+          "w": 90,
+          "h": 55
+        }
+      },
+      "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+      "machine_tag": "HV-104",
+      "machine_type": "manual_valve",
+      "machine_description": "Manual Process Valve",
+      "is_manual_entry": false,
+      "specifications": {
+        "material_of_construction": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_temperature": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "capacity": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": "total_volume",
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "operating_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "operating_temperature": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "relief_device_set_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_code": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "corrosion_allowance": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        }
+      },
+      "specifications_revision": 1,
+      "specifications_updated_at": "2026-10-28T13:05:55.474Z",
+      "created_at": "2026-10-28T13:05:55.474Z"
+    },
+    {
+      "id": "f48918e6-6196-4b62-8e4f-df29230489d0",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "9e08bce4-cf92-4930-b112-9d6f4f6ceb70",
+      "tag": "DV-101",
+      "description": "Drain / Sampling Valve",
+      "equipment_type": "drain_valve",
+      "assigned_chemical_id": null,
+      "confidence": 0.85,
+      "status": "provisional",
+      "source": {
+        "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+        "page": 1,
+        "snippet": "p\nNRV-101\nL-101 MX-101\nAgitated mixing tank\nAG-101 VENT-102\nDV-101\nDrain\nWater supply\nHV-102\nL-102\nFT\nFIT-101\nFIC\nFIC-101\nSign",
+        "bbox": {
+          "x": 564,
+          "y": 97,
+          "w": 90,
+          "h": 55
+        }
+      },
+      "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+      "machine_tag": "DV-101",
+      "machine_type": "drain_valve",
+      "machine_description": "Drain / Sampling Valve",
+      "is_manual_entry": false,
+      "specifications": {
+        "material_of_construction": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_temperature": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "capacity": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": "total_volume",
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "operating_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "operating_temperature": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "relief_device_set_pressure": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "design_code": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        },
+        "corrosion_allowance": {
+          "value": null,
+          "unit": null,
+          "status": "not_provided",
+          "verification_status": "unverified",
+          "capacity_type": null,
+          "source_document_id": null,
+          "source_document_name": null,
+          "source_revision": null,
+          "source_page": null,
+          "source_section": null,
+          "original_extracted_text": null,
+          "extraction_confidence": null,
+          "verified_by": null,
+          "verified_at": null,
+          "rejection_reason": null,
+          "conflicting_records": [],
+          "change_history": []
+        }
+      },
+      "specifications_revision": 1,
+      "specifications_updated_at": "2026-10-28T13:05:55.474Z",
+      "created_at": "2026-10-28T13:05:55.474Z"
+    }
+  ],
+  "lines": [
+    {
+      "id": "5cab845e-5ec3-4ee6-87d5-9159dd332f64",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "9e08bce4-cf92-4930-b112-9d6f4f6ceb70",
+      "line_number": "L-101",
+      "from_equipment": "",
+      "to_equipment": "",
+      "size": "2\"",
+      "material": "Carbon Steel (CS)",
+      "stream_label": "L-101 Process Stream",
+      "functional_type": "piping_line",
+      "flow_direction": "unknown",
+      "assigned_chemical_id": "b83e0456-9887-4b6c-9808-6a7752d5afce",
+      "confidence": 0.75,
+      "status": "provisional",
+      "source": {
+        "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+        "page": 1,
+        "snippet": "L-101"
+      },
+      "alerts": [],
+      "notes": "Candidate process line detected from drawing text. Endpoints require engineer review.",
+      "machine_from": "",
+      "machine_to": "",
+      "machine_line_number": "L-101",
+      "is_manual_entry": false,
+      "created_at": "2026-10-28T13:05:55.475Z"
+    },
+    {
+      "id": "93d8a1ca-f05a-44e8-a7ea-529a80301e0a",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "9e08bce4-cf92-4930-b112-9d6f4f6ceb70",
+      "line_number": "L-102",
+      "from_equipment": "",
+      "to_equipment": "",
+      "size": "2\"",
+      "material": "Carbon Steel (CS)",
+      "stream_label": "L-102 Process Stream",
+      "functional_type": "piping_line",
+      "flow_direction": "unknown",
+      "assigned_chemical_id": "b83e0456-9887-4b6c-9808-6a7752d5afce",
+      "confidence": 0.75,
+      "status": "provisional",
+      "source": {
+        "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+        "page": 1,
+        "snippet": "L-102"
+      },
+      "alerts": [],
+      "notes": "Candidate process line detected from drawing text. Endpoints require engineer review.",
+      "machine_from": "",
+      "machine_to": "",
+      "machine_line_number": "L-102",
+      "is_manual_entry": false,
+      "created_at": "2026-10-28T13:05:55.475Z"
+    },
+    {
+      "id": "6c611e66-f301-40ee-b98b-989585ccfd93",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "9e08bce4-cf92-4930-b112-9d6f4f6ceb70",
+      "line_number": "L-103",
+      "from_equipment": "",
+      "to_equipment": "",
+      "size": "2\"",
+      "material": "Carbon Steel (CS)",
+      "stream_label": "L-103 Process Stream",
+      "functional_type": "piping_line",
+      "flow_direction": "unknown",
+      "assigned_chemical_id": "b83e0456-9887-4b6c-9808-6a7752d5afce",
+      "confidence": 0.75,
+      "status": "provisional",
+      "source": {
+        "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+        "page": 1,
+        "snippet": "L-103"
+      },
+      "alerts": [],
+      "notes": "Candidate process line detected from drawing text. Endpoints require engineer review.",
+      "machine_from": "",
+      "machine_to": "",
+      "machine_line_number": "L-103",
+      "is_manual_entry": false,
+      "created_at": "2026-10-28T13:05:55.475Z"
+    },
+    {
+      "id": "a55266b2-d591-46e0-b4fd-661c5718c711",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "9e08bce4-cf92-4930-b112-9d6f4f6ceb70",
+      "line_number": "L-104",
+      "from_equipment": "",
+      "to_equipment": "",
+      "size": "2\"",
+      "material": "Carbon Steel (CS)",
+      "stream_label": "L-104 Process Stream",
+      "functional_type": "piping_line",
+      "flow_direction": "unknown",
+      "assigned_chemical_id": "b83e0456-9887-4b6c-9808-6a7752d5afce",
+      "confidence": 0.75,
+      "status": "provisional",
+      "source": {
+        "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+        "page": 1,
+        "snippet": "L-104"
+      },
+      "alerts": [],
+      "notes": "Candidate process line detected from drawing text. Endpoints require engineer review.",
+      "machine_from": "",
+      "machine_to": "",
+      "machine_line_number": "L-104",
+      "is_manual_entry": false,
+      "created_at": "2026-10-28T13:05:55.475Z"
+    },
+    {
+      "id": "621d8bbe-1fae-4b41-92b5-24976f3b34a3",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "9e08bce4-cf92-4930-b112-9d6f4f6ceb70",
+      "line_number": "L-105",
+      "from_equipment": "",
+      "to_equipment": "",
+      "size": "2\"",
+      "material": "Carbon Steel (CS)",
+      "stream_label": "L-105 Process Stream",
+      "functional_type": "piping_line",
+      "flow_direction": "unknown",
+      "assigned_chemical_id": "b83e0456-9887-4b6c-9808-6a7752d5afce",
+      "confidence": 0.75,
+      "status": "provisional",
+      "source": {
+        "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+        "page": 1,
+        "snippet": "L-105"
+      },
+      "alerts": [],
+      "notes": "Candidate process line detected from drawing text. Endpoints require engineer review.",
+      "machine_from": "",
+      "machine_to": "",
+      "machine_line_number": "L-105",
+      "is_manual_entry": false,
+      "created_at": "2026-10-28T13:05:55.475Z"
+    },
+    {
+      "id": "3bafb6ed-4600-4035-81ec-21527e465b83",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "manual",
+      "line_number": "l101",
+      "from_equipment": "TK-101",
+      "to_equipment": "HV-101",
+      "size": "2\"",
+      "material": "CS",
+      "stream_label": "",
+      "functional_type": "piping_line",
+      "flow_direction": "forward",
+      "assigned_chemical_id": "b83e0456-9887-4b6c-9808-6a7752d5afce",
+      "confidence": 1,
+      "status": "confirmed",
+      "source": {
+        "document": "Manual Connection Entry",
+        "page": 1,
+        "snippet": "User connected TK-101 to HV-101"
+      },
+      "alerts": [],
+      "notes": "",
+      "created_at": "2026-10-28T13:19:54.916Z"
+    },
+    {
+      "id": "21efd554-b726-45b3-accd-73e4413e545f",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "manual",
+      "line_number": "p101",
+      "from_equipment": "HV-101",
+      "to_equipment": "P-101",
+      "size": "2\"",
+      "material": "CS",
+      "stream_label": "",
+      "functional_type": "piping_line",
+      "flow_direction": "forward",
+      "assigned_chemical_id": "b83e0456-9887-4b6c-9808-6a7752d5afce",
+      "confidence": 1,
+      "status": "confirmed",
+      "source": {
+        "document": "Manual Connection Entry",
+        "page": 1,
+        "snippet": "User connected HV-101 to P-101"
+      },
+      "alerts": [],
+      "notes": "",
+      "created_at": "2026-10-28T13:20:16.910Z"
+    },
+    {
+      "id": "a6237fcb-ecba-44e0-94ef-a251a2c2c314",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "manual",
+      "line_number": "mx101",
+      "from_equipment": "P-101",
+      "to_equipment": "MX-101",
+      "size": "2\"",
+      "material": "CS",
+      "stream_label": "",
+      "functional_type": "piping_line",
+      "flow_direction": "forward",
+      "assigned_chemical_id": "b83e0456-9887-4b6c-9808-6a7752d5afce",
+      "confidence": 1,
+      "status": "confirmed",
+      "source": {
+        "document": "Manual Connection Entry",
+        "page": 1,
+        "snippet": "User connected P-101 to MX-101"
+      },
+      "alerts": [],
+      "notes": "",
+      "created_at": "2026-10-28T13:20:51.642Z"
+    },
+    {
+      "id": "26cfb758-4c3f-49c0-b2df-f00a6656c672",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "manual",
+      "line_number": "cooler",
+      "from_equipment": "MX-101",
+      "to_equipment": "E-101",
+      "size": "2\"",
+      "material": "CS",
+      "stream_label": "",
+      "functional_type": "piping_line",
+      "flow_direction": "forward",
+      "assigned_chemical_id": "b83e0456-9887-4b6c-9808-6a7752d5afce",
+      "confidence": 1,
+      "status": "confirmed",
+      "source": {
+        "document": "Manual Connection Entry",
+        "page": 1,
+        "snippet": "User connected MX-101 to E-101"
+      },
+      "alerts": [],
+      "notes": "",
+      "created_at": "2026-10-28T13:25:26.822Z"
+    },
+    {
+      "id": "74414ea3-f2b2-4b2b-9b0a-50057a5e7a2d",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "manual",
+      "line_number": "hv103",
+      "from_equipment": "E-101",
+      "to_equipment": "HV-103",
+      "size": "2\"",
+      "material": "CS",
+      "stream_label": "",
+      "functional_type": "piping_line",
+      "flow_direction": "forward",
+      "assigned_chemical_id": "b83e0456-9887-4b6c-9808-6a7752d5afce",
+      "confidence": 1,
+      "status": "confirmed",
+      "source": {
+        "document": "Manual Connection Entry",
+        "page": 1,
+        "snippet": "User connected E-101 to HV-103"
+      },
+      "alerts": [],
+      "notes": "",
+      "created_at": "2026-10-28T13:25:48.991Z"
+    },
+    {
+      "id": "b1123650-45ed-42d3-b002-f8c6ff340dc4",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "manual",
+      "line_number": "tk102",
+      "from_equipment": "HV-103",
+      "to_equipment": "TK-102",
+      "size": "2\"",
+      "material": "CS",
+      "stream_label": "",
+      "functional_type": "piping_line",
+      "flow_direction": "forward",
+      "assigned_chemical_id": "b83e0456-9887-4b6c-9808-6a7752d5afce",
+      "confidence": 1,
+      "status": "confirmed",
+      "source": {
+        "document": "Manual Connection Entry",
+        "page": 1,
+        "snippet": "User connected HV-103 to TK-102"
+      },
+      "alerts": [],
+      "notes": "",
+      "created_at": "2026-10-28T13:26:58.367Z"
+    },
+    {
+      "id": "cae4021a-aa48-40c8-88bb-2a95929303c8",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "manual",
+      "line_number": "product",
+      "from_equipment": "TK-102",
+      "to_equipment": "HV-104",
+      "size": "2\"",
+      "material": "CS",
+      "stream_label": "",
+      "functional_type": "piping_line",
+      "flow_direction": "forward",
+      "assigned_chemical_id": "b83e0456-9887-4b6c-9808-6a7752d5afce",
+      "confidence": 1,
+      "status": "confirmed",
+      "source": {
+        "document": "Manual Connection Entry",
+        "page": 1,
+        "snippet": "User connected TK-102 to HV-104"
+      },
+      "alerts": [],
+      "notes": "",
+      "created_at": "2026-10-28T13:27:21.372Z"
+    },
+    {
+      "id": "7ffd7fbd-b22f-4cc1-9370-760fc472e773",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "document_id": "manual",
+      "line_number": "drain",
+      "from_equipment": "MX-101",
+      "to_equipment": "DV-101",
+      "size": "2\"",
+      "material": "CS",
+      "stream_label": "",
+      "functional_type": "piping_line",
+      "flow_direction": "forward",
+      "assigned_chemical_id": "b83e0456-9887-4b6c-9808-6a7752d5afce",
+      "confidence": 1,
+      "status": "confirmed",
+      "source": {
+        "document": "Manual Connection Entry",
+        "page": 1,
+        "snippet": "User connected MX-101 to DV-101"
+      },
+      "alerts": [],
+      "notes": "",
+      "created_at": "2026-10-28T13:35:48.169Z"
+    }
+  ],
   "conflicts": [
     {
       "id": "17441c1b-fb23-48d1-bfc3-a52091623542",
@@ -3929,6 +6966,555 @@
     }
   ],
   "audit_log": [
+    {
+      "id": "42f72e4c-5213-422b-ac89-aa5fb5cba38c",
+      "timestamp": "2026-10-28T14:13:17.124Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "equipment",
+      "entity_id": "2a5b7fd1-a453-4da4-8d5e-69df98b4612a",
+      "action": "update",
+      "reviewer": "Process Safety Engineer",
+      "change_reason": "Drawing updated",
+      "revised_value": {
+        "elements": 14,
+        "connectors": 18,
+        "revision": "REV 0"
+      }
+    },
+    {
+      "id": "d601894f-f70e-4c72-8294-7b9bd1f65bc7",
+      "timestamp": "2026-10-28T14:02:38.464Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "equipment",
+      "entity_id": "2a5b7fd1-a453-4da4-8d5e-69df98b4612a",
+      "action": "update",
+      "reviewer": "Process Safety Engineer",
+      "change_reason": "Drawing updated",
+      "revised_value": {
+        "elements": 14,
+        "connectors": 9,
+        "revision": "REV 0"
+      }
+    },
+    {
+      "id": "e415d38e-ce1a-4aa7-9d45-2335163d9771",
+      "timestamp": "2026-10-28T13:35:48.169Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "line",
+      "entity_id": "7ffd7fbd-b22f-4cc1-9370-760fc472e773",
+      "action": "create",
+      "change_reason": "Manual engineering connection between process nodes",
+      "reviewer": "Process Safety Engineer",
+      "revised_value": {
+        "line_number": "drain",
+        "from": "MX-101",
+        "to": "DV-101",
+        "functional_type": "piping_line"
+      }
+    },
+    {
+      "id": "6e80b901-96d1-4bc3-b47b-182802b8ed33",
+      "timestamp": "2026-10-28T13:30:29.799Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "equipment",
+      "entity_id": "a10756c3-31f9-4068-93a4-c99ff3891f50",
+      "action": "delete",
+      "original_value": {
+        "tag": "TIT-101",
+        "type": "instrument",
+        "removed_connected_lines": 0
+      },
+      "change_reason": "Removed false-positive equipment node TIT-101",
+      "reviewer": "Process Safety Engineer"
+    },
+    {
+      "id": "08e5aa28-fa24-4846-a2d6-d1d55bc01b7e",
+      "timestamp": "2026-10-28T13:30:25.588Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "equipment",
+      "entity_id": "ceddf9ac-da45-438c-9aee-cf4cfb106d8b",
+      "action": "delete",
+      "original_value": {
+        "tag": "LIT-101",
+        "type": "instrument",
+        "removed_connected_lines": 0
+      },
+      "change_reason": "Removed false-positive equipment node LIT-101",
+      "reviewer": "Process Safety Engineer"
+    },
+    {
+      "id": "9a53de3d-0f73-4459-a0cb-804eabf018eb",
+      "timestamp": "2026-10-28T13:30:13.522Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "equipment",
+      "entity_id": "0e2fc332-b26f-457b-8263-59ab35baf00a",
+      "action": "delete",
+      "original_value": {
+        "tag": "FIT-101",
+        "type": "instrument",
+        "removed_connected_lines": 0
+      },
+      "change_reason": "Removed false-positive equipment node FIT-101",
+      "reviewer": "Process Safety Engineer"
+    },
+    {
+      "id": "f2516723-e3b1-4992-a8f7-7964a742dfc3",
+      "timestamp": "2026-10-28T13:27:21.372Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "line",
+      "entity_id": "cae4021a-aa48-40c8-88bb-2a95929303c8",
+      "action": "create",
+      "change_reason": "Manual engineering connection between process nodes",
+      "reviewer": "Process Safety Engineer",
+      "revised_value": {
+        "line_number": "product",
+        "from": "TK-102",
+        "to": "HV-104",
+        "functional_type": "piping_line"
+      }
+    },
+    {
+      "id": "4df56980-27d5-4dbb-9e8a-995c952d9a72",
+      "timestamp": "2026-10-28T13:26:58.367Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "line",
+      "entity_id": "b1123650-45ed-42d3-b002-f8c6ff340dc4",
+      "action": "create",
+      "change_reason": "Manual engineering connection between process nodes",
+      "reviewer": "Process Safety Engineer",
+      "revised_value": {
+        "line_number": "tk102",
+        "from": "HV-103",
+        "to": "TK-102",
+        "functional_type": "piping_line"
+      }
+    },
+    {
+      "id": "9ea2dfd0-5d1c-4493-ae2d-5a01342a99c7",
+      "timestamp": "2026-10-28T13:26:06.065Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "equipment",
+      "entity_id": "0e2fc332-b26f-457b-8263-59ab35baf00a",
+      "action": "update",
+      "original_value": {
+        "tag": "FIT-101",
+        "description": "Field Transmitter / Indicator",
+        "equipment_type": "instrument",
+        "assigned_chemical_id": null,
+        "status": "provisional"
+      },
+      "revised_value": {
+        "tag": "FIT-101",
+        "description": "Field Transmitter / Indicator",
+        "equipment_type": "instrument",
+        "assigned_chemical_id": null,
+        "status": "provisional",
+        "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+        "reviewer": "Process Safety Engineer",
+        "reason": "Engineering tag & classification verification"
+      },
+      "change_reason": "Engineering tag & classification verification",
+      "reviewer": "Process Safety Engineer"
+    },
+    {
+      "id": "3183a804-5d04-4216-9e96-08ddac0101c3",
+      "timestamp": "2026-10-28T13:25:48.991Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "line",
+      "entity_id": "74414ea3-f2b2-4b2b-9b0a-50057a5e7a2d",
+      "action": "create",
+      "change_reason": "Manual engineering connection between process nodes",
+      "reviewer": "Process Safety Engineer",
+      "revised_value": {
+        "line_number": "hv103",
+        "from": "E-101",
+        "to": "HV-103",
+        "functional_type": "piping_line"
+      }
+    },
+    {
+      "id": "4ee60d5f-9807-442d-b2db-92ae495dbd6b",
+      "timestamp": "2026-10-28T13:25:26.822Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "line",
+      "entity_id": "26cfb758-4c3f-49c0-b2df-f00a6656c672",
+      "action": "create",
+      "change_reason": "Manual engineering connection between process nodes",
+      "reviewer": "Process Safety Engineer",
+      "revised_value": {
+        "line_number": "cooler",
+        "from": "MX-101",
+        "to": "E-101",
+        "functional_type": "piping_line"
+      }
+    },
+    {
+      "id": "735eca9f-f182-4c8c-9bc8-e3397071cafa",
+      "timestamp": "2026-10-28T13:25:02.078Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "equipment",
+      "entity_id": "2a5b7fd1-a453-4da4-8d5e-69df98b4612a",
+      "action": "update",
+      "reviewer": "Process Safety Engineer",
+      "change_reason": "Drawing updated",
+      "revised_value": {
+        "elements": 14,
+        "connectors": 4,
+        "revision": "REV 0"
+      }
+    },
+    {
+      "id": "4291d232-ab46-4987-affe-1b946980cf39",
+      "timestamp": "2026-10-28T13:20:51.642Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "line",
+      "entity_id": "a6237fcb-ecba-44e0-94ef-a251a2c2c314",
+      "action": "create",
+      "change_reason": "Manual engineering connection between process nodes",
+      "reviewer": "Process Safety Engineer",
+      "revised_value": {
+        "line_number": "mx101",
+        "from": "P-101",
+        "to": "MX-101",
+        "functional_type": "piping_line"
+      }
+    },
+    {
+      "id": "f2c8ca3a-9c36-41f9-82bd-c16e58ae686d",
+      "timestamp": "2026-10-28T13:20:16.910Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "line",
+      "entity_id": "21efd554-b726-45b3-accd-73e4413e545f",
+      "action": "create",
+      "change_reason": "Manual engineering connection between process nodes",
+      "reviewer": "Process Safety Engineer",
+      "revised_value": {
+        "line_number": "p101",
+        "from": "HV-101",
+        "to": "P-101",
+        "functional_type": "piping_line"
+      }
+    },
+    {
+      "id": "d9b4de92-cc33-44da-b9ce-898986973baf",
+      "timestamp": "2026-10-28T13:19:54.916Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "line",
+      "entity_id": "3bafb6ed-4600-4035-81ec-21527e465b83",
+      "action": "create",
+      "change_reason": "Manual engineering connection between process nodes",
+      "reviewer": "Process Safety Engineer",
+      "revised_value": {
+        "line_number": "l101",
+        "from": "TK-101",
+        "to": "HV-101",
+        "functional_type": "piping_line"
+      }
+    },
+    {
+      "id": "8800fa5b-b443-4510-a252-f6ddd974ecc1",
+      "timestamp": "2026-10-28T13:06:20.391Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "equipment",
+      "entity_id": "2a5b7fd1-a453-4da4-8d5e-69df98b4612a",
+      "action": "create",
+      "reviewer": "Process Safety Engineer",
+      "change_reason": "Drawing updated",
+      "revised_value": {
+        "title": "Process Piping & Instrumentation Diagram",
+        "revision": "REV 0"
+      }
+    },
+    {
+      "id": "640faa66-5639-4193-bcc5-7ab0df7f032f",
+      "timestamp": "2026-10-28T13:05:55.689Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "line",
+      "entity_id": "621d8bbe-1fae-4b41-92b5-24976f3b34a3",
+      "action": "create",
+      "change_reason": "Added piping line connection",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "line_number": "L-105",
+        "from": "",
+        "to": "",
+        "functional_type": "piping_line"
+      }
+    },
+    {
+      "id": "72a8e85c-211b-488c-9d52-ac0ccd124bc0",
+      "timestamp": "2026-10-28T13:05:55.678Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "line",
+      "entity_id": "a55266b2-d591-46e0-b4fd-661c5718c711",
+      "action": "create",
+      "change_reason": "Added piping line connection",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "line_number": "L-104",
+        "from": "",
+        "to": "",
+        "functional_type": "piping_line"
+      }
+    },
+    {
+      "id": "54f4e295-6c24-411d-8d34-7f1a1ee617c3",
+      "timestamp": "2026-10-28T13:05:55.667Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "line",
+      "entity_id": "6c611e66-f301-40ee-b98b-989585ccfd93",
+      "action": "create",
+      "change_reason": "Added piping line connection",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "line_number": "L-103",
+        "from": "",
+        "to": "",
+        "functional_type": "piping_line"
+      }
+    },
+    {
+      "id": "b4318014-bf3a-49f4-84e4-1ea0db7b608a",
+      "timestamp": "2026-10-28T13:05:55.656Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "line",
+      "entity_id": "93d8a1ca-f05a-44e8-a7ea-529a80301e0a",
+      "action": "create",
+      "change_reason": "Added piping line connection",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "line_number": "L-102",
+        "from": "",
+        "to": "",
+        "functional_type": "piping_line"
+      }
+    },
+    {
+      "id": "44e20b39-471c-4786-b28f-aaf6c230e8cb",
+      "timestamp": "2026-10-28T13:05:55.644Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "line",
+      "entity_id": "5cab845e-5ec3-4ee6-87d5-9159dd332f64",
+      "action": "create",
+      "change_reason": "Added piping line connection",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "line_number": "L-101",
+        "from": "",
+        "to": "",
+        "functional_type": "piping_line"
+      }
+    },
+    {
+      "id": "3347abb9-1d02-41be-8443-091a2afbeadc",
+      "timestamp": "2026-10-28T13:05:55.621Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "equipment",
+      "entity_id": "a10756c3-31f9-4068-93a4-c99ff3891f50",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "TIT-101",
+        "type": "instrument",
+        "description": "Field Transmitter / Indicator"
+      }
+    },
+    {
+      "id": "791fb203-c382-407d-990c-fbb6cd88ac87",
+      "timestamp": "2026-10-28T13:05:55.610Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "equipment",
+      "entity_id": "ceddf9ac-da45-438c-9aee-cf4cfb106d8b",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "LIT-101",
+        "type": "instrument",
+        "description": "Field Transmitter / Indicator"
+      }
+    },
+    {
+      "id": "062ebcb5-1070-478b-8c01-0b4d1a115814",
+      "timestamp": "2026-10-28T13:05:55.600Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "equipment",
+      "entity_id": "0e2fc332-b26f-457b-8263-59ab35baf00a",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "FIT-101",
+        "type": "instrument",
+        "description": "Field Transmitter / Indicator"
+      }
+    },
+    {
+      "id": "9eeb46fb-ff4a-4f46-ab4a-8ebff51ba97f",
+      "timestamp": "2026-10-28T13:05:55.589Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "equipment",
+      "entity_id": "f48918e6-6196-4b62-8e4f-df29230489d0",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "DV-101",
+        "type": "drain_valve",
+        "description": "Drain / Sampling Valve"
+      }
+    },
+    {
+      "id": "7a52d6a0-2597-4fc5-8479-27c301405e5f",
+      "timestamp": "2026-10-28T13:05:55.578Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "equipment",
+      "entity_id": "b3c5793d-4e70-43d7-b04f-a708ff0384f4",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "HV-104",
+        "type": "manual_valve",
+        "description": "Manual Process Valve"
+      }
+    },
+    {
+      "id": "d9428363-97e6-43f9-b02f-cf2855da43e6",
+      "timestamp": "2026-10-28T13:05:55.567Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "equipment",
+      "entity_id": "330b6482-9d97-4346-8bc3-75957aeea641",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "HV-103",
+        "type": "manual_valve",
+        "description": "Manual Process Valve"
+      }
+    },
+    {
+      "id": "9113897e-fd93-47f9-b27b-fc3e18e2805c",
+      "timestamp": "2026-10-28T13:05:55.556Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "equipment",
+      "entity_id": "6c8860bc-b963-4ca2-a6a5-5312f39a7555",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "HV-102",
+        "type": "manual_valve",
+        "description": "Manual Process Valve"
+      }
+    },
+    {
+      "id": "26198278-b6fd-42af-9260-b3302810a473",
+      "timestamp": "2026-10-28T13:05:55.543Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "equipment",
+      "entity_id": "863ffb40-5872-4b48-a024-67d5c2452d04",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "HV-101",
+        "type": "manual_valve",
+        "description": "Manual Process Valve"
+      }
+    },
+    {
+      "id": "0bf9fd85-f950-4ec5-b1b1-0fef1a0215c0",
+      "timestamp": "2026-10-28T13:05:55.530Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "equipment",
+      "entity_id": "716cad32-97c3-421b-94ce-58c13caf37f1",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "E-101",
+        "type": "heat_exchanger",
+        "description": "Heat Exchanger / Cooler"
+      }
+    },
+    {
+      "id": "698d3b4b-9a2c-457f-b8c0-52cee031d0ad",
+      "timestamp": "2026-10-28T13:05:55.520Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "equipment",
+      "entity_id": "877dd5e0-6dc3-4e67-9902-f2eed8b5b0fa",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "P-101",
+        "type": "pump",
+        "description": "Centrifugal / Transfer Pump"
+      }
+    },
+    {
+      "id": "8966642e-e6c7-478e-a55d-055ab8dbbb8f",
+      "timestamp": "2026-10-28T13:05:55.505Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "equipment",
+      "entity_id": "b083e937-1ed8-4302-8c75-0c863413d052",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "AG-101",
+        "type": "agitator",
+        "description": "Tank Agitator / Mixer"
+      }
+    },
+    {
+      "id": "de5b6338-9c42-4489-ad20-12965f87d1e8",
+      "timestamp": "2026-10-28T13:05:55.495Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "equipment",
+      "entity_id": "5bf364a9-5d9b-4000-8834-d6ed59ac1aca",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "MX-101",
+        "type": "mixing_tank",
+        "description": "Mixing / Blending Tank"
+      }
+    },
+    {
+      "id": "30e257b9-42f1-4b37-816e-72e077caf714",
+      "timestamp": "2026-10-28T13:05:55.485Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "equipment",
+      "entity_id": "15364d76-f138-4768-8044-493e95fe73b7",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "TK-102",
+        "type": "tank",
+        "description": "Storage Tank"
+      }
+    },
+    {
+      "id": "981eb496-cbbb-4bbd-9abf-424539b62484",
+      "timestamp": "2026-10-28T13:05:55.475Z",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "entity_type": "equipment",
+      "entity_id": "0eba4b2b-969b-4095-bb0b-e4f92c305e12",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "TK-101",
+        "type": "tank",
+        "description": "Storage Tank"
+      }
+    },
     {
       "id": "adfd1ef3-ca8b-494e-8cc9-74440367b401",
       "timestamp": "2026-10-28T12:58:27.980Z",
@@ -37348,6 +40934,1141 @@
           "timestamp": "2026-10-28T12:58:27.956Z",
           "author": "Lead Process Safety Engineer (PE)",
           "notes": "Baseline approved digital P&ID representation.",
+          "revision": "REV 0"
+        }
+      ]
+    },
+    {
+      "id": "2a5b7fd1-a453-4da4-8d5e-69df98b4612a",
+      "project_id": "6c3a64b7-5c4a-4995-b8ff-601b488871ca",
+      "source_document_id": "9e08bce4-cf92-4930-b112-9d6f4f6ceb70",
+      "source_document_page": 1,
+      "title": "Process Piping & Instrumentation Diagram",
+      "drawing_number": "DWG-898",
+      "revision": "REV 0",
+      "status": "draft",
+      "mode": "imported_overlay",
+      "elements": [
+        {
+          "id": "d856c177-21b5-4a06-84e3-13c786e710fd",
+          "type": "tank",
+          "tag": "TK-101",
+          "description": "Storage Tank",
+          "position": {
+            "x": 100,
+            "y": 420
+          },
+          "size": {
+            "width": 90,
+            "height": 110
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.85,
+          "source_evidence": {
+            "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+            "page": 1,
+            "snippet": "Rev 2\nSOFTWARE TEST ONLY — NOT FOR CONSTRUCTION / OPERATION\nTK-101\nNaOH feed tank\nVENT-101\nHV-101\nP-101\nFeed pump\nNRV-101\nL-10",
+            "bbox": {
+              "x": 463,
+              "y": 193,
+              "w": 90,
+              "h": 55
+            }
+          },
+          "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+          "ports": [
+            {
+              "id": "p_in",
+              "name": "Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_out",
+              "name": "Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_sig",
+              "name": "Signal",
+              "type": "signal",
+              "position": {
+                "x": 0,
+                "y": -40
+              }
+            }
+          ]
+        },
+        {
+          "id": "11b86ff1-58d6-40be-ad4e-2bb50fa6729a",
+          "type": "tank",
+          "tag": "TK-102",
+          "description": "Storage Tank",
+          "position": {
+            "x": 1220,
+            "y": 420
+          },
+          "size": {
+            "width": 90,
+            "height": 110
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.85,
+          "source_evidence": {
+            "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+            "page": 1,
+            "snippet": "gnal\nL-103\nE-101\nCooler\nCooling IN\nCooling OUT\nHV-103\nL-104 TK-102\nProduct tank\nVENT-103\nHV-104\nL-105\nProduct\nLT\nLIT-101\nTT\nTI",
+            "bbox": {
+              "x": 174,
+              "y": 106,
+              "w": 90,
+              "h": 55
+            }
+          },
+          "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+          "ports": [
+            {
+              "id": "p_in",
+              "name": "Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_out",
+              "name": "Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_sig",
+              "name": "Signal",
+              "type": "signal",
+              "position": {
+                "x": 0,
+                "y": -40
+              }
+            }
+          ]
+        },
+        {
+          "id": "8c725b1d-1724-4465-9341-91a1065cc45e",
+          "type": "mixing_tank",
+          "tag": "MX-101",
+          "description": "Mixing / Blending Tank",
+          "position": {
+            "x": 680,
+            "y": 420
+          },
+          "size": {
+            "width": 90,
+            "height": 110
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.85,
+          "source_evidence": {
+            "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+            "page": 1,
+            "snippet": "aOH feed tank\nVENT-101\nHV-101\nP-101\nFeed pump\nNRV-101\nL-101 MX-101\nAgitated mixing tank\nAG-101 VENT-102\nDV-101\nDrain\nWater sup",
+            "bbox": {
+              "x": 513,
+              "y": 192,
+              "w": 90,
+              "h": 55
+            }
+          },
+          "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+          "ports": [
+            {
+              "id": "p_in",
+              "name": "Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_out",
+              "name": "Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_sig",
+              "name": "Signal",
+              "type": "signal",
+              "position": {
+                "x": 0,
+                "y": -40
+              }
+            }
+          ]
+        },
+        {
+          "id": "8c8330c7-447c-4ecc-b69b-31646f9aa703",
+          "type": "agitator",
+          "tag": "AG-101",
+          "description": "Tank Agitator / Mixer",
+          "position": {
+            "x": 540,
+            "y": 100
+          },
+          "size": {
+            "width": 90,
+            "height": 110
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.85,
+          "source_evidence": {
+            "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+            "page": 1,
+            "snippet": "1\nP-101\nFeed pump\nNRV-101\nL-101 MX-101\nAgitated mixing tank\nAG-101 VENT-102\nDV-101\nDrain\nWater supply\nHV-102\nL-102\nFT\nFIT-101",
+            "bbox": {
+              "x": 211,
+              "y": 250,
+              "w": 90,
+              "h": 55
+            }
+          },
+          "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+          "ports": [
+            {
+              "id": "p_in",
+              "name": "Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_out",
+              "name": "Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_sig",
+              "name": "Signal",
+              "type": "signal",
+              "position": {
+                "x": 0,
+                "y": -40
+              }
+            }
+          ]
+        },
+        {
+          "id": "d69dfb90-683a-4a69-9106-b38cdce06c34",
+          "type": "pump",
+          "tag": "P-101",
+          "description": "Centrifugal / Transfer Pump",
+          "position": {
+            "x": 480,
+            "y": 420
+          },
+          "size": {
+            "width": 90,
+            "height": 110
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.85,
+          "source_evidence": {
+            "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+            "page": 1,
+            "snippet": "STRUCTION / OPERATION\nTK-101\nNaOH feed tank\nVENT-101\nHV-101\nP-101\nFeed pump\nNRV-101\nL-101 MX-101\nAgitated mixing tank\nAG-101",
+            "bbox": {
+              "x": 563,
+              "y": 136,
+              "w": 90,
+              "h": 55
+            }
+          },
+          "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+          "ports": [
+            {
+              "id": "p_in",
+              "name": "Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_out",
+              "name": "Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_sig",
+              "name": "Signal",
+              "type": "signal",
+              "position": {
+                "x": 0,
+                "y": -40
+              }
+            }
+          ]
+        },
+        {
+          "id": "efa24346-bfb0-461f-ace8-c74ba79aa337",
+          "type": "heat_exchanger",
+          "tag": "E-101",
+          "description": "Heat Exchanger / Cooler",
+          "position": {
+            "x": 860,
+            "y": 420
+          },
+          "size": {
+            "width": 90,
+            "height": 110
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.85,
+          "source_evidence": {
+            "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+            "page": 1,
+            "snippet": "ter supply\nHV-102\nL-102\nFT\nFIT-101\nFIC\nFIC-101\nSignal\nL-103\nE-101\nCooler\nCooling IN\nCooling OUT\nHV-103\nL-104 TK-102\nProduct t",
+            "bbox": {
+              "x": 325,
+              "y": 87,
+              "w": 90,
+              "h": 55
+            }
+          },
+          "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+          "ports": [
+            {
+              "id": "p_in",
+              "name": "Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_out",
+              "name": "Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_sig",
+              "name": "Signal",
+              "type": "signal",
+              "position": {
+                "x": 0,
+                "y": -40
+              }
+            }
+          ]
+        },
+        {
+          "id": "8bd420ca-3bb5-43ad-b9ad-7ac9dd20a4c2",
+          "type": "manual_valve",
+          "tag": "HV-101",
+          "description": "Manual Process Valve",
+          "position": {
+            "x": 280,
+            "y": 420
+          },
+          "size": {
+            "width": 90,
+            "height": 110
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.85,
+          "source_evidence": {
+            "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+            "page": 1,
+            "snippet": "FOR CONSTRUCTION / OPERATION\nTK-101\nNaOH feed tank\nVENT-101\nHV-101\nP-101\nFeed pump\nNRV-101\nL-101 MX-101\nAgitated mixing tank\nA",
+            "bbox": {
+              "x": 90,
+              "y": 100,
+              "w": 90,
+              "h": 55
+            }
+          },
+          "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+          "ports": [
+            {
+              "id": "p_in",
+              "name": "Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_out",
+              "name": "Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_sig",
+              "name": "Signal",
+              "type": "signal",
+              "position": {
+                "x": 0,
+                "y": -40
+              }
+            }
+          ]
+        },
+        {
+          "id": "525ea04a-bc56-460f-9fdb-51f159d4b8c5",
+          "type": "manual_valve",
+          "tag": "HV-102",
+          "description": "Manual Process Valve",
+          "position": {
+            "x": 400,
+            "y": 100
+          },
+          "size": {
+            "width": 90,
+            "height": 110
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.85,
+          "source_evidence": {
+            "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+            "page": 1,
+            "snippet": "tated mixing tank\nAG-101 VENT-102\nDV-101\nDrain\nWater supply\nHV-102\nL-102\nFT\nFIT-101\nFIC\nFIC-101\nSignal\nL-103\nE-101\nCooler\nCool",
+            "bbox": {
+              "x": 158,
+              "y": 228,
+              "w": 90,
+              "h": 55
+            }
+          },
+          "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+          "ports": [
+            {
+              "id": "p_in",
+              "name": "Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_out",
+              "name": "Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_sig",
+              "name": "Signal",
+              "type": "signal",
+              "position": {
+                "x": 0,
+                "y": -40
+              }
+            }
+          ]
+        },
+        {
+          "id": "04d60cc2-843a-47c0-aac3-1e7e167dfd6c",
+          "type": "manual_valve",
+          "tag": "HV-103",
+          "description": "Manual Process Valve",
+          "position": {
+            "x": 1020,
+            "y": 420
+          },
+          "size": {
+            "width": 90,
+            "height": 110
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.85,
+          "source_evidence": {
+            "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+            "page": 1,
+            "snippet": "IC\nFIC-101\nSignal\nL-103\nE-101\nCooler\nCooling IN\nCooling OUT\nHV-103\nL-104 TK-102\nProduct tank\nVENT-103\nHV-104\nL-105\nProduct\nLT",
+            "bbox": {
+              "x": 331,
+              "y": 173,
+              "w": 90,
+              "h": 55
+            }
+          },
+          "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+          "ports": [
+            {
+              "id": "p_in",
+              "name": "Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_out",
+              "name": "Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_sig",
+              "name": "Signal",
+              "type": "signal",
+              "position": {
+                "x": 0,
+                "y": -40
+              }
+            }
+          ]
+        },
+        {
+          "id": "995e7367-fe92-4520-a851-2cbf8f564d47",
+          "type": "manual_valve",
+          "tag": "HV-104",
+          "description": "Manual Process Valve",
+          "position": {
+            "x": 1440,
+            "y": 420
+          },
+          "size": {
+            "width": 90,
+            "height": 110
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.85,
+          "source_evidence": {
+            "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+            "page": 1,
+            "snippet": "ng IN\nCooling OUT\nHV-103\nL-104 TK-102\nProduct tank\nVENT-103\nHV-104\nL-105\nProduct\nLT\nLIT-101\nTT\nTIT-101\nLevel monitor Temperatu",
+            "bbox": {
+              "x": 180,
+              "y": 160,
+              "w": 90,
+              "h": 55
+            }
+          },
+          "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+          "ports": [
+            {
+              "id": "p_in",
+              "name": "Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_out",
+              "name": "Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_sig",
+              "name": "Signal",
+              "type": "signal",
+              "position": {
+                "x": 0,
+                "y": -40
+              }
+            }
+          ]
+        },
+        {
+          "id": "7a143152-4b46-4913-8572-15628283170d",
+          "type": "drain_valve",
+          "tag": "DV-101",
+          "description": "Drain / Sampling Valve",
+          "position": {
+            "x": 640,
+            "y": 560
+          },
+          "size": {
+            "width": 90,
+            "height": 110
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.85,
+          "source_evidence": {
+            "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+            "page": 1,
+            "snippet": "p\nNRV-101\nL-101 MX-101\nAgitated mixing tank\nAG-101 VENT-102\nDV-101\nDrain\nWater supply\nHV-102\nL-102\nFT\nFIT-101\nFIC\nFIC-101\nSign",
+            "bbox": {
+              "x": 564,
+              "y": 97,
+              "w": 90,
+              "h": 55
+            }
+          },
+          "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+          "ports": [
+            {
+              "id": "p_in",
+              "name": "Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_out",
+              "name": "Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_sig",
+              "name": "Signal",
+              "type": "signal",
+              "position": {
+                "x": 0,
+                "y": -40
+              }
+            }
+          ]
+        },
+        {
+          "id": "869548c5-138e-41e8-8730-563f47734713",
+          "type": "instrument",
+          "tag": "FIT-101",
+          "description": "Field Transmitter / Indicator",
+          "position": {
+            "x": 400,
+            "y": 280
+          },
+          "size": {
+            "width": 90,
+            "height": 110
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.85,
+          "source_evidence": {
+            "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+            "page": 1,
+            "snippet": "k\nAG-101 VENT-102\nDV-101\nDrain\nWater supply\nHV-102\nL-102\nFT\nFIT-101\nFIC\nFIC-101\nSignal\nL-103\nE-101\nCooler\nCooling IN\nCooling OU",
+            "bbox": {
+              "x": 463,
+              "y": 150,
+              "w": 90,
+              "h": 55
+            }
+          },
+          "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+          "ports": [
+            {
+              "id": "p_in",
+              "name": "Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_out",
+              "name": "Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_sig",
+              "name": "Signal",
+              "type": "signal",
+              "position": {
+                "x": 0,
+                "y": -40
+              }
+            }
+          ]
+        },
+        {
+          "id": "d8ced72e-0aa5-4343-afff-9508990b9ef9",
+          "type": "instrument",
+          "tag": "LIT-101",
+          "description": "Field Transmitter / Indicator",
+          "position": {
+            "x": 800,
+            "y": 220
+          },
+          "size": {
+            "width": 90,
+            "height": 110
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.85,
+          "source_evidence": {
+            "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+            "page": 1,
+            "snippet": "L-104 TK-102\nProduct tank\nVENT-103\nHV-104\nL-105\nProduct\nLT\nLIT-101\nTT\nTIT-101\nLevel monitor Temperature monitor\nLEGEND & LIMIT",
+            "bbox": {
+              "x": 216,
+              "y": 399,
+              "w": 90,
+              "h": 55
+            }
+          },
+          "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+          "ports": [
+            {
+              "id": "p_in",
+              "name": "Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_out",
+              "name": "Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_sig",
+              "name": "Signal",
+              "type": "signal",
+              "position": {
+                "x": 0,
+                "y": -40
+              }
+            }
+          ]
+        },
+        {
+          "id": "4a477c26-e417-499e-9655-f5f0a8c2a91d",
+          "type": "instrument",
+          "tag": "TIT-101",
+          "description": "Field Transmitter / Indicator",
+          "position": {
+            "x": 940,
+            "y": 260
+          },
+          "size": {
+            "width": 90,
+            "height": 110
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.85,
+          "source_evidence": {
+            "document": "SafeFlow_PnID_Rev2_ClearLayout.pdf",
+            "page": 1,
+            "snippet": "02\nProduct tank\nVENT-103\nHV-104\nL-105\nProduct\nLT\nLIT-101\nTT\nTIT-101\nLevel monitor Temperature monitor\nLEGEND & LIMITATIONS\nSoli",
+            "bbox": {
+              "x": 335,
+              "y": 190,
+              "w": 90,
+              "h": 55
+            }
+          },
+          "notes": "Machine-detected equipment tag. Provisional status requires field engineer confirmation.",
+          "ports": [
+            {
+              "id": "p_in",
+              "name": "Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_out",
+              "name": "Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p_sig",
+              "name": "Signal",
+              "type": "signal",
+              "position": {
+                "x": 0,
+                "y": -40
+              }
+            }
+          ]
+        }
+      ],
+      "connectors": [
+        {
+          "id": "conn-1793193700833-708",
+          "line_number": "L-TK-101-276",
+          "from_element_id": "d856c177-21b5-4a06-84e3-13c786e710fd",
+          "from_port_id": "p_out",
+          "to_element_id": "8bd420ca-3bb5-43ad-b9ad-7ac9dd20a4c2",
+          "to_port_id": "p_in",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "3\"",
+          "material": "Carbon Steel (A106-B)",
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.9
+        },
+        {
+          "id": "conn-1793193733203-351",
+          "line_number": "L-HV-101-365",
+          "from_element_id": "8bd420ca-3bb5-43ad-b9ad-7ac9dd20a4c2",
+          "from_port_id": "p_out",
+          "to_element_id": "d69dfb90-683a-4a69-9106-b38cdce06c34",
+          "to_port_id": "p_in",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "3\"",
+          "material": "Carbon Steel (A106-B)",
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.9
+        },
+        {
+          "id": "conn-1793193764826-760",
+          "line_number": "L-P-101-901",
+          "from_element_id": "d69dfb90-683a-4a69-9106-b38cdce06c34",
+          "from_port_id": "p_out",
+          "to_element_id": "8c725b1d-1724-4465-9341-91a1065cc45e",
+          "to_port_id": "p_in",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "3\"",
+          "material": "Carbon Steel (A106-B)",
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.9
+        },
+        {
+          "id": "conn-1793196036814-163",
+          "line_number": "L-HV-102-251",
+          "from_element_id": "525ea04a-bc56-460f-9fdb-51f159d4b8c5",
+          "from_port_id": "p_out",
+          "to_element_id": "8c8330c7-447c-4ecc-b69b-31646f9aa703",
+          "to_port_id": "p_in",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "3\"",
+          "material": "Carbon Steel (A106-B)",
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.9
+        },
+        {
+          "id": "conn-1793196039497-161",
+          "line_number": "L-AG-101-444",
+          "from_element_id": "8c8330c7-447c-4ecc-b69b-31646f9aa703",
+          "from_port_id": "p_out",
+          "to_element_id": "8c725b1d-1724-4465-9341-91a1065cc45e",
+          "to_port_id": "p_in",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "3\"",
+          "material": "Carbon Steel (A106-B)",
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.9
+        },
+        {
+          "id": "conn-1793196124867-797",
+          "line_number": "L-MX-101-341",
+          "from_element_id": "8c725b1d-1724-4465-9341-91a1065cc45e",
+          "from_port_id": "p_out",
+          "to_element_id": "efa24346-bfb0-461f-ace8-c74ba79aa337",
+          "to_port_id": "p_in",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "3\"",
+          "material": "Carbon Steel (A106-B)",
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.9
+        },
+        {
+          "id": "conn-1793196126327-930",
+          "line_number": "L-E-101-435",
+          "from_element_id": "efa24346-bfb0-461f-ace8-c74ba79aa337",
+          "from_port_id": "p_out",
+          "to_element_id": "04d60cc2-843a-47c0-aac3-1e7e167dfd6c",
+          "to_port_id": "p_in",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "3\"",
+          "material": "Carbon Steel (A106-B)",
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.9
+        },
+        {
+          "id": "conn-1793196127672-140",
+          "line_number": "L-HV-103-840",
+          "from_element_id": "04d60cc2-843a-47c0-aac3-1e7e167dfd6c",
+          "from_port_id": "p_out",
+          "to_element_id": "11b86ff1-58d6-40be-ad4e-2bb50fa6729a",
+          "to_port_id": "p_in",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "3\"",
+          "material": "Carbon Steel (A106-B)",
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.9
+        },
+        {
+          "id": "conn-1793196130257-207",
+          "line_number": "L-TK-102-981",
+          "from_element_id": "11b86ff1-58d6-40be-ad4e-2bb50fa6729a",
+          "from_port_id": "p_out",
+          "to_element_id": "995e7367-fe92-4520-a851-2cbf8f564d47",
+          "to_port_id": "p_in",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "3\"",
+          "material": "Carbon Steel (A106-B)",
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.9
+        },
+        {
+          "id": "conn-1793196717921-125",
+          "line_number": "SIG-457",
+          "from_element_id": "d8ced72e-0aa5-4343-afff-9508990b9ef9",
+          "from_port_id": "p_sig",
+          "to_element_id": "8c725b1d-1724-4465-9341-91a1065cc45e",
+          "to_port_id": "p_sig",
+          "functional_type": "signal_line",
+          "flow_direction": "forward",
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.9
+        },
+        {
+          "id": "conn-1793196739200-435",
+          "line_number": "L-MX-101-218",
+          "from_element_id": "8c725b1d-1724-4465-9341-91a1065cc45e",
+          "from_port_id": "p_out",
+          "to_element_id": "d8ced72e-0aa5-4343-afff-9508990b9ef9",
+          "to_port_id": "p_in",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "3\"",
+          "material": "Carbon Steel (A106-B)",
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.9
+        },
+        {
+          "id": "conn-1793196741458-191",
+          "line_number": "L-LIT-101-324",
+          "from_element_id": "d8ced72e-0aa5-4343-afff-9508990b9ef9",
+          "from_port_id": "p_out",
+          "to_element_id": "8c725b1d-1724-4465-9341-91a1065cc45e",
+          "to_port_id": "p_out",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "3\"",
+          "material": "Carbon Steel (A106-B)",
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.9
+        },
+        {
+          "id": "conn-1793196759051-761",
+          "line_number": "SIG-519",
+          "from_element_id": "4a477c26-e417-499e-9655-f5f0a8c2a91d",
+          "from_port_id": "p_sig",
+          "to_element_id": "efa24346-bfb0-461f-ace8-c74ba79aa337",
+          "to_port_id": "p_sig",
+          "functional_type": "signal_line",
+          "flow_direction": "forward",
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.9
+        },
+        {
+          "id": "conn-1793196764957-797",
+          "line_number": "L-TIT-101-317",
+          "from_element_id": "4a477c26-e417-499e-9655-f5f0a8c2a91d",
+          "from_port_id": "p_in",
+          "to_element_id": "efa24346-bfb0-461f-ace8-c74ba79aa337",
+          "to_port_id": "p_in",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "3\"",
+          "material": "Carbon Steel (A106-B)",
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.9
+        },
+        {
+          "id": "conn-1793196767951-619",
+          "line_number": "L-E-101-778",
+          "from_element_id": "efa24346-bfb0-461f-ace8-c74ba79aa337",
+          "from_port_id": "p_out",
+          "to_element_id": "4a477c26-e417-499e-9655-f5f0a8c2a91d",
+          "to_port_id": "p_out",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "3\"",
+          "material": "Carbon Steel (A106-B)",
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.9
+        },
+        {
+          "id": "conn-1793196786057-516",
+          "line_number": "SIG-510",
+          "from_element_id": "525ea04a-bc56-460f-9fdb-51f159d4b8c5",
+          "from_port_id": "p_sig",
+          "to_element_id": "869548c5-138e-41e8-8730-563f47734713",
+          "to_port_id": "p_sig",
+          "functional_type": "signal_line",
+          "flow_direction": "forward",
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.9
+        },
+        {
+          "id": "conn-1793196787897-862",
+          "line_number": "L-FIT-101-471",
+          "from_element_id": "869548c5-138e-41e8-8730-563f47734713",
+          "from_port_id": "p_in",
+          "to_element_id": "525ea04a-bc56-460f-9fdb-51f159d4b8c5",
+          "to_port_id": "p_in",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "3\"",
+          "material": "Carbon Steel (A106-B)",
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.9
+        },
+        {
+          "id": "conn-1793196793327-480",
+          "line_number": "L-HV-102-501",
+          "from_element_id": "525ea04a-bc56-460f-9fdb-51f159d4b8c5",
+          "from_port_id": "p_out",
+          "to_element_id": "869548c5-138e-41e8-8730-563f47734713",
+          "to_port_id": "p_out",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "3\"",
+          "material": "Carbon Steel (A106-B)",
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "confidence": 0.9
+        }
+      ],
+      "background_visible": true,
+      "background_opacity": 0.05,
+      "created_at": "2026-10-28T13:06:20.391Z",
+      "updated_at": "2026-10-28T14:13:17.124Z",
+      "change_log": [
+        {
+          "timestamp": "2026-10-28T13:06:20.391Z",
+          "author": "Process Safety Engineer",
+          "notes": "Drawing created",
+          "revision": "REV 0"
+        },
+        {
+          "timestamp": "2026-10-28T13:25:02.078Z",
+          "author": "Process Safety Engineer",
+          "notes": "Drawing updated",
+          "revision": "REV 0"
+        },
+        {
+          "timestamp": "2026-10-28T14:02:38.464Z",
+          "author": "Process Safety Engineer",
+          "notes": "Drawing updated",
+          "revision": "REV 0"
+        },
+        {
+          "timestamp": "2026-10-28T14:13:17.124Z",
+          "author": "Process Safety Engineer",
+          "notes": "Drawing updated",
           "revision": "REV 0"
         }
       ]
