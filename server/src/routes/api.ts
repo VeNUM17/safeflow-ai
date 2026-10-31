@@ -225,6 +225,23 @@ router.post(
         }
         newEquipment.push(...equipment);
         newLines.push(...lines);
+
+        // Run authoritative drawing normalization & pipe tracing
+        try {
+          const absoluteDiskPath = path.resolve(__dirname, `../../${docRecord.file_path}`);
+          const processDesc = store.getProcessDescription(projectId);
+          const drawingModel = await normalizeDrawing({
+            filePath: absoluteDiskPath,
+            fileName: file.originalname,
+            mimeType: file.mimetype,
+            documentId: docId,
+            rawContent: extracted.text,
+            processDescription: processDesc,
+          });
+          store.saveCommonDrawingModel(drawingModel);
+        } catch (normErr: any) {
+          console.error('Auto drawing normalization error:', normErr.message);
+        }
       }
     }
 
@@ -1188,6 +1205,89 @@ router.get('/projects/:id/recognition-results', (req: Request, res: Response) =>
 
   const allModels = store.listCommonDrawingModels();
   res.json({ success: true, data: allModels });
+});
+
+router.get('/projects/:id/recognition-debug', async (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const project = store.getProject(projectId);
+  if (!project) {
+    return res.status(404).json({ success: false, error: 'Project not found' });
+  }
+
+  const docs = store.listDocuments(projectId);
+  const doc = docs.find((d) => d.doc_type === 'pid') || docs[0];
+
+  if (!doc) {
+    return res.json({
+      success: true,
+      data: {
+        has_pid: false,
+        message: 'No P&ID drawing uploaded in this project.',
+      },
+    });
+  }
+
+  let drawingModel = store.getCommonDrawingModel(doc.id);
+  if (!drawingModel) {
+    try {
+      const absoluteDiskPath = path.resolve(__dirname, `../../${doc.file_path}`);
+      const processDesc = store.getProcessDescription(projectId);
+      drawingModel = await normalizeDrawing({
+        filePath: absoluteDiskPath,
+        fileName: doc.name,
+        mimeType: doc.mime_type,
+        documentId: doc.id,
+        processDescription: processDesc,
+      });
+      store.saveCommonDrawingModel(drawingModel);
+    } catch (err: any) {
+      console.error('Failed to compute drawing model for debug:', err.message);
+    }
+  }
+
+  const equipment = store.listEquipment(projectId);
+  const lines = store.listLines(projectId);
+  const chems = store.listChemicals(projectId);
+  const conflicts = store.listConflicts(projectId);
+  const graph = buildProcessTopologyGraph(equipment, lines, chems, conflicts);
+
+  const paths = drawingModel?.pipe_paths || [];
+  const pipingPaths = paths.filter((p) => p.functional_type === 'piping_line');
+  const signalPaths = paths.filter((p) => p.functional_type === 'signal_line');
+  const confirmedPaths = paths.filter((p) => p.start_candidate && p.end_candidate);
+  const unresolvedPaths = paths.filter((p) => !p.start_candidate || !p.end_candidate);
+
+  res.json({
+    success: true,
+    data: {
+      has_pid: true,
+      document: {
+        id: doc.id,
+        name: doc.name,
+        file_path: doc.file_path,
+        mime_type: doc.mime_type,
+        pages_count: doc.pages_count,
+        is_readable: doc.is_readable,
+      },
+      stage_counts: {
+        objects_count: drawingModel?.objects?.length || 0,
+        pipe_paths_count: paths.length,
+        process_piping_count: pipingPaths.length,
+        signal_lines_count: signalPaths.length,
+        junctions_count: drawingModel?.junctions?.length || 0,
+        ports_count: drawingModel?.ports?.length || 0,
+        connection_candidates_count: drawingModel?.connection_candidates?.length || 0,
+        confirmed_paths_count: confirmedPaths.length,
+        unresolved_segments_count: unresolvedPaths.length,
+        graph_nodes_count: graph.nodes.length,
+        graph_edges_count: graph.edges.length,
+        isolated_nodes_count: graph.counts.isolated_nodes_count,
+      },
+      drawing_model: drawingModel,
+      reconciliation_summary: drawingModel?.reconciliation_summary || null,
+      graph_counts: graph.counts,
+    },
+  });
 });
 
 router.patch('/connections/:id', (req: Request, res: Response) => {

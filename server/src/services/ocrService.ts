@@ -21,9 +21,10 @@ export interface OcrRecognitionResult {
   flowAnnotations: { text: string; value: number | null; unit: string | null; bbox: BoundingBox }[];
 }
 
-const EQUIPMENT_TAG_REGEX = /\b(TK|MX|AG|P|E|HX|HE|C|R|RX|V|D|DR|T|K|CP|S|SP|SEP|HV|XV)-([0-9]{3,4}[A-Z]?)\b/i;
+const EQUIPMENT_TAG_REGEX = /\b(TK|MX|AG|P|E|HX|HE|C|R|RX|V|D|DR|T|K|CP|S|SP|SEP|HV|XV|DV|NRV)-([0-9]{3,4}[A-Z]?)\b/i;
 const INSTRUMENT_TAG_REGEX = /\b(FIT|FIC|FT|FE|FO|FI|FAL|FAH|TIT|LIT|PIT|AIT|TI|LI|PI|PCV|FCV|TCV|LCV|PRV|PSV)-([0-9]{3,4}[A-Z]?)\b/i;
 const LINE_TAG_REGEX = /\b([0-9\.\/]+)"?-([A-Z0-9]{2,6})-([0-9]{3,4}[A-Z]?)(?:-([A-Z0-9]+))?\b/i;
+const SIMPLE_LINE_REGEX = /\b(L|PL|LINE|SL|SIG|IL)-([0-9]{3,4}[A-Z]?)\b/i;
 const FLOW_ANNOTATION_REGEX = /(?:flow|nor|dsgn|rate)?\s*[:=]?\s*([0-9]+(?:\.[0-9]+)?)\s*(m3\/h|kg\/h|gpm|lb\/h|kmol\/h)/i;
 
 /**
@@ -77,12 +78,14 @@ export function recognizeDrawingText(
 
     // 3. Check Line Tag
     const lineMatch = raw.match(LINE_TAG_REGEX);
-    if (lineMatch && tokenType === 'general_text') {
+    const simpleLineMatch = raw.match(SIMPLE_LINE_REGEX);
+    if ((lineMatch || simpleLineMatch) && tokenType === 'general_text') {
       tokenType = 'line_tag';
+      const matchedTag = (lineMatch ? lineMatch[0] : simpleLineMatch![0]).toUpperCase();
       result.lineTags.push({
-        tag: lineMatch[0],
-        diameter: lineMatch[1] ? `${lineMatch[1]}"` : '2"',
-        spec: lineMatch[4] || 'CS',
+        tag: matchedTag,
+        diameter: lineMatch ? (lineMatch[1] ? `${lineMatch[1]}"` : '2"') : '2"',
+        spec: lineMatch ? (lineMatch[4] || 'CS') : 'CS',
         bbox: elem.bbox,
         confidence: conf,
       });

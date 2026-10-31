@@ -977,9 +977,15 @@ export class PsiDataStore {
     reason = 'Added equipment item'
   ): void {
     for (const tag of tags) {
-      const existingIdx = this.data.equipment.findIndex((e) => e.id === tag.id);
+      const existingIdx = this.data.equipment.findIndex(
+        (e) => e.id === tag.id || (e.project_id === tag.project_id && e.tag.toUpperCase() === tag.tag.toUpperCase())
+      );
       if (existingIdx >= 0) {
-        this.data.equipment[existingIdx] = tag;
+        this.data.equipment[existingIdx] = {
+          ...this.data.equipment[existingIdx],
+          ...tag,
+          id: this.data.equipment[existingIdx].id,
+        };
       } else {
         this.data.equipment.push(tag);
       }
@@ -1428,9 +1434,15 @@ export class PsiDataStore {
     reason = 'Added piping line connection'
   ): void {
     for (const line of lines) {
-      const existingIdx = this.data.lines.findIndex((l) => l.id === line.id);
+      const existingIdx = this.data.lines.findIndex(
+        (l) => l.id === line.id || (l.project_id === line.project_id && l.line_number === line.line_number)
+      );
       if (existingIdx >= 0) {
-        this.data.lines[existingIdx] = line;
+        this.data.lines[existingIdx] = {
+          ...this.data.lines[existingIdx],
+          ...line,
+          id: this.data.lines[existingIdx].id,
+        };
       } else {
         this.data.lines.push(line);
       }
@@ -1540,9 +1552,15 @@ export class PsiDataStore {
     reason = 'Extracted or added process streams'
   ): void {
     for (const stream of streams) {
-      const existingIdx = this.data.streams.findIndex((s) => s.id === stream.id);
+      const existingIdx = this.data.streams.findIndex(
+        (s) => s.id === stream.id || (s.project_id === stream.project_id && s.stream_number === stream.stream_number)
+      );
       if (existingIdx >= 0) {
-        this.data.streams[existingIdx] = stream;
+        this.data.streams[existingIdx] = {
+          ...this.data.streams[existingIdx],
+          ...stream,
+          id: this.data.streams[existingIdx].id,
+        };
       } else {
         this.data.streams.push(stream);
       }

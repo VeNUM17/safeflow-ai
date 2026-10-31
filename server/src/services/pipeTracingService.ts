@@ -92,8 +92,8 @@ export function tracePipingNetwork(
   );
 
   // Group continuous segments into polylines
-  const CONNECTION_TOLERANCE_PX = 15; // Max gap between connected collinear/orthogonal segments
-  const PORT_TOLERANCE_PX = 45; // Max distance to confirm an equipment port connection
+  const CONNECTION_TOLERANCE_PX = 20; // Max gap between connected collinear/orthogonal segments
+  const PORT_TOLERANCE_PX = 55; // Max distance to confirm an equipment port connection
 
   const usedSegmentIds = new Set<string>();
 
@@ -105,25 +105,40 @@ export function tracePipingNetwork(
     const isSignal = seg.classificationHint === 'signal_line' || seg.isDashed;
     const pathId = `path-${uuidv4().substring(0, 8)}`;
 
-    // Try chaining consecutive segments from end
+    // Try chaining consecutive segments bidirectionally (from tail and from head)
     let extended = true;
     while (extended) {
       extended = false;
       const tail = pathCoords[pathCoords.length - 1];
+      const head = pathCoords[0];
 
       for (const other of candidateSegments) {
         if (usedSegmentIds.has(other.id)) continue;
 
-        // Check if other.start matches tail
+        // Check tail -> other.start
         if (pointDistance(tail, other.start) <= CONNECTION_TOLERANCE_PX) {
           pathCoords.push({ ...other.end });
           usedSegmentIds.add(other.id);
           extended = true;
           break;
         }
-        // Check if other.end matches tail
+        // Check tail -> other.end
         if (pointDistance(tail, other.end) <= CONNECTION_TOLERANCE_PX) {
           pathCoords.push({ ...other.start });
+          usedSegmentIds.add(other.id);
+          extended = true;
+          break;
+        }
+        // Check head -> other.end (prepend to head)
+        if (pointDistance(head, other.end) <= CONNECTION_TOLERANCE_PX) {
+          pathCoords.unshift({ ...other.start });
+          usedSegmentIds.add(other.id);
+          extended = true;
+          break;
+        }
+        // Check head -> other.start (prepend to head)
+        if (pointDistance(head, other.start) <= CONNECTION_TOLERANCE_PX) {
+          pathCoords.unshift({ ...other.end });
           usedSegmentIds.add(other.id);
           extended = true;
           break;
@@ -136,7 +151,7 @@ export function tracePipingNetwork(
     const midPoint = pathCoords[Math.floor(pathCoords.length / 2)];
     for (const ann of lineAnnotations) {
       const annCenter = { x: ann.bbox.x + ann.bbox.w / 2, y: ann.bbox.y + ann.bbox.h / 2 };
-      if (pointDistance(midPoint, annCenter) < 120) {
+      if (pointDistance(midPoint, annCenter) < 140) {
         matchedLineTag = ann.tag;
         break;
       }
@@ -166,8 +181,8 @@ export function tracePipingNetwork(
     const head = pathCoords[0];
     const tail = pathCoords[pathCoords.length - 1];
 
-    let startCandidate = null;
-    let endCandidate = null;
+    let startCandidate: { equipment_tag: string; equipment_id: string; port_id: string; distance: number; confidence: number } | null = null;
+    let endCandidate: { equipment_tag: string; equipment_id: string; port_id: string; distance: number; confidence: number } | null = null;
 
     // Search ports within PORT_TOLERANCE_PX
     for (const port of availablePorts) {
@@ -194,6 +209,42 @@ export function tracePipingNetwork(
             distance: distTail,
             confidence: Math.max(0.6, 1.0 - distTail / PORT_TOLERANCE_PX),
           };
+        }
+      }
+    }
+
+    // Fallback: If port wasn't found, check proximity to equipment bounding box
+    if (!startCandidate) {
+      for (const eq of equipmentObjects) {
+        const distHead = pointDistance(head, eq.center_coordinates);
+        const maxDim = Math.max(eq.bounding_box.w, eq.bounding_box.h) / 2 + PORT_TOLERANCE_PX;
+        if (distHead <= maxDim) {
+          startCandidate = {
+            equipment_tag: eq.tag,
+            equipment_id: eq.id,
+            port_id: `port-${eq.id}-auto`,
+            distance: distHead,
+            confidence: 0.75,
+          };
+          break;
+        }
+      }
+    }
+
+    if (!endCandidate) {
+      for (const eq of equipmentObjects) {
+        if (startCandidate && eq.tag === startCandidate.equipment_tag) continue;
+        const distTail = pointDistance(tail, eq.center_coordinates);
+        const maxDim = Math.max(eq.bounding_box.w, eq.bounding_box.h) / 2 + PORT_TOLERANCE_PX;
+        if (distTail <= maxDim) {
+          endCandidate = {
+            equipment_tag: eq.tag,
+            equipment_id: eq.id,
+            port_id: `port-${eq.id}-auto`,
+            distance: distTail,
+            confidence: 0.75,
+          };
+          break;
         }
       }
     }
@@ -233,6 +284,61 @@ export function tracePipingNetwork(
 
     // Evaluate connectivity under strict negative rules
     if (startCandidate && endCandidate && startCandidate.equipment_tag !== endCandidate.equipment_tag) {
+      // Check for inline valves along the path
+      const inlineValves: DrawingObject[] = [];
+      for (const eq of equipmentObjects) {
+        if (eq.tag === startCandidate.equipment_tag || eq.tag === endCandidate.equipment_tag) continue;
+        if (eq.type !== 'valve') continue;
+        for (let s = 0; s < pathCoords.length - 1; s++) {
+          const dist = pointToSegmentDistance(eq.center_coordinates, pathCoords[s], pathCoords[s + 1]);
+          if (dist <= 32) {
+            inlineValves.push(eq);
+            break;
+          }
+        }
+      }
+
+      if (inlineValves.length > 0) {
+        let currentSource = startCandidate.equipment_tag;
+        let currentPort = startCandidate.port_id;
+        for (const valve of inlineValves) {
+          connectionCandidates.push({
+            id: `cand-${uuidv4().substring(0, 8)}`,
+            source_equipment: currentSource,
+            source_port: currentPort,
+            destination_equipment: valve.tag,
+            destination_port: `port-${valve.id}-inlet-top`,
+            associated_pipe_paths: [pathId],
+            line_number: matchedLineTag,
+            functional_type: isSignal ? 'signal_line' : 'piping_line',
+            flow_direction: flowDirection,
+            connection_evidence: [pathEvidence],
+            confidence: 0.85,
+            recognition_status: 'visually_supported',
+            verification_status: 'unverified',
+            is_manually_corrected: false,
+          });
+          currentSource = valve.tag;
+          currentPort = `port-${valve.id}-outlet-bottom`;
+        }
+        connectionCandidates.push({
+          id: `cand-${uuidv4().substring(0, 8)}`,
+          source_equipment: currentSource,
+          source_port: currentPort,
+          destination_equipment: endCandidate.equipment_tag,
+          destination_port: endCandidate.port_id,
+          associated_pipe_paths: [pathId],
+          line_number: matchedLineTag,
+          functional_type: isSignal ? 'signal_line' : 'piping_line',
+          flow_direction: flowDirection,
+          connection_evidence: [pathEvidence],
+          confidence: 0.85,
+          recognition_status: 'visually_supported',
+          verification_status: 'unverified',
+          is_manually_corrected: false,
+        });
+      }
+
       // Confirmed physical connectivity through geometric pipe tracing!
       const candidateId = `cand-${uuidv4().substring(0, 8)}`;
       connectionCandidates.push({
@@ -271,6 +377,34 @@ export function tracePipingNetwork(
       const p1 = pipePaths[i];
       const p2 = pipePaths[j];
 
+      // Check for T-junctions: endpoint of p1 landing on segment of p2
+      const p1Ends = [p1.coordinates[0], p1.coordinates[p1.coordinates.length - 1]];
+      for (const endPt of p1Ends) {
+        for (let s2 = 0; s2 < p2.coordinates.length - 1; s2++) {
+          const dist = pointToSegmentDistance(endPt, p2.coordinates[s2], p2.coordinates[s2 + 1]);
+          if (dist < 15 && pointDistance(endPt, p2.coordinates[s2]) > 10 && pointDistance(endPt, p2.coordinates[s2 + 1]) > 10) {
+            junctions.push({
+              id: `junc-tee-${uuidv4().substring(0, 8)}`,
+              page: pageNumber,
+              coordinates: endPt,
+              junction_type: 't_junction',
+              has_junction_dot: true,
+              connected_path_ids: [p1.id, p2.id],
+              evidence: {
+                source_document: documentName,
+                page_number: pageNumber,
+                bounding_box: { x: endPt.x - 5, y: endPt.y - 5, w: 10, h: 10 },
+                recognition_method: 'heuristic_tracing',
+                supporting_text: 'T-junction connecting process stream branch',
+                confidence: 0.9,
+              },
+              confidence: 0.9,
+            });
+            break;
+          }
+        }
+      }
+
       for (let s1 = 0; s1 < p1.coordinates.length - 1; s1++) {
         for (let s2 = 0; s2 < p2.coordinates.length - 1; s2++) {
           const inter = findLineIntersection(
@@ -282,10 +416,8 @@ export function tracePipingNetwork(
 
           if (inter.intersects && inter.point) {
             // CRITICAL CROSSING RULE:
-            // Check for junction dot vs crossing jump / bridge
-            // In standard P&ID conventions, crossing lines without an explicit junction dot
-            // are UNCONNECTED CROSSINGS.
-            const hasJunctionDot = false; // By default without explicit dot evidence, lines cross without connecting
+            // Crossing lines without an explicit junction dot are UNCONNECTED CROSSINGS.
+            const hasJunctionDot = false;
             const junctionId = `junc-${uuidv4().substring(0, 8)}`;
 
             junctions.push({

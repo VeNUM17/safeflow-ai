@@ -15,6 +15,7 @@ import { recognizeDrawingText } from './ocrService';
 import { detectDrawingSymbols } from './symbolDetectionService';
 import { tracePipingNetwork } from './pipeTracingService';
 import { reconcileConnections } from './connectionReconciliationService';
+import { parseProcessDescription } from './processDescriptionService';
 
 export interface ProcessDrawingOptions {
   filePath: string;
@@ -78,9 +79,18 @@ export async function normalizeDrawing(
   );
 
   // 6. Hybrid Connection Reconciliation
+  let effectiveProcessDescription = processDescription;
+  if (!effectiveProcessDescription && rawContent) {
+    effectiveProcessDescription = parseProcessDescription(
+      documentId,
+      rawContent,
+      objects.map((o) => o.tag)
+    );
+  }
+
   const reconciliation = reconcileConnections(
     tracingResult.connectionCandidates,
-    processDescription
+    effectiveProcessDescription
   );
 
   return {

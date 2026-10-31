@@ -57,6 +57,8 @@ import { AuditTrailModal } from './AuditTrailModal';
 import { PhaNodesView } from './PhaNodesView';
 import { DigitalPidEditor } from './pid-editor/DigitalPidEditor';
 import { StreamModal } from './StreamModal';
+import { RecognitionDebugOverlay, DebugLayerToggles } from './pid-editor/RecognitionDebugOverlay';
+import { Activity } from 'lucide-react';
 
 interface Props {
   projectId: string;
@@ -160,6 +162,23 @@ export const PidGraphViewer: React.FC<Props> = ({
   const [editingStream, setEditingStream] = useState<ProcessStream | null>(null);
   const [streamDefaultSource, setStreamDefaultSource] = useState('');
   const [streamDefaultDest, setStreamDefaultDest] = useState('');
+
+  // Recognition Debug Overlay & Diagnostic View
+  const [showDebugOverlay, setShowDebugOverlay] = useState<boolean>(false);
+  const [debugLayers, setDebugLayers] = useState<DebugLayerToggles>({
+    rawSegments: true,
+    processPiping: true,
+    signalLines: true,
+    junctions: true,
+    boundingBoxes: true,
+    ports: true,
+    candidates: true,
+    confirmedPaths: true,
+  });
+
+  const handleToggleDebugLayer = (layer: keyof DebugLayerToggles) => {
+    setDebugLayers((prev) => ({ ...prev, [layer]: !prev[layer] }));
+  };
 
   // Form states
   const [newNodeForm, setNewNodeForm] = useState({
@@ -1164,6 +1183,20 @@ export const PidGraphViewer: React.FC<Props> = ({
                 <Plus className="w-3.5 h-3.5 text-cyan-400" />
                 Add Piping Connection
               </button>
+
+              {/* Recognition Debug & Diagnostic Overlay Toggle (Step 4) */}
+              <button
+                onClick={() => setShowDebugOverlay(!showDebugOverlay)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold border transition-all ${
+                  showDebugOverlay
+                    ? 'bg-purple-600/25 text-purple-300 border-purple-500 ring-1 ring-purple-500 shadow-sm'
+                    : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                }`}
+                title="Toggle P&ID Recognition Diagnostic Layers (Raw segments, piping, signals, bounding boxes, nozzles, candidate endpoints)"
+              >
+                <Activity className="w-3.5 h-3.5 text-purple-400" />
+                {showDebugOverlay ? 'Diagnostics Active' : 'Debug Overlay'}
+              </button>
             </div>
 
             <div className="flex items-center gap-2">
@@ -1445,6 +1478,48 @@ export const PidGraphViewer: React.FC<Props> = ({
                             strokeOpacity="0.6"
                             className="animate-pulse"
                           />
+                        )}
+
+                        {/* Diagnostic Bounding Box Layer (Step 4 Overlay) */}
+                        {showDebugOverlay && debugLayers.boundingBoxes && (
+                          <g>
+                            <rect
+                              x="-62"
+                              y="-42"
+                              width="124"
+                              height="84"
+                              rx="6"
+                              fill="none"
+                              stroke="#c084fc"
+                              strokeWidth="1.5"
+                              strokeDasharray="4,3"
+                              opacity="0.8"
+                            />
+                            <text
+                              x="-58"
+                              y="-45"
+                              fill="#c084fc"
+                              fontSize="7"
+                              fontFamily="monospace"
+                              fontWeight="bold"
+                            >
+                              BBOX: {eq.tag}
+                            </text>
+                          </g>
+                        )}
+
+                        {/* Diagnostic Equipment Ports & Nozzles Layer (Step 4 Overlay) */}
+                        {showDebugOverlay && debugLayers.ports && (
+                          <g>
+                            {/* Top inlet nozzle */}
+                            <circle cx="0" cy="-32" r="4" fill="#38bdf8" stroke="#090d16" strokeWidth="1.5" />
+                            {/* Bottom outlet nozzle */}
+                            <circle cx="0" cy="32" r="4" fill="#34d399" stroke="#090d16" strokeWidth="1.5" />
+                            {/* Left side nozzle */}
+                            <circle cx="-52" cy="0" r="4" fill="#a78bfa" stroke="#090d16" strokeWidth="1.5" />
+                            {/* Right side nozzle */}
+                            <circle cx="52" cy="0" r="4" fill="#a78bfa" stroke="#090d16" strokeWidth="1.5" />
+                          </g>
                         )}
 
                         {/* Node Box */}
@@ -3263,6 +3338,15 @@ export const PidGraphViewer: React.FC<Props> = ({
         isOpen={showAuditModal}
         onClose={() => setShowAuditModal(false)}
         projectId={projectId}
+      />
+
+      {/* Recognition Diagnostic & Debug Overlay (Step 4) */}
+      <RecognitionDebugOverlay
+        projectId={projectId}
+        isOpen={showDebugOverlay}
+        onClose={() => setShowDebugOverlay(false)}
+        layers={debugLayers}
+        onToggleLayer={handleToggleDebugLayer}
       />
 
       {/* 8. Edit Specification Modal */}

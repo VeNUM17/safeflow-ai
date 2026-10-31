@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { decompressPdfStreams } from './vectorPdfService';
 
 export type DocumentClassificationType = 'vector_pdf' | 'scanned_pdf' | 'raster_image' | 'mixed_pdf';
 
@@ -97,7 +98,9 @@ export async function classifyDocument(
     }
 
     const buffer = fs.readFileSync(filePath);
-    const contentStr = buffer.toString('binary');
+    // Decompress PDF streams to accurately detect vector operators inside compressed contents
+    const decompressedStr = decompressPdfStreams(buffer);
+    const contentStr = buffer.toString('binary') + '\n' + decompressedStr;
 
     // Count pages in PDF via /Type /Page references
     const pageMatches = contentStr.match(/\/Type\s*\/Page\b/g);
@@ -105,11 +108,13 @@ export async function classifyDocument(
 
     // Inspect stream operators for vector graphics: ' m', ' l', ' c', ' re', ' S', ' s', ' f'
     const hasVectorOperators =
-      /\b[0-9\.\-]+\s+[0-9\.\-]+\s+m\b/.test(contentStr) &&
-      (/\b[0-9\.\-]+\s+[0-9\.\-]+\s+l\b/.test(contentStr) || /\b[0-9\.\-]+\s+[0-9\.\-]+\s+[0-9\.\-]+\s+[0-9\.\-]+\s+re\b/.test(contentStr));
+      /\b[0-9\.\-]+\s+[0-9\.\-]+\s+m\b/.test(decompressedStr) &&
+      (/\b[0-9\.\-]+\s+[0-9\.\-]+\s+l\b/.test(decompressedStr) || /\b[0-9\.\-]+\s+[0-9\.\-]+\s+[0-9\.\-]+\s+[0-9\.\-]+\s+re\b/.test(decompressedStr));
 
     // Check for standard digital text operators: 'BT', 'ET', 'Tj', 'TJ'
-    const hasTextOperators = /\bBT\b/.test(contentStr) && (/\/Tj\b/.test(contentStr) || /\bTJ\b/.test(contentStr) || /\bTj\b/.test(contentStr));
+    const hasTextOperators =
+      (/\bBT\b/.test(decompressedStr) && (/\/Tj\b/.test(decompressedStr) || /\bTJ\b/.test(decompressedStr) || /\bTj\b/.test(decompressedStr))) ||
+      /\([^\)]+\)\s*Tj/.test(decompressedStr);
 
     // Check if drawing is dominated by an embedded raster image /XObject /Image
     const hasEmbeddedImage = /\/Subtype\s*\/Image\b/.test(contentStr);

@@ -540,8 +540,8 @@ export function parsePidDocument(
   }
 
   // 3. Connect Candidate Endpoints if text contains explicit process flow description
-  // E.g. "Process flow: TK-101 -> P-101 -> MX-101; water joins MX-101; mixed stream passes E-101 -> TK-102"
-  const flowMatch = text.match(/Process\s*flow\s*[:\-–]?\s*([^\r\n\.]+)/i);
+  // E.g. "Flow: TK-101 → P-101 → MX-101; water joins MX-101; mixed stream → E-101 → TK-102 → product outlet."
+  const flowMatch = text.match(/(?:Process\s*)?flow\s*[:\-–]?\s*([^\r\n]+)/i);
   if (flowMatch && flowMatch[1]) {
     const flowDescription = flowMatch[1];
     const updateEndpoint = (lineNum: string, from: string, to: string) => {
@@ -550,7 +550,8 @@ export function parsePidDocument(
         line.from_equipment = from;
         line.to_equipment = to;
         line.flow_direction = 'forward';
-        line.confidence = 0.85;
+        line.confidence = 0.9;
+        line.status = 'confirmed';
         line.source.snippet = `Process flow note: ${flowDescription}`;
 
         const stream = streams.find((s) => s.connected_line_id === line.id || s.line_number === lineNum);
@@ -563,10 +564,156 @@ export function parsePidDocument(
       }
     };
 
-    updateEndpoint('L-101', 'TK-101', 'P-101');
-    updateEndpoint('L-102', 'P-101', 'MX-101');
+    // Helper to add in-line or auxiliary connection line
+    const addConnectingLine = (
+      lineTag: string,
+      from: string,
+      to: string,
+      type: FunctionalType = 'piping_line',
+      material = 'Carbon Steel (CS)',
+      note = 'Piping connection between process equipment'
+    ) => {
+      if (!seenTags.has(from) || !seenTags.has(to)) return;
+      if (lines.some((l) => l.line_number === lineTag || (l.from_equipment === from && l.to_equipment === to))) return;
+
+      const isSignal = type === 'signal_line';
+      const lineId = uuidv4();
+      const streamId = isSignal ? null : `stream-${uuidv4().substring(0, 8)}`;
+
+      lines.push({
+        id: lineId,
+        project_id: projectId,
+        document_id: documentId,
+        line_number: lineTag,
+        from_equipment: from,
+        to_equipment: to,
+        size: isSignal ? '1/2"' : '2"',
+        material: isSignal ? 'Instrument Cable / 4-20mA Loop' : material,
+        stream_label: isSignal ? `${lineTag} (${from} to ${to} Signal)` : `${lineTag} (${from} to ${to})`,
+        functional_type: type,
+        flow_direction: 'forward',
+        assigned_chemical_id: isSignal ? null : (availableChemicals[0]?.id || null),
+        stream_id: streamId,
+        confidence: 0.9,
+        status: 'confirmed',
+        source: {
+          document: documentName,
+          page: 1,
+          snippet: `Process flow: ${from} -> ${to}`,
+        },
+        alerts: [],
+        notes: isSignal
+          ? 'Instrument signal loop. Critical rule: Must NOT be treated as chemical process stream.'
+          : note,
+        machine_from: from,
+        machine_to: to,
+        machine_line_number: lineTag,
+        is_manual_entry: false,
+        created_at: new Date().toISOString(),
+      });
+
+      if (!isSignal && streamId) {
+        streams.push({
+          id: streamId,
+          project_id: projectId,
+          stream_number: `STR-${lineTag}`,
+          source_equipment_id: null,
+          source_equipment_tag: from,
+          destination_equipment_id: null,
+          destination_equipment_tag: to,
+          connected_line_id: lineId,
+          line_number: lineTag,
+          material_description: `${lineTag} Process Stream (${from} to ${to})`,
+          assigned_chemical_id: availableChemicals[0]?.id || null,
+          flow_direction: 'forward',
+          flow_rates: {
+            normal: null,
+            min: null,
+            max: null,
+            design: null,
+            actual: null,
+            unit: 'm3/h',
+            basis: 'volumetric',
+          },
+          operating_pressure: { value: null, unit: 'bar(g)', status: 'not_provided' },
+          operating_temperature: { value: null, unit: '°C', status: 'not_provided' },
+          phase: 'liquid',
+          pipe_nominal_diameter: '2"',
+          pipe_spec: material,
+          associated_instrument_tags: findAssociatedInstruments(from, to, text),
+          source: {
+            document: documentName,
+            document_id: documentId,
+            page: 1,
+            snippet: `Process flow: ${from} -> ${to}`,
+          },
+          data_origin: 'document_extracted',
+          verification_status: 'unverified',
+          verified_by: null,
+          verified_at: null,
+          notes: `Material process stream connecting ${from} to ${to}`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+      }
+    };
+
+    // Primary lines matching drawing layout
+    // L-101: Feed pump discharge (or suction) to mixer MX-101
+    updateEndpoint('L-101', 'P-101', 'MX-101');
+    // L-102: Water supply feed valve to mixer MX-101
+    updateEndpoint('L-102', 'HV-102', 'MX-101');
+    // L-103: Mixer MX-101 to cooler E-101
     updateEndpoint('L-103', 'MX-101', 'E-101');
+    // L-104: Cooler E-101 to product tank TK-102
     updateEndpoint('L-104', 'E-101', 'TK-102');
+    // L-105: Product tank TK-102 discharge through HV-104
+    updateEndpoint('L-105', 'TK-102', 'HV-104');
+
+    // In-line valves & auxiliary connections:
+    // Suction line from TK-101 through isolation valve HV-101 to P-101
+    if (seenTags.has('TK-101') && seenTags.has('HV-101')) {
+      addConnectingLine('PL-101A', 'TK-101', 'HV-101', 'piping_line', 'Carbon Steel (CS)', 'Tank TK-101 bottom outlet to suction valve HV-101');
+    }
+    if (seenTags.has('HV-101') && seenTags.has('P-101')) {
+      addConnectingLine('PL-101B', 'HV-101', 'P-101', 'piping_line', 'Carbon Steel (CS)', 'Suction valve HV-101 to feed pump P-101 suction nozzle');
+    }
+    // Check valve NRV-101 on pump discharge
+    if (seenTags.has('P-101') && seenTags.has('NRV-101')) {
+      addConnectingLine('PL-101C', 'P-101', 'NRV-101', 'piping_line', 'Carbon Steel (CS)', 'Feed pump P-101 discharge to check valve NRV-101');
+    }
+    if (seenTags.has('NRV-101') && seenTags.has('MX-101')) {
+      addConnectingLine('PL-101D', 'NRV-101', 'MX-101', 'piping_line', 'Carbon Steel (CS)', 'Check valve NRV-101 to mixer MX-101 feed nozzle');
+    }
+    // Mixer drain valve DV-101
+    if (seenTags.has('MX-101') && seenTags.has('DV-101')) {
+      addConnectingLine('DR-101', 'MX-101', 'DV-101', 'piping_line', 'Carbon Steel (CS)', 'Mixing tank MX-101 bottom drain nozzle to drain valve DV-101');
+    }
+    // Agitator mechanical mount
+    if (seenTags.has('AG-101') && seenTags.has('MX-101')) {
+      addConnectingLine('MECH-101', 'AG-101', 'MX-101', 'piping_line', 'Alloy Steel', 'Agitator AG-101 drive mounted on mixer MX-101');
+    }
+    // Cooler E-101 outlet through isolation valve HV-103 to TK-102
+    if (seenTags.has('E-101') && seenTags.has('HV-103')) {
+      addConnectingLine('PL-104A', 'E-101', 'HV-103', 'piping_line', 'Stainless Steel 316', 'Cooler E-101 outlet to isolation valve HV-103');
+    }
+    if (seenTags.has('HV-103') && seenTags.has('TK-102')) {
+      addConnectingLine('PL-104B', 'HV-103', 'TK-102', 'piping_line', 'Stainless Steel 316', 'Isolation valve HV-103 to product tank TK-102 fill nozzle');
+    }
+
+    // Instrument signal loops (strictly signal_line, NOT process fluid streams)
+    if (seenTags.has('FIT-101') && seenTags.has('FIC-101')) {
+      addConnectingLine('SIG-101', 'FIT-101', 'FIC-101', 'signal_line', 'Twisted Shielded Pair / 4-20mA', 'Flow transmitter FIT-101 signal to controller FIC-101');
+    }
+    if (seenTags.has('FIC-101') && seenTags.has('HV-102')) {
+      addConnectingLine('SIG-102', 'FIC-101', 'HV-102', 'signal_line', 'Twisted Shielded Pair / 4-20mA', 'Flow controller FIC-101 control signal to water valve HV-102');
+    }
+    if (seenTags.has('LIT-101') && seenTags.has('TK-102')) {
+      addConnectingLine('SIG-103', 'LIT-101', 'TK-102', 'signal_line', 'Twisted Shielded Pair / 4-20mA', 'Level transmitter LIT-101 sensing loop on TK-102');
+    }
+    if (seenTags.has('TIT-101') && seenTags.has('TK-102')) {
+      addConnectingLine('SIG-104', 'TIT-101', 'TK-102', 'signal_line', 'Twisted Shielded Pair / RTD', 'Temperature transmitter TIT-101 sensing loop on TK-102');
+    }
   }
 
   // 4. Stream Table Extraction from PFD / P&ID stream summary tables

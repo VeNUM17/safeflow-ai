@@ -4585,6 +4585,99 @@ test('Scenario 16: Idempotent topology graph synchronization prevents duplicate 
   store.deleteProject(proj.id);
 });
 
+// ============================================================================
+// TEST GROUP 17: Critical P&ID Connectivity & SafeFlow Drawing Verification
+// ============================================================================
+console.log('\n--- Test Group 17: Critical P&ID Connectivity & SafeFlow Drawing Verification ---');
+
+test('Scenario 1: ASCII85/Flate decompressed vector PDF extracts vector geometry and text', async () => {
+  const fs = require('fs');
+  const path = require('path');
+  const uploadPath = path.resolve(__dirname, '../server/uploads/1793406231159-473748763.pdf');
+  if (!fs.existsSync(uploadPath)) return; // Skip if environment lacks upload file
+
+  const { extractVectorGeometry } = require('../server/src/services/vectorPdfService');
+  const vec = extractVectorGeometry(uploadPath);
+
+  assert.ok(vec.lines.length >= 40, `Must extract vector lines from compressed PDF (found ${vec.lines.length})`);
+  assert.ok(vec.textElements.length >= 30, `Must extract positioned text elements (found ${vec.textElements.length})`);
+
+  const hasTk101 = vec.textElements.some((t: any) => t.text.includes('TK-101'));
+  const hasMx101 = vec.textElements.some((t: any) => t.text.includes('MX-101'));
+  assert.ok(hasTk101, 'Text elements must contain TK-101');
+  assert.ok(hasMx101, 'Text elements must contain MX-101');
+});
+
+test('Scenario 2: Flow sequence parser creates non-empty endpoints and in-line connections', async () => {
+  const fs = require('fs');
+  const path = require('path');
+  const uploadPath = path.resolve(__dirname, '../server/uploads/1793406231159-473748763.pdf');
+  if (!fs.existsSync(uploadPath)) return;
+
+  const { extractTextFromDocument } = require('../server/src/services/pdfExtractor');
+  const { parsePidDocument } = require('../server/src/services/pidParser');
+
+  const extracted = await extractTextFromDocument(uploadPath, 'application/pdf');
+  const res = parsePidDocument(extracted, 'doc-sf-test', 'SafeFlow_PnID_Rev2_ClearLayout.pdf', 'proj-sf', []);
+
+  // Check lines
+  assert.ok(res.lines.length >= 10, 'Must extract at least 10 piping/signal lines');
+
+  const l101 = res.lines.find((l) => l.line_number === 'L-101');
+  assert.ok(l101, 'L-101 must exist');
+  assert.ok(l101.from_equipment && l101.to_equipment, 'L-101 must have non-empty endpoints');
+
+  const l102 = res.lines.find((l) => l.line_number === 'L-102');
+  assert.ok(l102, 'L-102 must exist');
+  assert.strictEqual(l102.to_equipment, 'MX-101', 'L-102 must feed into mixer MX-101');
+
+  const l103 = res.lines.find((l) => l.line_number === 'L-103');
+  assert.ok(l103, 'L-103 must exist');
+  assert.strictEqual(l103.from_equipment, 'MX-101');
+  assert.strictEqual(l103.to_equipment, 'E-101');
+
+  const l104 = res.lines.find((l) => l.line_number === 'L-104');
+  assert.ok(l104, 'L-104 must exist');
+  assert.strictEqual(l104.from_equipment, 'E-101');
+  assert.strictEqual(l104.to_equipment, 'TK-102');
+
+  // Check in-line valves
+  const hasTkToHv101 = res.lines.some((l) => l.from_equipment === 'TK-101' && l.to_equipment === 'HV-101');
+  assert.ok(hasTkToHv101, 'Must connect TK-101 to isolation valve HV-101');
+
+  const hasMxToDv101 = res.lines.some((l) => l.from_equipment === 'MX-101' && l.to_equipment === 'DV-101');
+  assert.ok(hasMxToDv101, 'Must connect mixer MX-101 to drain valve DV-101');
+
+  // Check signal lines
+  const sigLines = res.lines.filter((l) => l.functional_type === 'signal_line');
+  assert.ok(sigLines.length >= 2, 'Must extract signal lines for instrument loops');
+  for (const sig of sigLines) {
+    assert.strictEqual(sig.assigned_chemical_id, null, 'Signal lines must NOT be assigned chemical fluid');
+  }
+});
+
+test('Scenario 3: Authoritative topology graph achieves zero isolated nodes for SafeFlow drawing', async () => {
+  const fs = require('fs');
+  const path = require('path');
+  const uploadPath = path.resolve(__dirname, '../server/uploads/1793406231159-473748763.pdf');
+  if (!fs.existsSync(uploadPath)) return;
+
+  const { extractTextFromDocument } = require('../server/src/services/pdfExtractor');
+  const { parsePidDocument } = require('../server/src/services/pidParser');
+  const { buildProcessTopologyGraph } = require('../server/src/services/graphService');
+
+  const extracted = await extractTextFromDocument(uploadPath, 'application/pdf');
+  const res = parsePidDocument(extracted, 'doc-sf-test', 'SafeFlow_PnID_Rev2_ClearLayout.pdf', 'proj-sf', []);
+
+  const graph = buildProcessTopologyGraph(res.equipment, res.lines, [], []);
+
+  assert.strictEqual(graph.counts.isolated_nodes_count, 0, 'Isolated nodes count must decrease to 0 for connected SafeFlow P&ID');
+  assert.ok(graph.edges.length >= 10, 'Authoritative edges must connect equipment items');
+
+  const isolatedNodes = graph.nodes.filter((n) => n.is_isolated);
+  assert.strictEqual(isolatedNodes.length, 0, 'No equipment item should remain falsely isolated');
+});
+
 console.log(`\n========================================`);
 console.log(`Test Results: ${passedTests} Passed, ${failedTests} Failed`);
 console.log(`========================================\n`);
