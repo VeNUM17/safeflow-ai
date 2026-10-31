@@ -239,6 +239,14 @@ router.post(
             processDescription: processDesc,
           });
           store.saveCommonDrawingModel(drawingModel);
+
+          // Synchronize visually traced candidate connections into authoritative topology
+          const validCandIds = drawingModel.connection_candidates
+            .filter((c) => c.recognition_status !== 'conflicting')
+            .map((c) => c.id);
+          if (validCandIds.length > 0) {
+            store.syncCandidateConnectionsToTopology(projectId, validCandIds, 'Hybrid P&ID Recognition Engine');
+          }
         } catch (normErr: any) {
           console.error('Auto drawing normalization error:', normErr.message);
         }

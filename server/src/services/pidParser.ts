@@ -658,7 +658,46 @@ export function parsePidDocument(
       }
     };
 
-    // Primary lines matching drawing layout
+    // 3A. Generic Dynamic Flow Sequence Extraction
+    // Automatically extracts arbitrary sequential tag chains: e.g. "TAG-A -> TAG-B -> TAG-C"
+    const clauses = flowDescription.split(/[;\r\n]+/);
+    let autoLineIdx = 1;
+    for (const clause of clauses) {
+      const tagMatches: { tag: string; index: number }[] = [];
+      for (const t of Array.from(seenTags)) {
+        let pos = clause.indexOf(t);
+        while (pos !== -1) {
+          tagMatches.push({ tag: t, index: pos });
+          pos = clause.indexOf(t, pos + t.length);
+        }
+      }
+      tagMatches.sort((a, b) => a.index - b.index);
+
+      for (let i = 0; i < tagMatches.length - 1; i++) {
+        const fromTag = tagMatches[i].tag;
+        const toTag = tagMatches[i + 1].tag;
+        if (fromTag === toTag) continue;
+
+        const unassignedLine = lines.find((l) => !l.from_equipment && !l.to_equipment && l.functional_type === 'piping_line');
+        if (unassignedLine) {
+          unassignedLine.from_equipment = fromTag;
+          unassignedLine.to_equipment = toTag;
+          unassignedLine.flow_direction = 'forward';
+          unassignedLine.confidence = 0.88;
+          unassignedLine.source.snippet = clause.trim();
+          const str = streams.find((s) => s.connected_line_id === unassignedLine.id);
+          if (str) {
+            str.source_equipment_tag = fromTag;
+            str.destination_equipment_tag = toTag;
+            str.flow_direction = 'forward';
+          }
+        } else {
+          addConnectingLine(`PL-GEN-${autoLineIdx++}`, fromTag, toTag, 'piping_line', 'Carbon Steel (CS)', `Flow narrative: ${clause.trim()}`);
+        }
+      }
+    }
+
+    // 3B. Standard Layout Specific Connections
     // L-101: Feed pump discharge (or suction) to mixer MX-101
     updateEndpoint('L-101', 'P-101', 'MX-101');
     // L-102: Water supply feed valve to mixer MX-101
