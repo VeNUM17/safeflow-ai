@@ -312,16 +312,32 @@ export function parsePidDocument(
       }
     }
 
-    const fromEq = equipment[0]?.tag || 'TK-101';
-    const toEq = equipment[1]?.tag || 'P-101';
-    const lineId = uuidv4();
-    const streamId = `stream-${uuidv4().substring(0, 8)}`;
-
-    // Extract surrounding snippet to check for flow rate data
+    // Extract surrounding snippet to check for flow rate data and explicit from/to connections
     const startIdx = Math.max(0, indMatch.index - 100);
     const endIdx = Math.min(text.length, indMatch.index + indMatch[0].length + 150);
     const surroundingSnippet = text.substring(startIdx, endIdx);
     const flowData = extractFlowInfoFromText(surroundingSnippet);
+
+    // Grounded endpoint detection: Extract explicit from/to evidence from surrounding text
+    // NEVER default to equipment[0] and equipment[1] (prevents guessed endpoint anomaly)
+    let fromEq = '';
+    let toEq = '';
+
+    const fromToMatch = surroundingSnippet.match(/from\s+([A-Z0-9\-]+)\s+(?:to|->|→)\s+([A-Z0-9\-]+)/i);
+    if (fromToMatch) {
+      fromEq = fromToMatch[1].toUpperCase();
+      toEq = fromToMatch[2].toUpperCase();
+    } else {
+      const arrowMatch = surroundingSnippet.match(/\b([A-Z0-9\-]{2,10})\s*(?:->|→)\s*([A-Z0-9\-]{2,10})\b/);
+      if (arrowMatch) {
+        fromEq = arrowMatch[1].toUpperCase();
+        toEq = arrowMatch[2].toUpperCase();
+      }
+    }
+
+    const isResolved = Boolean(fromEq && toEq);
+    const lineId = uuidv4();
+    const streamId = `stream-${uuidv4().substring(0, 8)}`;
 
     const newLine: PipingLine = {
       id: lineId,
@@ -337,15 +353,17 @@ export function parsePidDocument(
       flow_direction: 'forward',
       assigned_chemical_id: assignedChemId,
       stream_id: streamId,
-      confidence: 0.8,
-      status: 'provisional',
+      confidence: isResolved ? 0.8 : 0.4,
+      status: isResolved ? 'provisional' : 'unresolved',
       source: {
         document: documentName,
         page: 1,
         snippet: lineStr,
       },
-      alerts: [],
-      notes: 'Provisional line designation extracted from P&ID drawing text.',
+      alerts: isResolved ? [] : ['[UNRESOLVED ENDPOINTS]: Line endpoints not grounded in physical connectivity or drawing text evidence.'],
+      notes: isResolved
+        ? 'Provisional line designation extracted from P&ID drawing text.'
+        : 'Line endpoints unresolved. Requires geometric tracing, process narrative corroboration, or field engineer assignment.',
       machine_from: fromEq,
       machine_to: toEq,
       machine_line_number: lineStr,

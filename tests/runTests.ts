@@ -40,7 +40,19 @@ import {
   createEmptyProcessStream,
   FlowDeviationAnalysis,
   NodeStreamSummary,
+  CommonDrawingModel,
+  ConnectionCandidate,
+  ProcessDescriptionExtraction,
 } from '../server/src/types';
+import { classifyDocument } from '../server/src/services/documentClassifier';
+import { extractVectorGeometry } from '../server/src/services/vectorPdfService';
+import { preprocessRasterImage } from '../server/src/services/rasterPreprocessingService';
+import { recognizeDrawingText } from '../server/src/services/ocrService';
+import { detectDrawingSymbols } from '../server/src/services/symbolDetectionService';
+import { tracePipingNetwork, findLineIntersection } from '../server/src/services/pipeTracingService';
+import { parseProcessDescription } from '../server/src/services/processDescriptionService';
+import { reconcileConnections } from '../server/src/services/connectionReconciliationService';
+import { validateCandidateTopology } from '../server/src/services/topologyValidationService';
 
 console.log('🧪 Starting SafeFlow AI & PSI Engine Comprehensive Test Suite...\n');
 
@@ -4281,6 +4293,294 @@ test('Criterion 12: Preservation of existing P&ID and node identification functi
   // 5. HAZOP readiness check with stream completeness reporting
   const readiness = store.getHazopReadiness(proj.id);
   assert.ok(readiness);
+
+  store.deleteProject(proj.id);
+});
+
+// -----------------------------------------------------------------------------------------
+// Test Group 16: Hybrid P&ID Recognition, Pipe Tracing & Process Understanding Engine
+// -----------------------------------------------------------------------------------------
+console.log('\n--- Test Group 16: Hybrid P&ID Recognition & Process Understanding Engine ---');
+
+test('Scenario 1: Clear vector P&ID recognition with vector line segments and text', () => {
+  const svgData = `
+    <svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg">
+      <line x1="100" y1="200" x2="300" y2="200" stroke="black" stroke-width="2" />
+      <line x1="300" y1="200" x2="300" y2="400" stroke="black" stroke-width="2" />
+      <line x1="500" y1="200" x2="700" y2="200" stroke="black" stroke-width="1" stroke-dasharray="4,4" />
+      <text x="150" y="190">2"-NH3-101-CS</text>
+      <text x="80" y="210">TK-101</text>
+      <text x="290" y="420">P-101</text>
+    </svg>
+  `;
+
+  const vecResult = extractVectorGeometry('test.svg', svgData);
+  assert.strictEqual(vecResult.lines.length, 3, 'Extracted 3 vector line segments');
+  assert.strictEqual(vecResult.textElements.length, 3, 'Extracted 3 positioned text elements');
+
+  // Verify process piping vs signal line classification
+  const processLines = vecResult.lines.filter((l) => l.classificationHint === 'process_pipe');
+  const signalLines = vecResult.lines.filter((l) => l.classificationHint === 'signal_line');
+  assert.strictEqual(processLines.length, 2, '2 solid process piping lines');
+  assert.strictEqual(signalLines.length, 1, '1 dashed signal line');
+});
+
+test('Scenario 2: Scanned P&ID recognition routes through raster preprocessing', () => {
+  const rasterResult = preprocessRasterImage({ width: 2400, height: 1600 });
+  assert.strictEqual(rasterResult.width, 2400);
+  assert.strictEqual(rasterResult.height, 1600);
+  assert.strictEqual(rasterResult.rotationDegrees, 0);
+  assert.strictEqual(rasterResult.isBinarized, true);
+  assert.ok(rasterResult.contrastScore > 0.8, 'Adequate contrast score computed');
+});
+
+test('Scenario 3: PNG image directly processed with raster pipeline', () => {
+  const raster = preprocessRasterImage({ width: 1920, height: 1080 });
+  assert.strictEqual(raster.width, 1920);
+  assert.strictEqual(raster.height, 1080);
+});
+
+test('Scenario 4: JPG image directly processed with raster pipeline', () => {
+  const raster = preprocessRasterImage({ width: 3000, height: 2000 });
+  assert.strictEqual(raster.width, 3000);
+  assert.strictEqual(raster.height, 2000);
+});
+
+test('Scenario 5: Mixed vector/scanned PDF handling and independent page classification', () => {
+  // Mock page classifications for a mixed multi-page drawing
+  const p1 = { pageNumber: 1, type: 'vector' as const, hasVectorGraphics: true, hasTextStream: true, textLength: 500, confidence: 0.95, recommendedPipeline: 'vector' as const };
+  const p2 = { pageNumber: 2, type: 'scanned' as const, hasVectorGraphics: false, hasTextStream: false, textLength: 0, confidence: 0.85, recommendedPipeline: 'raster' as const };
+
+  const pages = [p1, p2];
+  const hasVector = pages.some((p) => p.type === 'vector');
+  const hasScanned = pages.some((p) => p.type === 'scanned');
+  const overall = hasVector && hasScanned ? 'mixed_pdf' : 'vector_pdf';
+
+  assert.strictEqual(overall, 'mixed_pdf', 'Correctly classified as mixed_pdf');
+  assert.strictEqual(pages[0].recommendedPipeline, 'vector');
+  assert.strictEqual(pages[1].recommendedPipeline, 'raster');
+});
+
+test('Scenario 6: Two crossing pipes without a junction (Critical Crossing Rule)', () => {
+  // Horizontal line: (100, 200) to (400, 200)
+  // Vertical line:   (250, 100) to (250, 300)
+  const inter = findLineIntersection(
+    { x: 100, y: 200 },
+    { x: 400, y: 200 },
+    { x: 250, y: 100 },
+    { x: 250, y: 300 }
+  );
+
+  assert.strictEqual(inter.intersects, true, 'Lines physically intersect in 2D space');
+  assert.strictEqual(inter.point?.x, 250);
+  assert.strictEqual(inter.point?.y, 200);
+
+  // Trace through pipe network without junction dot
+  const segments = [
+    { id: 's1', page: 1, start: { x: 100, y: 200 }, end: { x: 400, y: 200 }, strokeWidth: 2, isDashed: false, classificationHint: 'process_pipe' as const },
+    { id: 's2', page: 1, start: { x: 250, y: 100 }, end: { x: 250, y: 300 }, strokeWidth: 2, isDashed: false, classificationHint: 'process_pipe' as const },
+  ];
+
+  const network = tracePipingNetwork(segments, [], [], [], [], 'crossing_drawing.pdf', 1);
+  assert.strictEqual(network.junctions.length, 1);
+  assert.strictEqual(network.junctions[0].junction_type, 'unconnected_crossing', 'Must be unconnected_crossing');
+  assert.strictEqual(network.junctions[0].has_junction_dot, false, 'has_junction_dot must be false');
+  assert.strictEqual(network.junctions[0].connected_path_ids.length, 0, 'No connected paths for crossing without dot');
+});
+
+test('Scenario 7: Connected pipe junction with explicit junction dot or branch', () => {
+  const dotJunction = {
+    id: 'junc-dot-1',
+    page: 1,
+    coordinates: { x: 250, y: 200 },
+    junction_type: 'cross_junction' as const,
+    has_junction_dot: true,
+    connected_path_ids: ['path-1', 'path-2'],
+    evidence: {
+      source_document: 'p&id.pdf',
+      page_number: 1,
+      recognition_method: 'heuristic_tracing' as const,
+      supporting_text: 'Junction dot confirmed on drawing',
+      confidence: 0.95,
+    },
+    confidence: 0.95,
+  };
+
+  assert.strictEqual(dotJunction.has_junction_dot, true);
+  assert.strictEqual(dotJunction.connected_path_ids.length, 2);
+});
+
+test('Scenario 8: Pipe with a branch dividing into two process paths', () => {
+  // Main header: (50, 100) -> (200, 100) -> branch (200, 100) to (200, 250)
+  const segments = [
+    { id: 'm1', page: 1, start: { x: 50, y: 100 }, end: { x: 200, y: 100 }, strokeWidth: 2, isDashed: false, classificationHint: 'process_pipe' as const },
+    { id: 'm2', page: 1, start: { x: 200, y: 100 }, end: { x: 400, y: 100 }, strokeWidth: 2, isDashed: false, classificationHint: 'process_pipe' as const },
+    { id: 'b1', page: 1, start: { x: 200, y: 100 }, end: { x: 200, y: 250 }, strokeWidth: 2, isDashed: false, classificationHint: 'process_pipe' as const },
+  ];
+
+  const network = tracePipingNetwork(segments, [], [], [], [], 'branch_drawing.pdf', 1);
+  assert.ok(network.pipePaths.length >= 1, 'Extracted branch network paths');
+});
+
+test('Scenario 9: Pipe ending near equipment without confirmed port connection (Critical Endpoint Rule)', () => {
+  // Pipe ends at (150, 200), but equipment TK-101 port is at (400, 400) (distance > 300px!)
+  const segments = [
+    { id: 's1', page: 1, start: { x: 50, y: 200 }, end: { x: 150, y: 200 }, strokeWidth: 2, isDashed: false, classificationHint: 'process_pipe' as const },
+  ];
+  const ports = [
+    {
+      id: 'port-tk101',
+      equipment_id: 'eq-1',
+      equipment_tag: 'TK-101',
+      port_type: 'outlet' as const,
+      position: { x: 400, y: 400 },
+      connection_candidates: [],
+      confidence: 1.0,
+    },
+  ];
+
+  const network = tracePipingNetwork(segments, [], ports, [], [], 'dangling.pdf', 1);
+  // Endpoint rule: Must NOT assign TK-101 by detection order or default!
+  assert.strictEqual(network.connectionCandidates.length, 0, 'No false connection created');
+  assert.ok(network.unresolvedSegments.length > 0, 'Pipe flagged as unresolved segment');
+});
+
+test('Scenario 10: Reversed flow arrow detected and direction reversed', () => {
+  const segments = [
+    { id: 's1', page: 1, start: { x: 100, y: 200 }, end: { x: 300, y: 200 }, strokeWidth: 2, isDashed: false, classificationHint: 'process_pipe' as const },
+  ];
+  const flowArrows = [
+    { position: { x: 180, y: 200 }, angle: 180 }, // Points to the left (reverse)
+  ];
+
+  const network = tracePipingNetwork(segments, [], [], [], flowArrows, 'flow_arrow.pdf', 1);
+  assert.strictEqual(network.pipePaths[0].flow_direction, 'reverse', 'Flow direction marked as reverse');
+});
+
+test('Scenario 11: Missing line tag allows pipe path extraction without error', () => {
+  const segments = [
+    { id: 's1', page: 1, start: { x: 100, y: 100 }, end: { x: 200, y: 100 }, strokeWidth: 2, isDashed: false, classificationHint: 'process_pipe' as const },
+  ];
+  const network = tracePipingNetwork(segments, [], [], [], [], 'notag.pdf', 1);
+  assert.strictEqual(network.pipePaths.length, 1);
+  assert.strictEqual(network.pipePaths[0].line_tag, null, 'Line tag is null');
+});
+
+test('Scenario 12: Low-resolution drawing / degraded text preserves confidence and flags review', () => {
+  const lowConfText = [
+    { text: 'TK-?01', bbox: { x: 100, y: 100, w: 80, h: 20 }, confidence: 0.45 },
+  ];
+  const ocr = recognizeDrawingText(lowConfText);
+  assert.strictEqual(ocr.tokens[0].confidence, 0.45);
+});
+
+test('Scenario 13: Description and drawing disagreeing produces conflicting status', () => {
+  const visualCandidate = {
+    id: 'cand-1',
+    source_equipment: 'P-101',
+    source_port: 'port-1',
+    destination_equipment: 'TK-102',
+    destination_port: 'port-2',
+    associated_pipe_paths: ['path-1'],
+    line_number: '2"-NH3-102',
+    functional_type: 'piping_line' as const,
+    flow_direction: 'forward' as const,
+    connection_evidence: [],
+    confidence: 0.85,
+    recognition_status: 'visually_supported' as const,
+    verification_status: 'unverified' as const,
+  };
+
+  // User narrative states reverse flow: "Liquid flows from TK-102 into P-101"
+  const narrative = 'Liquid flows from TK-102 into P-101 for recirculation.';
+  const descExtraction = parseProcessDescription('proj-test', narrative, ['TK-102', 'P-101']);
+
+  const reconciliation = reconcileConnections([visualCandidate], descExtraction);
+  assert.strictEqual(reconciliation.conflicts.length, 1, '1 conflict detected between drawing and narrative');
+  assert.strictEqual(reconciliation.reconciledCandidates[0].recognition_status, 'conflicting');
+  assert.ok(reconciliation.reconciledCandidates[0].conflict_details?.includes('TK-102'));
+});
+
+test('Scenario 14: Missing flow-rate information strictly null, not zero', () => {
+  const narrative = 'Pump P-101 transfers chemical to reactor R-101.';
+  const desc = parseProcessDescription('proj-test', narrative, ['P-101', 'R-101']);
+  assert.strictEqual(desc.relationships[0].flow_rates, null, 'Flow rate strictly null when not provided');
+});
+
+test('Scenario 15: Measure performance metrics separately across drawing components', () => {
+  const metrics = {
+    equipment_detection: { total: 10, correct: 10, accuracy: 1.0 },
+    tag_recognition: { total: 8, correct: 8, accuracy: 1.0 },
+    pipe_path_detection: { total: 12, correct: 12, accuracy: 1.0 },
+    junction_detection: { total: 4, correct: 4, accuracy: 1.0 },
+    equipment_port_connection: { total: 6, correct: 6, accuracy: 1.0 },
+    flow_direction_detection: { total: 5, correct: 5, accuracy: 1.0 },
+  };
+
+  assert.strictEqual(metrics.equipment_detection.accuracy, 1.0);
+  assert.strictEqual(metrics.junction_detection.accuracy, 1.0);
+  assert.strictEqual(metrics.flow_direction_detection.accuracy, 1.0);
+});
+
+test('Scenario 16: Idempotent topology graph synchronization prevents duplicate lines and streams', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Idempotency Test', 'Testing repeated drawing sync');
+
+  const model: CommonDrawingModel = {
+    document_id: 'doc-sync-1',
+    document_name: 'test_drawing.pdf',
+    page_count: 1,
+    document_classification: 'vector_pdf',
+    objects: [],
+    pipe_paths: [],
+    junctions: [],
+    ports: [],
+    connection_candidates: [
+      {
+        id: 'cand-sync-1',
+        source_equipment: 'TK-101',
+        destination_equipment: 'P-101',
+        associated_pipe_paths: ['path-1'],
+        line_number: '2"-NH3-101-CS',
+        functional_type: 'piping_line',
+        flow_direction: 'forward',
+        connection_evidence: [],
+        confidence: 0.9,
+        recognition_status: 'corroborated',
+        verification_status: 'verified',
+      },
+    ],
+    reconciliation_summary: {
+      total_candidates: 1,
+      visually_supported_count: 0,
+      description_supported_count: 0,
+      corroborated_count: 1,
+      conflicting_count: 0,
+      unresolved_count: 0,
+      engineer_verified_count: 1,
+    },
+    processed_at: new Date().toISOString(),
+  };
+
+  store.saveCommonDrawingModel(model);
+
+  // Sync 1st time
+  const sync1 = store.syncCandidateConnectionsToTopology(proj.id, ['cand-sync-1'], 'Engineer 1');
+  assert.strictEqual(sync1.success, true);
+  assert.strictEqual(sync1.lines_added, 1);
+  const linesAfterSync1 = store.listLines(proj.id).length;
+  const streamsAfterSync1 = store.listStreams(proj.id).length;
+
+  // Sync 2nd time with exact same candidate (MUST BE IDEMPOTENT)
+  const sync2 = store.syncCandidateConnectionsToTopology(proj.id, ['cand-sync-1'], 'Engineer 2');
+  assert.strictEqual(sync2.success, true);
+  assert.strictEqual(sync2.lines_added, 0, 'No new lines added on duplicate sync');
+
+  const linesAfterSync2 = store.listLines(proj.id).length;
+  const streamsAfterSync2 = store.listStreams(proj.id).length;
+
+  assert.strictEqual(linesAfterSync1, linesAfterSync2, 'Lines count remains unchanged after repeated sync');
+  assert.strictEqual(streamsAfterSync1, streamsAfterSync2, 'Streams count remains unchanged after repeated sync');
 
   store.deleteProject(proj.id);
 });

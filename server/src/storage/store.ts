@@ -37,6 +37,9 @@ import {
   ProcessStream,
   CreateStreamInput,
   createEmptyProcessStream,
+  CommonDrawingModel,
+  ConnectionCandidate,
+  ProcessDescriptionExtraction,
 } from '../types';
 import { detectConflictsForProject } from '../services/conflictDetector';
 import { validateProcessGraph } from '../services/graphValidationService';
@@ -63,6 +66,8 @@ interface DatabaseSchema {
   acknowledged_warnings: Record<string, string[]>;
   drawings: DigitalPidDrawing[];
   drawing_acknowledged_warnings: Record<string, string[]>;
+  process_descriptions: ProcessDescriptionExtraction[];
+  common_drawings: CommonDrawingModel[];
 }
 
 const DATA_DIR = path.resolve(__dirname, '../../data');
@@ -84,6 +89,8 @@ export class PsiDataStore {
     acknowledged_warnings: {},
     drawings: [],
     drawing_acknowledged_warnings: {},
+    process_descriptions: [],
+    common_drawings: [],
   };
 
   constructor() {
@@ -122,6 +129,8 @@ export class PsiDataStore {
           acknowledged_warnings: parsed.acknowledged_warnings || {},
           drawings: parsed.drawings || [],
           drawing_acknowledged_warnings: parsed.drawing_acknowledged_warnings || {},
+          process_descriptions: parsed.process_descriptions || [],
+          common_drawings: parsed.common_drawings || [],
         };
         // Ensure sample streams are seeded if this is the sample project and streams are empty
         if (this.data.streams.length === 0 && this.data.projects.some((p) => p.id === 'proj-sample-ammonia-demo')) {
@@ -2384,6 +2393,241 @@ export class PsiDataStore {
     delete this.data.drawing_acknowledged_warnings[drawingId];
     this.saveDatabase();
     return true;
+  }
+
+  // --- PROCESS DESCRIPTION NARRATIVES ---
+  public saveProcessDescription(extraction: ProcessDescriptionExtraction): ProcessDescriptionExtraction {
+    if (!this.data.process_descriptions) this.data.process_descriptions = [];
+    const idx = this.data.process_descriptions.findIndex((d) => d.project_id === extraction.project_id);
+    if (idx >= 0) {
+      this.data.process_descriptions[idx] = extraction;
+    } else {
+      this.data.process_descriptions.push(extraction);
+    }
+    this.saveDatabase();
+    return extraction;
+  }
+
+  public getProcessDescription(projectId: string): ProcessDescriptionExtraction | undefined {
+    if (!this.data.process_descriptions) this.data.process_descriptions = [];
+    return this.data.process_descriptions.find((d) => d.project_id === projectId);
+  }
+
+  // --- COMMON DRAWING MODELS & HYBRID CANDIDATES ---
+  public saveCommonDrawingModel(model: CommonDrawingModel): CommonDrawingModel {
+    if (!this.data.common_drawings) this.data.common_drawings = [];
+    const idx = this.data.common_drawings.findIndex((m) => m.document_id === model.document_id);
+    if (idx >= 0) {
+      this.data.common_drawings[idx] = model;
+    } else {
+      this.data.common_drawings.push(model);
+    }
+    this.saveDatabase();
+    return model;
+  }
+
+  public getCommonDrawingModel(documentId: string): CommonDrawingModel | undefined {
+    if (!this.data.common_drawings) this.data.common_drawings = [];
+    return this.data.common_drawings.find((m) => m.document_id === documentId);
+  }
+
+  public listCommonDrawingModels(): CommonDrawingModel[] {
+    return this.data.common_drawings || [];
+  }
+
+  public updateCandidateConnection(
+    candidateId: string,
+    updates: Partial<ConnectionCandidate>,
+    reviewer = 'Process Safety Engineer'
+  ): ConnectionCandidate | undefined {
+    if (!this.data.common_drawings) return undefined;
+    for (const drawing of this.data.common_drawings) {
+      const cand = drawing.connection_candidates.find((c) => c.id === candidateId);
+      if (cand) {
+        Object.assign(cand, updates);
+        cand.is_manually_corrected = true;
+        this.saveDatabase();
+        return cand;
+      }
+    }
+    return undefined;
+  }
+
+  public verifyCandidateConnection(
+    candidateId: string,
+    reviewer = 'Process Safety Engineer',
+    notes = 'Verified by engineer'
+  ): ConnectionCandidate | undefined {
+    return this.updateCandidateConnection(
+      candidateId,
+      {
+        verification_status: 'verified',
+        recognition_status: 'engineer_verified',
+        verified_by: reviewer,
+        verified_at: new Date().toISOString(),
+        verification_notes: notes,
+      },
+      reviewer
+    );
+  }
+
+  public rejectCandidateConnection(
+    candidateId: string,
+    reviewer = 'Process Safety Engineer',
+    notes = 'Rejected by engineer'
+  ): ConnectionCandidate | undefined {
+    return this.updateCandidateConnection(
+      candidateId,
+      {
+        verification_status: 'rejected',
+        verified_by: reviewer,
+        verified_at: new Date().toISOString(),
+        verification_notes: notes,
+      },
+      reviewer
+    );
+  }
+
+  /**
+   * Idempotent Synchronization of verified / approved Connection Candidates into authoritative topology
+   */
+  public syncCandidateConnectionsToTopology(
+    projectId: string,
+    candidateIds: string[],
+    reviewer = 'Process Safety Engineer'
+  ): { success: boolean; synced_count: number; lines_added: number; error?: string } {
+    const project = this.getProject(projectId);
+    if (!project) return { success: false, synced_count: 0, lines_added: 0, error: 'Project not found' };
+
+    let syncedCount = 0;
+    let linesAdded = 0;
+    const now = new Date().toISOString();
+
+    for (const model of this.data.common_drawings || []) {
+      for (const cand of model.connection_candidates) {
+        if (!candidateIds.includes(cand.id)) continue;
+        if (cand.verification_status === 'rejected') continue;
+
+        // Idempotency check: see if a piping line with same from/to already exists
+        const existingLine = this.data.lines.find(
+          (l) =>
+            l.project_id === projectId &&
+            l.from_equipment.toUpperCase() === cand.source_equipment.toUpperCase() &&
+            l.to_equipment.toUpperCase() === cand.destination_equipment.toUpperCase()
+        );
+
+        const lineTag = cand.line_number || `LINE-${cand.source_equipment}-${cand.destination_equipment}`;
+        const streamId = cand.stream_id || `stream-${cand.id.substring(0, 8)}`;
+
+        if (existingLine) {
+          existingLine.status = 'confirmed';
+          existingLine.functional_type = cand.functional_type;
+          existingLine.flow_direction = cand.flow_direction;
+          existingLine.confidence = Math.max(existingLine.confidence, cand.confidence);
+          existingLine.updated_at = now;
+          syncedCount++;
+        } else {
+          const newLine: PipingLine = {
+            id: `line-${cand.id}`,
+            project_id: projectId,
+            document_id: model.document_id,
+            line_number: lineTag,
+            from_equipment: cand.source_equipment,
+            to_equipment: cand.destination_equipment,
+            size: '2"',
+            material: 'CS',
+            stream_label: `${cand.source_equipment} to ${cand.destination_equipment} Stream`,
+            functional_type: cand.functional_type,
+            flow_direction: cand.flow_direction,
+            assigned_chemical_id: null,
+            stream_id: streamId,
+            confidence: cand.confidence,
+            status: cand.verification_status === 'verified' ? 'confirmed' : 'provisional',
+            source: {
+              document: model.document_name,
+              page: 1,
+              snippet: `Reconciled connection: ${cand.source_equipment} -> ${cand.destination_equipment}`,
+            },
+            alerts: [],
+            notes: `Synchronized from Hybrid P&ID engine (${cand.recognition_status}).`,
+            machine_from: cand.source_equipment,
+            machine_to: cand.destination_equipment,
+            machine_line_number: lineTag,
+            is_manual_entry: cand.is_manually_corrected || false,
+            created_at: now,
+          };
+          this.data.lines.push(newLine);
+          linesAdded++;
+          syncedCount++;
+        }
+
+        // Also idempotently sync ProcessStream
+        const existingStream = this.data.streams.find(
+          (s) =>
+            s.project_id === projectId &&
+            s.source_equipment_tag.toUpperCase() === cand.source_equipment.toUpperCase() &&
+            s.destination_equipment_tag.toUpperCase() === cand.destination_equipment.toUpperCase()
+        );
+
+        if (!existingStream) {
+          const newStream: ProcessStream = {
+            id: streamId,
+            project_id: projectId,
+            stream_number: `STR-${lineTag}`,
+            source_equipment_id: null,
+            source_equipment_tag: cand.source_equipment,
+            destination_equipment_id: null,
+            destination_equipment_tag: cand.destination_equipment,
+            connected_line_id: `line-${cand.id}`,
+            line_number: lineTag,
+            material_description: `${cand.source_equipment} to ${cand.destination_equipment} Stream`,
+            assigned_chemical_id: null,
+            flow_direction: cand.flow_direction,
+            flow_rates: cand.flow_rates || {
+              normal: null,
+              min: null,
+              max: null,
+              design: null,
+              actual: null,
+              unit: 'm3/h',
+              basis: 'volumetric',
+            },
+            operating_pressure: { value: null, unit: 'bar(g)', status: 'not_provided' },
+            operating_temperature: { value: null, unit: '°C', status: 'not_provided' },
+            phase: null,
+            pipe_nominal_diameter: '2"',
+            pipe_spec: 'CS',
+            associated_instrument_tags: [],
+            source: {
+              document: model.document_name,
+              document_id: model.document_id,
+              page: 1,
+              snippet: `Hybrid connection: ${cand.source_equipment} -> ${cand.destination_equipment}`,
+            },
+            data_origin: cand.recognition_status === 'corroborated' ? 'hybrid' : 'manual_entry',
+            verification_status: cand.verification_status === 'verified' ? 'verified' : 'unverified',
+            verified_by: cand.verified_by || null,
+            verified_at: cand.verified_at || null,
+            notes: cand.conflict_details || null,
+            created_at: now,
+            updated_at: now,
+          };
+          this.data.streams.push(newStream);
+        }
+
+        this.logAudit({
+          project_id: projectId,
+          entity_type: 'line',
+          entity_id: cand.id,
+          action: 'create',
+          reviewer,
+          change_reason: `Synchronized connection candidate ${cand.source_equipment} -> ${cand.destination_equipment} (${cand.recognition_status})`,
+        });
+      }
+    }
+
+    this.saveDatabase();
+    return { success: true, synced_count: syncedCount, lines_added: linesAdded };
   }
 
   // --- SUMMARY WITH PHA WORKFLOW STAGES ---

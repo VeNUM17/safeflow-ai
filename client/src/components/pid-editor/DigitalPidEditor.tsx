@@ -28,6 +28,8 @@ import { EditorPropertiesPanel } from './EditorPropertiesPanel';
 import { DrawingValidationDrawer } from './DrawingValidationDrawer';
 import { DrawingApprovalModal } from './DrawingApprovalModal';
 import { DrawingExportModal } from './DrawingExportModal';
+import { HybridReconciliationPanel } from './HybridReconciliationPanel';
+import { Sparkles } from 'lucide-react';
 
 interface DigitalPidEditorProps {
   project: ProcessProject;
@@ -50,6 +52,7 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [editorViewTab, setEditorViewTab] = useState<'canvas' | 'hybrid'>('canvas');
 
   // Selection
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
@@ -433,6 +436,31 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
               </span>
             )}
           </div>
+
+          {/* Sub-view switcher: Canvas vs Hybrid Reconciliation */}
+          <div className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5 ml-2">
+            <button
+              onClick={() => setEditorViewTab('canvas')}
+              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                editorViewTab === 'canvas'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Interactive Canvas
+            </button>
+            <button
+              onClick={() => setEditorViewTab('hybrid')}
+              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 ${
+                editorViewTab === 'hybrid'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
+              Hybrid Recognition & Reconciliation
+            </button>
+          </div>
         </div>
 
         {/* Action Buttons */}
@@ -515,77 +543,87 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
         </div>
       </div>
 
-      {/* 3-Column Studio Workspace */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left: Reusable Engineering Symbol Palette */}
-        <SymbolPalette onAddSymbol={handleAddSymbol} />
+      {/* Hybrid Reconciliation View OR 3-Column Studio Workspace */}
+      {editorViewTab === 'hybrid' ? (
+        <div className="flex-1 overflow-hidden">
+          <HybridReconciliationPanel
+            project={project}
+            documents={documents}
+            onRefreshGraph={() => fetchDrawings()}
+          />
+        </div>
+      ) : (
+        <div className="flex-1 flex overflow-hidden">
+          {/* Left: Reusable Engineering Symbol Palette */}
+          <SymbolPalette onAddSymbol={handleAddSymbol} />
 
-        {/* Center: Interactive Canvas */}
-        <EditorCanvas
-          elements={activeDrawing.elements}
-          connectors={activeDrawing.connectors}
-          selectedElementId={selectedElementId}
-          selectedConnectorId={selectedConnectorId}
-          backgroundImageUrl={
-            activeDrawing.source_document_id
-              ? `/uploads/${activeDrawing.source_document_id}`
-              : null
-          }
-          backgroundVisible={activeDrawing.background_visible}
-          backgroundOpacity={activeDrawing.background_opacity}
-          onUpdateElements={handleUpdateElements}
-          onUpdateConnectors={handleUpdateConnectors}
-          onSelectElement={(el) => {
-            setSelectedElementId(el ? el.id : null);
-            if (el) setSelectedConnectorId(null);
-          }}
-          onSelectConnector={(conn) => {
-            setSelectedConnectorId(conn ? conn.id : null);
-            if (conn) setSelectedElementId(null);
-          }}
-          onToggleBackgroundVisible={() => {
-            setActiveDrawing({
-              ...activeDrawing,
-              background_visible: !activeDrawing.background_visible,
-            });
-            setHasUnsavedChanges(true);
-          }}
-          onChangeBackgroundOpacity={(opacity) => {
-            setActiveDrawing({
-              ...activeDrawing,
-              background_opacity: opacity,
-            });
-            setHasUnsavedChanges(true);
-          }}
-          canUndo={historyIndex > 0}
-          canRedo={historyIndex < history.length - 1}
-          onUndo={handleUndo}
-          onRedo={handleRedo}
-        />
+          {/* Center: Interactive Canvas */}
+          <EditorCanvas
+            elements={activeDrawing.elements}
+            connectors={activeDrawing.connectors}
+            selectedElementId={selectedElementId}
+            selectedConnectorId={selectedConnectorId}
+            backgroundImageUrl={
+              activeDrawing.source_document_id
+                ? `/uploads/${activeDrawing.source_document_id}`
+                : null
+            }
+            backgroundVisible={activeDrawing.background_visible}
+            backgroundOpacity={activeDrawing.background_opacity}
+            onUpdateElements={handleUpdateElements}
+            onUpdateConnectors={handleUpdateConnectors}
+            onSelectElement={(el) => {
+              setSelectedElementId(el ? el.id : null);
+              if (el) setSelectedConnectorId(null);
+            }}
+            onSelectConnector={(conn) => {
+              setSelectedConnectorId(conn ? conn.id : null);
+              if (conn) setSelectedElementId(null);
+            }}
+            onToggleBackgroundVisible={() => {
+              setActiveDrawing({
+                ...activeDrawing,
+                background_visible: !activeDrawing.background_visible,
+              });
+              setHasUnsavedChanges(true);
+            }}
+            onChangeBackgroundOpacity={(opacity) => {
+              setActiveDrawing({
+                ...activeDrawing,
+                background_opacity: opacity,
+              });
+              setHasUnsavedChanges(true);
+            }}
+            canUndo={historyIndex > 0}
+            canRedo={historyIndex < history.length - 1}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+          />
 
-        {/* Right: Contextual Properties Panel */}
-        <EditorPropertiesPanel
-          drawing={activeDrawing}
-          selectedElement={selectedElement}
-          selectedConnector={selectedConnector}
-          chemicals={chemicals}
-          allElements={activeDrawing.elements}
-          onUpdateElement={(updated) => {
-            handleUpdateElements(
-              activeDrawing.elements.map((el) => (el.id === updated.id ? updated : el))
-            );
-          }}
-          onUpdateConnector={(updated) => {
-            handleUpdateConnectors(
-              activeDrawing.connectors.map((c) => (c.id === updated.id ? updated : c))
-            );
-          }}
-          onUpdateDrawingMeta={(meta) => {
-            setActiveDrawing({ ...activeDrawing, ...meta });
-            setHasUnsavedChanges(true);
-          }}
-        />
-      </div>
+          {/* Right: Contextual Properties Panel */}
+          <EditorPropertiesPanel
+            drawing={activeDrawing}
+            selectedElement={selectedElement}
+            selectedConnector={selectedConnector}
+            chemicals={chemicals}
+            allElements={activeDrawing.elements}
+            onUpdateElement={(updated) => {
+              handleUpdateElements(
+                activeDrawing.elements.map((el) => (el.id === updated.id ? updated : el))
+              );
+            }}
+            onUpdateConnector={(updated) => {
+              handleUpdateConnectors(
+                activeDrawing.connectors.map((c) => (c.id === updated.id ? updated : c))
+              );
+            }}
+            onUpdateDrawingMeta={(meta) => {
+              setActiveDrawing({ ...activeDrawing, ...meta });
+              setHasUnsavedChanges(true);
+            }}
+          />
+        </div>
+      )}
 
       {/* Drawers & Modals */}
       <DrawingValidationDrawer

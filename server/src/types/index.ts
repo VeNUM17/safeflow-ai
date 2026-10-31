@@ -1107,3 +1107,217 @@ export interface DrawingValidationResult {
   issues: DrawingValidationIssue[];
   checked_at: string;
 }
+
+// ==========================================
+// COMMON DRAWING REPRESENTATION & HYBRID P&ID
+// ==========================================
+
+export type RecognitionMethod =
+  | 'vector_geometry'
+  | 'raster_ocr'
+  | 'symbol_template'
+  | 'heuristic_tracing'
+  | 'process_description'
+  | 'hybrid_reconciled'
+  | 'manual_engineering';
+
+export interface BoundingBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface Coordinate2D {
+  x: number;
+  y: number;
+}
+
+export interface DrawingEvidence {
+  source_document: string;
+  source_document_id?: string | null;
+  page_number: number;
+  bounding_box?: BoundingBox | null;
+  recognition_method: RecognitionMethod;
+  supporting_text?: string | null;
+  confidence: number;
+}
+
+export type DrawingObjectType =
+  | 'equipment'
+  | 'instrument'
+  | 'valve'
+  | 'junction'
+  | 'flow_arrow'
+  | 'line_tag'
+  | 'equipment_tag'
+  | 'instrument_tag'
+  | 'nozzle';
+
+export interface DrawingObject {
+  id: string;
+  type: DrawingObjectType;
+  tag: string;
+  sub_type?: string;
+  page: number;
+  bounding_box: BoundingBox;
+  center_coordinates: Coordinate2D;
+  confidence: number;
+  recognition_method: RecognitionMethod;
+  evidence: DrawingEvidence;
+  ports?: EquipmentPort[];
+  specifications?: EquipmentSpecifications;
+  assigned_chemical_id?: string | null;
+  raw_properties?: Record<string, any>;
+}
+
+export interface PipeJunction {
+  id: string;
+  page: number;
+  coordinates: Coordinate2D;
+  junction_type: 't_junction' | 'cross_junction' | 'unconnected_crossing' | 'elbow_bend';
+  has_junction_dot: boolean;
+  connected_path_ids: string[];
+  evidence: DrawingEvidence;
+  confidence: number;
+}
+
+export interface PipePath {
+  id: string;
+  page: number;
+  coordinates: Coordinate2D[]; // Polyline vertices
+  line_tag?: string | null;
+  functional_type: FunctionalType; // 'piping_line' | 'signal_line'
+  flow_direction: FlowDirection; // 'forward' | 'bidirectional' | 'unknown'
+  junction_ids: string[];
+  start_candidate?: {
+    equipment_tag?: string;
+    equipment_id?: string;
+    port_id?: string;
+    distance: number;
+    confidence: number;
+  } | null;
+  end_candidate?: {
+    equipment_tag?: string;
+    equipment_id?: string;
+    port_id?: string;
+    distance: number;
+    confidence: number;
+  } | null;
+  is_continuous: boolean;
+  crossings: {
+    crossing_point: Coordinate2D;
+    other_path_id: string;
+    is_connected: boolean; // false for unconnected bridges / jumps
+    has_bridge_symbol: boolean;
+    confidence: number;
+  }[];
+  flow_arrow?: {
+    position: Coordinate2D;
+    angle: number; // In degrees
+    direction: 'forward' | 'reverse';
+    confidence: number;
+  } | null;
+  flow_rates?: StreamFlowRates;
+  confidence: number;
+  evidence: DrawingEvidence;
+}
+
+export interface EquipmentPort {
+  id: string;
+  equipment_id: string;
+  equipment_tag: string;
+  port_type: 'inlet' | 'outlet' | 'bidirectional' | 'drain' | 'vent' | 'signal';
+  position: Coordinate2D;
+  normal_vector?: Coordinate2D; // Outward pointing normal
+  connection_candidates: string[]; // ConnectionCandidate IDs
+  confidence: number;
+}
+
+export type ConnectionReconciliationStatus =
+  | 'visually_supported'
+  | 'description_supported'
+  | 'corroborated'
+  | 'conflicting'
+  | 'unresolved'
+  | 'engineer_verified';
+
+export interface ConnectionCandidate {
+  id: string;
+  source_equipment: string; // Equipment tag
+  source_port?: string | null;
+  destination_equipment: string; // Equipment tag
+  destination_port?: string | null;
+  associated_pipe_paths: string[]; // PipePath IDs
+  line_number?: string | null;
+  stream_id?: string | null;
+  functional_type: FunctionalType;
+  flow_direction: FlowDirection;
+  flow_rates?: StreamFlowRates;
+  connection_evidence: DrawingEvidence[];
+  text_evidence?: string[];
+  confidence: number; // 0.0 to 1.0 AI certainty
+  recognition_status: ConnectionReconciliationStatus;
+  verification_status: 'unverified' | 'verified' | 'rejected' | 'flagged_for_review';
+  verified_by?: string | null;
+  verified_at?: string | null;
+  verification_notes?: string | null;
+  conflict_details?: string | null;
+  is_manually_corrected?: boolean;
+}
+
+// Process Description Extraction
+export interface ProcessDescriptionRelationship {
+  id: string;
+  source_tag: string;
+  destination_tag: string;
+  operation_type: 'transfer' | 'pump' | 'cooling' | 'heating' | 'reaction' | 'mixing' | 'recycle' | 'feed';
+  chemical_name?: string | null;
+  stream_label?: string | null;
+  flow_rates?: Partial<StreamFlowRates> | null;
+  operating_conditions?: {
+    pressure?: number;
+    pressure_unit?: string;
+    temperature?: number;
+    temperature_unit?: string;
+  } | null;
+  supporting_sentence: string;
+  confidence: number;
+}
+
+export interface ProcessDescriptionExtraction {
+  id: string;
+  project_id: string;
+  raw_description: string;
+  extracted_tags: string[];
+  missing_tags_in_drawing: string[];
+  relationships: ProcessDescriptionRelationship[];
+  feed_streams: { source: string; destination: string; material: string }[];
+  mixing_operations: { destination: string; converging_sources: string[] }[];
+  branches: { source: string; destinations: string[] }[];
+  extracted_at: string;
+}
+
+// Hybrid Recognition Full Pipeline Result
+export interface CommonDrawingModel {
+  document_id: string;
+  document_name: string;
+  page_count: number;
+  document_classification: 'vector_pdf' | 'scanned_pdf' | 'raster_image' | 'mixed_pdf';
+  objects: DrawingObject[];
+  pipe_paths: PipePath[];
+  junctions: PipeJunction[];
+  ports: EquipmentPort[];
+  connection_candidates: ConnectionCandidate[];
+  reconciliation_summary: {
+    total_candidates: number;
+    visually_supported_count: number;
+    description_supported_count: number;
+    corroborated_count: number;
+    conflicting_count: number;
+    unresolved_count: number;
+    engineer_verified_count: number;
+  };
+  processed_at: string;
+}
+

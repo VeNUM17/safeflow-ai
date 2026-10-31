@@ -10,6 +10,10 @@ import { parsePidDocument } from '../services/pidParser';
 import { buildProcessTopologyGraph } from '../services/graphService';
 import { exportProjectToJson, exportProjectToCsv } from '../services/exportService';
 import { exportDrawingToJson, exportDrawingToSvg } from '../services/drawingExportService';
+import { parseProcessDescription } from '../services/processDescriptionService';
+import { normalizeDrawing } from '../services/drawingNormalizationService';
+import { validateCandidateTopology } from '../services/topologyValidationService';
+import { classifyDocument } from '../services/documentClassifier';
 import { DocumentRecord, DocumentType, PipingLine, EquipmentTag, createDefaultSpecifications, ProcessStream } from '../types';
 
 const router = Router();
@@ -1107,6 +1111,144 @@ router.get('/projects/:id/export/csv', (req: Request, res: Response) => {
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.setHeader('Content-Type', 'text/csv');
   res.send(csvStr);
+});
+
+// --- HYBRID P&ID RECOGNITION & PROCESS DESCRIPTION ENGINE ---
+
+router.post('/projects/:id/process-description', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const project = store.getProject(projectId);
+  if (!project) {
+    return res.status(404).json({ success: false, error: 'Project not found' });
+  }
+
+  const { description } = req.body;
+  if (!description || typeof description !== 'string') {
+    return res.status(400).json({ success: false, error: 'Process description text is required' });
+  }
+
+  const existingEquipment = store.listEquipment(projectId);
+  const knownTags = existingEquipment.map((e) => e.tag);
+
+  const extraction = parseProcessDescription(projectId, description.trim(), knownTags);
+  store.saveProcessDescription(extraction);
+
+  res.status(200).json({ success: true, data: extraction });
+});
+
+router.get('/projects/:id/process-description', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const extraction = store.getProcessDescription(projectId);
+  if (!extraction) {
+    return res.json({ success: true, data: null });
+  }
+  res.json({ success: true, data: extraction });
+});
+
+router.post('/projects/:id/recognize-hybrid', async (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const project = store.getProject(projectId);
+  if (!project) {
+    return res.status(404).json({ success: false, error: 'Project not found' });
+  }
+
+  const { document_id, raw_content } = req.body;
+  const docs = store.listDocuments(projectId);
+  const doc = document_id ? docs.find((d) => d.id === document_id) : docs.find((d) => d.doc_type === 'pid') || docs[0];
+
+  if (!doc) {
+    return res.status(400).json({ success: false, error: 'No P&ID document found in project to recognize' });
+  }
+
+  const processDesc = store.getProcessDescription(projectId);
+  const absoluteDiskPath = path.resolve(__dirname, `../../${doc.file_path}`);
+
+  const drawingModel = await normalizeDrawing({
+    filePath: absoluteDiskPath,
+    fileName: doc.name,
+    mimeType: doc.mime_type,
+    documentId: doc.id,
+    rawContent: raw_content,
+    processDescription: processDesc,
+  });
+
+  store.saveCommonDrawingModel(drawingModel);
+
+  res.json({ success: true, data: drawingModel });
+});
+
+router.get('/projects/:id/recognition-results', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const docId = req.query.document_id as string | undefined;
+
+  if (docId) {
+    const model = store.getCommonDrawingModel(docId);
+    return res.json({ success: true, data: model || null });
+  }
+
+  const allModels = store.listCommonDrawingModels();
+  res.json({ success: true, data: allModels });
+});
+
+router.patch('/connections/:id', (req: Request, res: Response) => {
+  const candidateId = getParam(req.params.id);
+  const updates = req.body;
+  const reviewer = req.body.reviewer || 'Process Safety Engineer';
+
+  const updated = store.updateCandidateConnection(candidateId, updates, reviewer);
+  if (!updated) {
+    return res.status(404).json({ success: false, error: 'Candidate connection not found' });
+  }
+
+  res.json({ success: true, data: updated });
+});
+
+router.post('/connections/:id/verify', (req: Request, res: Response) => {
+  const candidateId = getParam(req.params.id);
+  const reviewer = req.body.reviewer || 'Process Safety Engineer';
+  const notes = req.body.notes || 'Connection verified against physical P&ID';
+
+  const verified = store.verifyCandidateConnection(candidateId, reviewer, notes);
+  if (!verified) {
+    return res.status(404).json({ success: false, error: 'Candidate connection not found' });
+  }
+
+  res.json({ success: true, data: verified });
+});
+
+router.post('/connections/:id/reject', (req: Request, res: Response) => {
+  const candidateId = getParam(req.params.id);
+  const reviewer = req.body.reviewer || 'Process Safety Engineer';
+  const notes = req.body.notes || 'Connection rejected by engineer';
+
+  const rejected = store.rejectCandidateConnection(candidateId, reviewer, notes);
+  if (!rejected) {
+    return res.status(404).json({ success: false, error: 'Candidate connection not found' });
+  }
+
+  res.json({ success: true, data: rejected });
+});
+
+router.post('/projects/:id/sync-connections', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const { candidate_ids, reviewer } = req.body;
+
+  if (!Array.isArray(candidate_ids) || candidate_ids.length === 0) {
+    return res.status(400).json({ success: false, error: 'candidate_ids array is required' });
+  }
+
+  const result = store.syncCandidateConnectionsToTopology(
+    projectId,
+    candidate_ids,
+    reviewer || 'Process Safety Engineer'
+  );
+
+  if (!result.success) {
+    return res.status(400).json({ success: false, error: result.error });
+  }
+
+  const summary = store.getDashboardSummary(projectId);
+  res.json({ success: true, data: { ...result, summary } });
 });
 
 // --- HEALTH CHECK ---
