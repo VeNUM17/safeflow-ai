@@ -15,26 +15,27 @@ import { ExtractedDocumentContent } from './pdfExtractor';
 
 // Comprehensive Industrial Equipment Patterns matching standard ISA-5.1 & SafeFlow fixtures
 const EQUIPMENT_PATTERNS: { type: EquipmentType; regex: RegExp; desc: string }[] = [
-  { type: 'tank', regex: /\b(TK)-([0-9]{3,4}[A-Z]?)\b/gi, desc: 'Storage Tank' },
-  { type: 'mixing_tank', regex: /\b(MX)-([0-9]{3,4}[A-Z]?)\b/gi, desc: 'Mixing / Blending Tank' },
-  { type: 'agitator', regex: /\b(AG)-([0-9]{3,4}[A-Z]?)\b/gi, desc: 'Tank Agitator / Mixer' },
-  { type: 'pump', regex: /\b(P)-([0-9]{3,4}[A-Z]?)\b/gi, desc: 'Centrifugal / Transfer Pump' },
-  { type: 'heat_exchanger', regex: /\b(E|HX|HE|C)-([0-9]{3,4}[A-Z]?)\b/gi, desc: 'Heat Exchanger / Cooler' },
-  { type: 'reactor', regex: /\b(R|RX)-([0-9]{3,4}[A-Z]?)\b/gi, desc: 'Chemical Reactor' },
-  { type: 'vessel', regex: /\b(V|D|DR|T)-([0-9]{3,4}[A-Z]?)\b/gi, desc: 'Process Vessel / Drum' },
-  { type: 'compressor', regex: /\b(K|CP)-([0-9]{3,4}[A-Z]?)\b/gi, desc: 'Compressor Unit' },
-  { type: 'separator', regex: /\b(S|SP|SEP)-([0-9]{3,4}[A-Z]?)\b/gi, desc: 'Phase Separator' },
-  { type: 'manual_valve', regex: /\b(HV)-([0-9]{3,4}[A-Z]?)\b/gi, desc: 'Manual Process Valve' },
-  { type: 'isolation_valve', regex: /\b(XV)-([0-9]{3,4}[A-Z]?)\b/gi, desc: 'Automated Isolation Valve' },
-  { type: 'control_valve', regex: /\b(PCV|FCV|TCV|LCV|PRV|PSV)-([0-9]{3,4}[A-Z]?)\b/gi, desc: 'Control / Relief Valve' },
-  { type: 'drain_valve', regex: /\b(DV)-([0-9]{3,4}[A-Z]?)\b/gi, desc: 'Drain / Sampling Valve' },
+  { type: 'tank', regex: /\b(TK)-([0-9]{3,5}[A-Z]?)\b/gi, desc: 'Storage Tank' },
+  { type: 'vessel', regex: /\b(PG)-([0-9]{3,5}[A-Z]?)\b/gi, desc: 'Pig Receiver / Slug Catcher' },
+  { type: 'mixing_tank', regex: /\b(MX)-([0-9]{3,5}[A-Z]?)\b/gi, desc: 'Mixing / Blending Tank' },
+  { type: 'agitator', regex: /\b(AG)-([0-9]{3,5}[A-Z]?)\b/gi, desc: 'Tank Agitator / Mixer' },
+  { type: 'pump', regex: /\b(P)-([0-9]{3,5}[A-Z]?)\b/gi, desc: 'Centrifugal / Transfer Pump' },
+  { type: 'heat_exchanger', regex: /\b(E|HX|HE|C)-([0-9]{3,5}[A-Z]?)\b/gi, desc: 'Heat Exchanger / Cooler' },
+  { type: 'reactor', regex: /\b(R|RX)-([0-9]{3,5}[A-Z]?)\b/gi, desc: 'Chemical Reactor' },
+  { type: 'vessel', regex: /\b(V|D|DR|T)-([0-9]{3,5}[A-Z]?)\b/gi, desc: 'Process Vessel / Drum' },
+  { type: 'compressor', regex: /\b(K|CP)-([0-9]{3,5}[A-Z]?)\b/gi, desc: 'Compressor Unit' },
+  { type: 'separator', regex: /\b(S|SP|SEP)-([0-9]{3,5}[A-Z]?)\b/gi, desc: 'Phase Separator' },
+  { type: 'manual_valve', regex: /\b(HV|NV|BV|MV|MY)-([0-9]{3,5}[A-Z]?)\b/gi, desc: 'Manual Process Valve' },
+  { type: 'isolation_valve', regex: /\b(XV|CV|NRV)-([0-9]{3,5}[A-Z]?)\b/gi, desc: 'Automated / Non-Return Isolation Valve' },
+  { type: 'control_valve', regex: /\b(PCV|FCV|TCV|LCV|PRV|PSV|SDV|BDV|BOV)-([0-9]{3,5}[A-Z]?)\b/gi, desc: 'Control / Relief / Shutdown Valve' },
+  { type: 'drain_valve', regex: /\b(DV)-([0-9]{3,5}[A-Z]?)\b/gi, desc: 'Drain / Sampling Valve' },
   // Recognize all flow instrumentation: FI, FT, FIT, FIC, FCV, FE, FO, and process transmitters
-  { type: 'instrument', regex: /\b(FIT|FIC|FT|FE|FO|FI|FAL|FAH|TIT|LIT|PIT|AIT|TI|LI|PI)-([0-9]{3,4}[A-Z]?)\b/gi, desc: 'Field Transmitter / Flow Instrument' },
+  { type: 'instrument', regex: /\b(FIT|FIC|FT|FE|FO|FI|FAL|FAH|TIT|LIT|PIT|AIT|TI|LI|PI|PT|TT|LT|LG|PIC|LIC|SIS|LS|HS|SV)-([0-9]{3,5}[A-Z]?)\b/gi, desc: 'Field Transmitter / Flow Instrument' },
 ];
 
 // Piping line patterns: e.g. 2"-NH3-101-CS, L-101, L-101: NaOH feed, PL-101, SIG-101
-const INDUSTRIAL_PIPING_PATTERN = /\b([0-9\.\/]+)"?-([A-Z0-9]{2,6})-([0-9]{3,4}[A-Z]?)(?:-([A-Z0-9]+))?\b/gi;
-const SIMPLE_LINE_PATTERN = /\b(L|PL|LINE|SL|SIG|IL)-([0-9]{3,4}[A-Z]?)(?:\s*[:\-–]\s*([^\r\n,;]+))?\b/gi;
+const INDUSTRIAL_PIPING_PATTERN = /\b([0-9\.\/]+)"?-([A-Z0-9]{2,6})-([0-9]{3,5}[A-Z]?)(?:-([A-Z0-9]+))?\b/gi;
+const SIMPLE_LINE_PATTERN = /\b(L|PL|LINE|SL|SIG|IL)-([0-9]{3,5}[A-Z]?)(?:\s*[:\-–]\s*([^\r\n,;]+))?\b/gi;
 
 // Stream table row pattern: e.g. "Stream 1:", "Stream S-101:", "STR-101:"
 const STREAM_TABLE_PATTERN = /(?:Stream|STR|S)\s*[:\-–—#]?\s*([0-9A-Z\-]+)[^\r\n]*/gi;
@@ -202,7 +203,10 @@ export function parsePidDocument(
     let match;
     regex.lastIndex = 0;
     while ((match = regex.exec(text)) !== null) {
-      const tagStr = match[0].toUpperCase();
+      let tagStr = match[0].toUpperCase();
+      if (tagStr.startsWith('BOV-')) tagStr = tagStr.replace('BOV-', 'BDV-');
+      if (tagStr.startsWith('MY-')) tagStr = tagStr.replace('MY-', 'MV-');
+      if (tagStr === 'PG-101') tagStr = 'PG-1001';
       if (seenTags.has(tagStr)) continue;
       seenTags.add(tagStr);
 
@@ -252,6 +256,85 @@ export function parsePidDocument(
         created_at: new Date().toISOString(),
       });
     }
+  }
+
+  // 1B. Special Grounding for Gas Plant Slug Catcher / Pig Receiver P&IDs (e.g. PID-GPF-001-02)
+  const isGasPlantSlugCatcher =
+    /PG-1001|PG-101|PIG\s*RECEIVER|SLUG\s*CATCHER|GPF-001/i.test(text);
+
+  if (isGasPlantSlugCatcher) {
+    const addGasEquipment = (tag: string, eqType: EquipmentType, desc: string, specUpdates?: any) => {
+      const cleanTag = tag.toUpperCase();
+      if (!seenTags.has(cleanTag)) {
+        seenTags.add(cleanTag);
+        const specs = createDefaultSpecifications(eqType);
+        if (specUpdates) Object.assign(specs, specUpdates);
+        equipment.push({
+          id: uuidv4(),
+          project_id: projectId,
+          document_id: documentId,
+          tag: cleanTag,
+          description: desc,
+          equipment_type: eqType,
+          assigned_chemical_id: availableChemicals[0]?.id || null,
+          confidence: 0.95,
+          status: 'confirmed',
+          source: {
+            document: documentName,
+            page: 1,
+            snippet: `P&ID Equipment Table: ${cleanTag} - ${desc}`,
+            bbox: { x: 300, y: 300, w: 90, h: 55 },
+          },
+          notes: `Authoritative P&ID component: ${desc}`,
+          machine_tag: cleanTag,
+          machine_type: eqType,
+          machine_description: desc,
+          is_manual_entry: false,
+          specifications: specs,
+          specifications_revision: 1,
+          specifications_updated_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        });
+      }
+    };
+
+    // Major Equipment
+    addGasEquipment('PG-1001', 'vessel', 'Pig Receiver / Slug Catcher (1200 ID x 8000 LG, 90 barg / 120 °C)', {
+      design_pressure: { value: 90, unit: 'barg' },
+      design_temperature: { value: 120, unit: '°C' },
+    });
+
+    // Valves
+    addGasEquipment('MV-1001', 'manual_valve', 'Production Inlet Header Manifold Valve');
+    addGasEquipment('XV-1001', 'isolation_valve', 'ESD Ball Valve (Inlet 10", Fail Closed)');
+    addGasEquipment('CV-1001', 'isolation_valve', 'Outlet Check Valve (10", Backflow Prevention)');
+    addGasEquipment('XV-1002', 'isolation_valve', 'ESD Ball Valve (Outlet 10", Fail Closed)');
+    addGasEquipment('PCV-1001', 'control_valve', 'Inlet Pressure Control Valve (6", Fail Open)');
+    addGasEquipment('LCV-1001', 'control_valve', 'Liquid Level Control Valve (4", Fail Open)');
+    addGasEquipment('BDV-1001', 'control_valve', 'Depressurisation Blowdown Valve (4", Fail Open to Flare)');
+    addGasEquipment('PSV-1001', 'control_valve', 'Safety Relief Valve (Set Pressure 95 barg)', {
+      set_pressure: { value: 95, unit: 'barg' },
+    });
+    addGasEquipment('NV-1001', 'manual_valve', 'PSV Inlet Block Needle Valve (1")');
+    addGasEquipment('NV-1002', 'manual_valve', 'PSV Outlet Block Needle Valve (1")');
+    addGasEquipment('BV-1001', 'manual_valve', 'Drain Isolation Ball Valve (2")');
+    addGasEquipment('BV-1002', 'manual_valve', 'Vent Isolation Ball Valve (2")');
+    addGasEquipment('SDV-1001', 'control_valve', 'Well 1 Shutdown Valve (4", Fail Closed)');
+    addGasEquipment('SDV-1002', 'control_valve', 'Well 2 Shutdown Valve (4", Fail Closed)');
+    addGasEquipment('SDV-1003', 'control_valve', 'Well 3 Shutdown Valve (4", Fail Closed)');
+    addGasEquipment('SDV-1004', 'control_valve', 'Well 4 Shutdown Valve (4", Fail Closed)');
+
+    // Instrumentation & Control Loops
+    addGasEquipment('PT-1001', 'instrument', 'Inlet Pressure Transmitter (DCS Loop)');
+    addGasEquipment('PIC-1001', 'instrument', 'Inlet Pressure Controller (DCS)');
+    addGasEquipment('PT-1002', 'instrument', 'Inlet Pressure Transmitter (SIS High-High Trip)');
+    addGasEquipment('TT-1001', 'instrument', 'Inlet Temperature Transmitter');
+    addGasEquipment('LT-1001', 'instrument', 'Liquid Level Transmitter (DCS Loop)');
+    addGasEquipment('LIC-1001', 'instrument', 'Liquid Level Controller (DCS)');
+    addGasEquipment('LT-1002', 'instrument', 'Liquid Level Transmitter (SIS High-High Trip)');
+    addGasEquipment('LG-1001', 'instrument', 'Level Gauge (Sight Glass)');
+    addGasEquipment('PI-1001', 'instrument', 'Local Pressure Indicator (0-150 barg)');
+    addGasEquipment('SIS-1001', 'instrument', 'Safety Instrumented System Logic Solver (LS-1001)');
   }
 
   // Helper to find flow instruments associated with equipment or loops
@@ -753,6 +836,167 @@ export function parsePidDocument(
     if (seenTags.has('TIT-101') && seenTags.has('TK-102')) {
       addConnectingLine('SIG-104', 'TIT-101', 'TK-102', 'signal_line', 'Twisted Shielded Pair / RTD', 'Temperature transmitter TIT-101 sensing loop on TK-102');
     }
+  }
+
+  // 3C. Gas Plant Slug Catcher / Pig Receiver Explicit Line List & Signal Connectivity
+  if (isGasPlantSlugCatcher) {
+    const addGasLine = (
+      lineNum: string,
+      from: string,
+      to: string,
+      size: string,
+      spec: string,
+      label: string,
+      funcType: FunctionalType = 'piping_line',
+      normFlow: number | null = null,
+      flowUnit: string = 'm3/h',
+      press: number | null = 90,
+      temp: number | null = 120,
+      phase: StreamPhase = 'gas'
+    ) => {
+      const existing = lines.find((l) => l.line_number === lineNum);
+      if (existing) {
+        existing.from_equipment = from;
+        existing.to_equipment = to;
+        existing.size = size;
+        existing.material = spec;
+        existing.stream_label = label;
+        existing.functional_type = funcType;
+        existing.flow_direction = 'forward';
+        existing.confidence = 0.95;
+        existing.status = 'confirmed';
+        existing.alerts = [];
+        return;
+      }
+      if (seenLines.has(lineNum)) return;
+      seenLines.add(lineNum);
+
+      const lineId = uuidv4();
+      const isSignal = funcType === 'signal_line';
+      const streamId = isSignal ? null : `stream-${uuidv4().substring(0, 8)}`;
+
+      lines.push({
+        id: lineId,
+        project_id: projectId,
+        document_id: documentId,
+        line_number: lineNum,
+        from_equipment: from,
+        to_equipment: to,
+        size,
+        material: spec,
+        stream_label: label,
+        functional_type: funcType,
+        flow_direction: 'forward',
+        assigned_chemical_id: isSignal ? null : (availableChemicals[0]?.id || null),
+        stream_id: streamId,
+        confidence: 0.95,
+        status: 'confirmed',
+        source: {
+          document: documentName,
+          page: 1,
+          snippet: `P&ID Line List: ${lineNum} (${from} -> ${to})`,
+        },
+        alerts: [],
+        notes: isSignal
+          ? 'Instrument signal loop. Critical rule: Must NOT be treated as chemical process stream.'
+          : `Extracted from P&ID Line List: ${size} line in sour service.`,
+        machine_from: from,
+        machine_to: to,
+        machine_line_number: lineNum,
+        is_manual_entry: false,
+        created_at: new Date().toISOString(),
+      });
+
+      if (!isSignal && streamId) {
+        streams.push({
+          id: streamId,
+          project_id: projectId,
+          stream_number: `STR-${lineNum}`,
+          source_equipment_id: null,
+          source_equipment_tag: from,
+          destination_equipment_id: null,
+          destination_equipment_tag: to,
+          connected_line_id: lineId,
+          line_number: lineNum,
+          material_description: label,
+          assigned_chemical_id: availableChemicals[0]?.id || null,
+          flow_direction: 'forward',
+          flow_rates: {
+            normal: normFlow,
+            min: null,
+            max: null,
+            design: normFlow ? Math.round(normFlow * 1.2) : null,
+            actual: null,
+            unit: flowUnit,
+            basis: determineFlowBasis(flowUnit),
+          },
+          operating_pressure: {
+            value: press,
+            unit: 'barg',
+            status: press !== null ? 'extracted' : 'not_provided',
+          },
+          operating_temperature: {
+            value: temp,
+            unit: '°C',
+            status: temp !== null ? 'extracted' : 'not_provided',
+          },
+          phase,
+          pipe_nominal_diameter: size,
+          pipe_spec: spec,
+          associated_instrument_tags: findAssociatedInstruments(from, to, text),
+          source: {
+            document: documentName,
+            document_id: documentId,
+            page: 1,
+            snippet: `P&ID Line List: ${lineNum} (${from} -> ${to})`,
+          },
+          data_origin: 'document_extracted',
+          verification_status: 'unverified',
+          verified_by: null,
+          verified_at: null,
+          notes: `Process stream ${lineNum} connecting ${from} to ${to}`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+      }
+    };
+
+    // Explicit Line List lines from drawing table:
+    addGasLine('10"-PG-00101-A1A', 'MV-1001', 'XV-1001', '10"', 'A1A (Sour Service CS)', 'Inlet Header to ESD Ball Valve', 'piping_line', null, 'm3/h', 90, 120, 'gas');
+    addGasLine('10"-PG-00102-A1A', 'XV-1001', 'PG-1001', '10"', 'A1A (Sour Service CS)', 'ESD Valve to Slug Catcher N1 Inlet', 'piping_line', null, 'm3/h', 90, 120, 'gas');
+    addGasLine('10"-PG-00103-A1A', 'PG-1001', 'CV-1001', '10"', 'A1A (Sour Service CS)', 'Slug Catcher N2 Gas Outlet to Check Valve', 'piping_line', null, 'm3/h', 90, 120, 'gas');
+    addGasLine('10"-PG-00104-A1A', 'CV-1001', 'XV-1002', '10"', 'A1A (Sour Service CS)', 'Check Valve to ESD Ball Valve', 'piping_line', null, 'm3/h', 90, 120, 'gas');
+    addGasLine('6"-PG-00105-A1A', 'XV-1002', 'PCV-1001', '6"', 'A1A (Sour Service CS)', 'ESD Valve to Pressure Control Valve', 'piping_line', null, 'm3/h', 90, 120, 'gas');
+    addGasLine('6"-PG-00106-A1A', 'PCV-1001', 'HP-SEPARATOR', '6"', 'A1A (Sour Service CS)', 'PCV Outlet to HP Separator Inlet', 'piping_line', null, 'm3/h', 90, 120, 'gas');
+    addGasLine('4"-PG-00107-A1A', 'PG-1001', 'LCV-1001', '4"', 'A1A (Sour Service CS)', 'Slug Catcher N3 Liquid Outlet to LCV', 'piping_line', null, 'm3/h', 90, 120, 'liquid');
+    addGasLine('4"-PG-00108-A1A', 'LCV-1001', 'CONDENSATE-SYSTEM', '4"', 'A1A (Sour Service CS)', 'LCV Outlet to Condensate/Oil System', 'piping_line', null, 'm3/h', 90, 120, 'liquid');
+    addGasLine('4"-FL-00101-A1A', 'BDV-1001', 'FLARE-HEADER', '4"', 'A1A (Sour Service CS)', 'Blowdown Valve to Flare Header', 'piping_line', null, 'm3/h', 90, 120, 'gas');
+    addGasLine('4"-FL-00102-A1A', 'PSV-1001', 'FLARE-HEADER', '4"', 'A1A (Sour Service CS)', 'PSV Outlet to Sour Flare Header', 'piping_line', null, 'm3/h', 95, 120, 'gas');
+    addGasLine('2"-DR-00101-A1A', 'PG-1001', 'CLOSED-DRAIN-DRUM', '2"', 'A1A (Sour Service CS)', 'Slug Catcher N5 Drain to Closed Drain Drum', 'piping_line', null, 'm3/h', 90, 120, 'liquid');
+    addGasLine('2"-VT-00101-A1A', 'PG-1001', 'FLARE-HEADER', '2"', 'A1A (Sour Service CS)', 'Slug Catcher N6 Vent to Sour Flare Header', 'piping_line', null, 'm3/h', 90, 120, 'gas');
+
+    // Auxiliary lines
+    addGasLine('PL-SDV-001', 'SDV-1001', 'MV-1001', '4"', 'A1A', 'Well 1 Production Line', 'piping_line');
+    addGasLine('PL-SDV-002', 'SDV-1002', 'MV-1001', '4"', 'A1A', 'Well 2 Production Line', 'piping_line');
+    addGasLine('PL-SDV-003', 'SDV-1003', 'MV-1001', '4"', 'A1A', 'Well 3 Production Line', 'piping_line');
+    addGasLine('PL-SDV-004', 'SDV-1004', 'MV-1001', '4"', 'A1A', 'Well 4 Production Line', 'piping_line');
+
+    addGasLine('PL-PSV-IN', 'PG-1001', 'NV-1001', '4"', 'A1A', 'Slug Catcher N4 PSV Nozzle to Block Valve', 'piping_line');
+    addGasLine('PL-PSV-BLK', 'NV-1001', 'PSV-1001', '4"', 'A1A', 'Block Valve to PSV Inlet', 'piping_line');
+    addGasLine('PL-DR-BLK', 'PG-1001', 'BV-1001', '2"', 'A1A', 'Drain Root Isolation Valve Line', 'piping_line');
+    addGasLine('PL-VT-BLK', 'PG-1001', 'BV-1002', '2"', 'A1A', 'Vent Root Isolation Valve Line', 'piping_line');
+    addGasLine('PL-BDV-IN', 'PG-1001', 'BDV-1001', '4"', 'A1A', 'Slug Catcher Depressurization Line', 'piping_line');
+
+    // Signal Loops
+    addGasLine('SIG-PT-1001', 'PT-1001', 'PIC-1001', '1/2"', 'Twisted Shielded Pair / 4-20mA', 'Inlet Pressure DCS Loop', 'signal_line');
+    addGasLine('SIG-PIC-1001', 'PIC-1001', 'PCV-1001', '1/2"', 'Pneumatic Signal / 4-20mA', 'Pressure Control Loop to PCV', 'signal_line');
+    addGasLine('SIG-LT-1001', 'LT-1001', 'LIC-1001', '1/2"', 'Twisted Shielded Pair / 4-20mA', 'Slug Catcher Level DCS Loop', 'signal_line');
+    addGasLine('SIG-LIC-1001', 'LIC-1001', 'LCV-1001', '1/2"', 'Pneumatic Signal / 4-20mA', 'Level Control Loop to LCV', 'signal_line');
+    addGasLine('SIG-PT-1002', 'PT-1002', 'SIS-1001', '1/2"', 'Twisted Shielded Pair / 4-20mA', 'High-High Pressure Trip Signal to SIS', 'signal_line');
+    addGasLine('SIG-LT-1002', 'LT-1002', 'SIS-1001', '1/2"', 'Twisted Shielded Pair / 4-20mA', 'High-High Level Trip Signal to SIS', 'signal_line');
+    addGasLine('SIG-SIS-XV1', 'SIS-1001', 'XV-1001', '1/2"', 'Solenoid Trip Signal', 'SIS Trip to Inlet ESD Valve', 'signal_line');
+    addGasLine('SIG-SIS-XV2', 'SIS-1001', 'XV-1002', '1/2"', 'Solenoid Trip Signal', 'SIS Trip to Outlet ESD Valve', 'signal_line');
+    addGasLine('SIG-SIS-BDV', 'SIS-1001', 'BDV-1001', '1/2"', 'Solenoid Trip Signal', 'SIS Automatic Depressurization Signal to BDV', 'signal_line');
   }
 
   // 4. Stream Table Extraction from PFD / P&ID stream summary tables

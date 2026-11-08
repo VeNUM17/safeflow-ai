@@ -21,11 +21,21 @@ export interface OcrRecognitionResult {
   flowAnnotations: { text: string; value: number | null; unit: string | null; bbox: BoundingBox }[];
 }
 
-const EQUIPMENT_TAG_REGEX = /\b(TK|MX|AG|P|E|HX|HE|C|R|RX|V|D|DR|T|K|CP|S|SP|SEP|HV|XV|DV|NRV)-([0-9]{3,4}[A-Z]?)\b/i;
-const INSTRUMENT_TAG_REGEX = /\b(FIT|FIC|FT|FE|FO|FI|FAL|FAH|TIT|LIT|PIT|AIT|TI|LI|PI|PCV|FCV|TCV|LCV|PRV|PSV)-([0-9]{3,4}[A-Z]?)\b/i;
-const LINE_TAG_REGEX = /\b([0-9\.\/]+)"?-([A-Z0-9]{2,6})-([0-9]{3,4}[A-Z]?)(?:-([A-Z0-9]+))?\b/i;
-const SIMPLE_LINE_REGEX = /\b(L|PL|LINE|SL|SIG|IL)-([0-9]{3,4}[A-Z]?)\b/i;
+const EQUIPMENT_TAG_REGEX = /\b(PG|TK|MX|AG|P|E|HX|HE|C|R|RX|V|D|DR|T|K|CP|S|SP|SEP|HV|XV|DV|NRV|SDV|BDV|BOV|NV|BV|CV|MV|MY)-([0-9]{3,5}[A-Z]?)\b/i;
+const INSTRUMENT_TAG_REGEX = /\b(FIT|FIC|FT|FE|FO|FI|FAL|FAH|TIT|LIT|PIT|AIT|TI|LI|PI|PT|TT|LT|LG|PIC|LIC|PCV|FCV|TCV|LCV|PRV|PSV|SIS|LS|HS|SV)-([0-9]{3,5}[A-Z]?)\b/i;
+const LINE_TAG_REGEX = /\b([0-9\.\/]+)"?-([A-Z0-9]{2,6})-([0-9]{3,5}[A-Z]?)(?:-([A-Z0-9]+))?\b/i;
+const SIMPLE_LINE_REGEX = /\b(L|PL|LINE|SL|SIG|IL)-([0-9]{3,5}[A-Z]?)\b/i;
 const FLOW_ANNOTATION_REGEX = /(?:flow|nor|dsgn|rate)?\s*[:=]?\s*([0-9]+(?:\.[0-9]+)?)\s*(m3\/h|kg\/h|gpm|lb\/h|kmol\/h)/i;
+
+/**
+ * Normalizes common OCR misreadings of industrial equipment tags
+ */
+export function normalizeOcrTag(rawTag: string): string {
+  let tag = rawTag.toUpperCase();
+  if (tag.startsWith('BOV-')) tag = tag.replace('BOV-', 'BDV-');
+  if (tag.startsWith('MY-')) tag = tag.replace('MY-', 'MV-');
+  return tag;
+}
 
 /**
  * Recognizes and classifies text tokens from drawing text streams or OCR engines.
@@ -54,10 +64,11 @@ export function recognizeDrawingText(
     const eqMatch = raw.match(EQUIPMENT_TAG_REGEX);
     if (eqMatch) {
       tokenType = 'equipment_tag';
-      const tag = eqMatch[0].toUpperCase();
+      const tag = normalizeOcrTag(eqMatch[0]);
+      const typePrefix = tag.split('-')[0];
       result.equipmentTags.push({
         tag,
-        type: eqMatch[1].toUpperCase(),
+        type: typePrefix,
         bbox: elem.bbox,
         confidence: conf,
       });
@@ -67,7 +78,7 @@ export function recognizeDrawingText(
     const instMatch = raw.match(INSTRUMENT_TAG_REGEX);
     if (instMatch && tokenType === 'general_text') {
       tokenType = 'instrument_tag';
-      const tag = instMatch[0].toUpperCase();
+      const tag = normalizeOcrTag(instMatch[0]);
       result.instrumentTags.push({
         tag,
         loop: instMatch[2],

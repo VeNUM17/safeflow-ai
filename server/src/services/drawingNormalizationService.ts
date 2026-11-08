@@ -23,6 +23,7 @@ export interface ProcessDrawingOptions {
   mimeType: string;
   documentId: string;
   rawContent?: string;
+  textElements?: { text: string; bbox: { x: number; y: number; w: number; h: number }; confidence?: number }[];
   processDescription?: ProcessDescriptionExtraction | null;
 }
 
@@ -40,12 +41,14 @@ export async function normalizeDrawing(
 
   // 2. Extract Geometry & Text according to pipeline
   let vectorLines: any[] = [];
-  let textElements: any[] = [];
+  let textElements: any[] = options.textElements || [];
 
   if (classification.recommendedWorkflow === 'vector_primary' || classification.overallClassification === 'vector_pdf') {
     const vecResult = extractVectorGeometry(filePath, rawContent);
     vectorLines = vecResult.lines;
-    textElements = vecResult.textElements;
+    if (textElements.length === 0) {
+      textElements = vecResult.textElements;
+    }
   } else {
     // Raster Pipeline Fallback
     const rasterResult = preprocessRasterImage({ width: 1920, height: 1080 });
@@ -59,6 +62,27 @@ export async function normalizeDrawing(
       isDashed: false,
       classificationHint: 'process_pipe' as const,
     }));
+
+    // If textElements is not already populated from OCR, extract tokens from rawContent
+    if (textElements.length === 0 && rawContent) {
+      const words = rawContent.split(/\s+/);
+      let wordX = 60;
+      let wordY = 100;
+      for (const w of words) {
+        const cleaned = w.trim();
+        if (!cleaned) continue;
+        textElements.push({
+          text: cleaned,
+          bbox: { x: wordX, y: wordY, w: Math.max(20, cleaned.length * 8), h: 16 },
+          confidence: 0.88,
+        });
+        wordX += cleaned.length * 9 + 15;
+        if (wordX > 1800) {
+          wordX = 60;
+          wordY += 30;
+        }
+      }
+    }
   }
 
   // 3. OCR & Tag Recognition

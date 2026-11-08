@@ -39,6 +39,11 @@ export function detectDrawingSymbols(
       subType = 'Storage Tank';
       symWidth = 80;
       symHeight = 80;
+    } else if (prefix === 'PG') {
+      eqType = 'vessel';
+      subType = 'Pig Receiver / Slug Catcher';
+      symWidth = 140;
+      symHeight = 60;
     } else if (prefix === 'MX') {
       eqType = 'mixing_tank';
       subType = 'Mixing Tank';
@@ -59,9 +64,9 @@ export function detectDrawingSymbols(
       subType = 'Shell & Tube Heat Exchanger';
       symWidth = 72;
       symHeight = 48;
-    } else if (prefix === 'HV') {
+    } else if (prefix === 'HV' || prefix === 'NV' || prefix === 'BV' || prefix === 'MV') {
       eqType = 'manual_valve';
-      subType = 'Manual Isolation Valve';
+      subType = prefix === 'NV' ? 'Needle Valve' : prefix === 'BV' ? 'Ball Valve' : prefix === 'MV' ? 'Manifold Valve' : 'Manual Isolation Valve';
       symWidth = 24;
       symHeight = 24;
     } else if (prefix === 'DV') {
@@ -69,24 +74,34 @@ export function detectDrawingSymbols(
       subType = 'Drain Isolation Valve';
       symWidth = 24;
       symHeight = 24;
-    } else if (prefix === 'NRV') {
+    } else if (prefix === 'NRV' || prefix === 'CV') {
       eqType = 'isolation_valve';
       subType = 'Non-Return Check Valve';
       symWidth = 24;
       symHeight = 24;
+    } else if (prefix === 'XV') {
+      eqType = 'isolation_valve';
+      subType = 'Emergency Shutdown Actuated Valve';
+      symWidth = 28;
+      symHeight = 28;
     } else if (prefix === 'AG') {
       eqType = 'agitator';
       subType = 'Mechanical Mixer Agitator';
       symWidth = 36;
       symHeight = 36;
-    } else if (prefix === 'FCV' || prefix === 'PCV' || prefix === 'TCV' || prefix === 'LCV') {
+    } else if (prefix === 'FCV' || prefix === 'PCV' || prefix === 'TCV' || prefix === 'LCV' || prefix === 'SDV' || prefix === 'BDV' || prefix === 'PSV' || prefix === 'PRV') {
       eqType = 'control_valve';
-      subType = 'Flow / Pressure Control Valve';
+      subType = prefix === 'SDV' ? 'Shutdown Valve (ESD)' : prefix === 'BDV' ? 'Blowdown Valve' : prefix === 'PSV' ? 'Pressure Safety Relief Valve' : 'Flow / Pressure Control Valve';
       symWidth = 26;
       symHeight = 26;
+    } else if (prefix === 'SIS' || prefix === 'LS') {
+      eqType = 'instrument';
+      subType = 'Safety Instrumented System Logic';
+      symWidth = 32;
+      symHeight = 32;
     } else if (prefix.startsWith('F') || prefix.startsWith('L') || prefix.startsWith('T') || prefix.startsWith('P')) {
       eqType = 'instrument';
-      subType = 'Process Instrumentation Transmitter';
+      subType = prefix === 'LG' ? 'Level Gauge (Sight Glass)' : 'Process Instrumentation Transmitter';
       symWidth = 28;
       symHeight = 28;
     }

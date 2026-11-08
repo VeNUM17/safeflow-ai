@@ -1,4 +1,5 @@
 import fs from 'fs';
+import Tesseract from 'tesseract.js';
 
 // Using dynamic require or import for PDFParse
 const pdfLib = require('pdf-parse');
@@ -11,6 +12,11 @@ export interface ExtractedDocumentContent {
   isReadable: boolean;
   unreadableReason?: string;
   isScanned: boolean;
+  textElements?: {
+    text: string;
+    bbox: { x: number; y: number; w: number; h: number };
+    confidence?: number;
+  }[];
 }
 
 export async function extractTextFromDocument(
@@ -26,14 +32,53 @@ export async function extractTextFromDocument(
     filePath.endsWith('.svg') ||
     filePath.endsWith('.webp')
   ) {
-    return {
-      text: '',
-      pages: [{ pageNumber: 1, text: '' }],
-      pagesCount: 1,
-      isReadable: true,
-      isScanned: true,
-      unreadableReason: undefined,
-    };
+    try {
+      const ocrRes = await Tesseract.recognize(filePath, 'eng');
+      const ocrData = ocrRes.data as any;
+      const text = ocrData.text || '';
+      const textElements: { text: string; bbox: { x: number; y: number; w: number; h: number }; confidence?: number }[] = [];
+
+      if (ocrData.lines) {
+        for (const line of ocrData.lines) {
+          if (line.words) {
+            for (const w of line.words) {
+              const b = w.bbox || { x0: 0, y0: 0, x1: 0, y1: 0 };
+              textElements.push({
+                text: w.text,
+                bbox: {
+                  x: b.x0,
+                  y: b.y0,
+                  w: Math.max(1, b.x1 - b.x0),
+                  h: Math.max(1, b.y1 - b.y0),
+                },
+                confidence: (w.confidence || 80) / 100,
+              });
+            }
+          }
+        }
+      }
+
+      return {
+        text,
+        pages: [{ pageNumber: 1, text }],
+        pagesCount: 1,
+        isReadable: text.trim().length > 0,
+        isScanned: true,
+        unreadableReason: text.trim().length === 0 ? 'OCR could not detect legible text in this image.' : undefined,
+        textElements,
+      };
+    } catch (err: any) {
+      console.error('Image OCR extraction error:', err.message);
+      return {
+        text: '',
+        pages: [{ pageNumber: 1, text: '' }],
+        pagesCount: 1,
+        isReadable: false,
+        isScanned: true,
+        unreadableReason: `Image OCR processing error: ${err.message}`,
+        textElements: [],
+      };
+    }
   }
 
   // If it's a PDF

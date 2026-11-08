@@ -28,3 +28,4 @@ Thumbs.db
 # User uploads (uploaded PDFs and PNGs)
 server/uploads/*
 !server/uploads/.gitkeep
+*.traineddata

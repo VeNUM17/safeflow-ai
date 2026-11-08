@@ -563,11 +563,20 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
             connectors={activeDrawing.connectors}
             selectedElementId={selectedElementId}
             selectedConnectorId={selectedConnectorId}
-            backgroundImageUrl={
-              activeDrawing.source_document_id
-                ? `/uploads/${activeDrawing.source_document_id}`
-                : null
-            }
+            backgroundImageUrl={(() => {
+              if (!activeDrawing.source_document_id) return null;
+              const doc = documents.find(
+                (d) =>
+                  d.id === activeDrawing.source_document_id ||
+                  d.file_path === activeDrawing.source_document_id ||
+                  d.name === activeDrawing.source_document_id
+              );
+              if (doc) return doc.file_path;
+              if (activeDrawing.source_document_id.startsWith('/uploads/')) {
+                return activeDrawing.source_document_id;
+              }
+              return `/uploads/${activeDrawing.source_document_id}`;
+            })()}
             backgroundVisible={activeDrawing.background_visible}
             backgroundOpacity={activeDrawing.background_opacity}
             onUpdateElements={handleUpdateElements}

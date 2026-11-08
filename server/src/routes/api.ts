@@ -14,6 +14,7 @@ import { parseProcessDescription } from '../services/processDescriptionService';
 import { normalizeDrawing } from '../services/drawingNormalizationService';
 import { validateCandidateTopology } from '../services/topologyValidationService';
 import { classifyDocument } from '../services/documentClassifier';
+import { generateDigitalPidFromExtracted } from '../services/digitalDrawingGenerator';
 import { DocumentRecord, DocumentType, PipingLine, EquipmentTag, createDefaultSpecifications, ProcessStream } from '../types';
 
 const router = Router();
@@ -228,7 +229,15 @@ router.post(
 
         // Run authoritative drawing normalization & pipe tracing
         try {
-          const absoluteDiskPath = path.resolve(__dirname, `../../${docRecord.file_path}`);
+          const rawRelPath = docRecord.file_path.replace(/^\//, '');
+          let absoluteDiskPath = path.resolve(process.cwd(), rawRelPath);
+          if (!fs.existsSync(absoluteDiskPath)) {
+            absoluteDiskPath = path.resolve(process.cwd(), 'server', rawRelPath);
+          }
+          if (!fs.existsSync(absoluteDiskPath)) {
+            absoluteDiskPath = path.resolve(__dirname, `../../${docRecord.file_path}`);
+          }
+
           const processDesc = store.getProcessDescription(projectId);
           const drawingModel = await normalizeDrawing({
             filePath: absoluteDiskPath,
@@ -236,6 +245,7 @@ router.post(
             mimeType: file.mimetype,
             documentId: docId,
             rawContent: extracted.text,
+            textElements: extracted.textElements,
             processDescription: processDesc,
           });
           store.saveCommonDrawingModel(drawingModel);
@@ -249,6 +259,24 @@ router.post(
           }
         } catch (normErr: any) {
           console.error('Auto drawing normalization error:', normErr.message);
+        }
+
+        // Auto-generate Digital P&ID Drawing for the Digital P&ID Editor Studio
+        try {
+          const allEq = store.listEquipment(projectId);
+          const allLines = store.listLines(projectId);
+          const allStreams = store.listStreams(projectId);
+          const digitalDrawing = generateDigitalPidFromExtracted(
+            projectId,
+            docId,
+            file.originalname,
+            allEq,
+            allLines,
+            allStreams
+          );
+          store.saveDrawing(digitalDrawing, 'Auto Digital P&ID Generator', 'Initial digital schematic generated from uploaded P&ID');
+        } catch (drawErr: any) {
+          console.error('Auto digital drawing generation error:', drawErr.message);
         }
       }
     }
@@ -870,8 +898,27 @@ router.get('/projects/:id/drawings', (req: Request, res: Response) => {
   const projectId = getParam(req.params.id);
   let drawings = store.listDrawings(projectId);
   if (drawings.length === 0) {
-    const seeded = store.seedSampleDrawing(projectId);
-    drawings = [seeded];
+    const existingEq = store.listEquipment(projectId);
+    const existingLines = store.listLines(projectId);
+    const existingStreams = store.listStreams(projectId);
+    const docs = store.listDocuments(projectId).filter((d) => d.doc_type === 'pid');
+
+    if (existingEq.length > 0 || docs.length > 0) {
+      const doc = docs[0];
+      const digitalDrawing = generateDigitalPidFromExtracted(
+        projectId,
+        doc?.id || null,
+        doc?.name || 'Process Drawing',
+        existingEq,
+        existingLines,
+        existingStreams
+      );
+      store.saveDrawing(digitalDrawing, 'Auto Digital P&ID Generator', 'Generated digital P&ID from project equipment');
+      drawings = [digitalDrawing];
+    } else {
+      const seeded = store.seedSampleDrawing(projectId);
+      drawings = [seeded];
+    }
   }
   res.json({ success: true, data: drawings });
 });
