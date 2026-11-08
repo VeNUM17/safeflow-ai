@@ -49,7 +49,9 @@ import {
   ChemicalMappingResult,
   GasCompositionReport,
   ProjectPsiDashboardValidation,
+  PfdExtractionResult,
 } from '../server/src/types';
+import { parsePfdOrBfdDocument } from '../server/src/services/pfdParser';
 import { classifyDocument, classifyEngineeringCategory } from '../server/src/services/documentClassifier';
 import { extractTextFromDocument } from '../server/src/services/pdfExtractor';
 import { extractVectorGeometry } from '../server/src/services/vectorPdfService';
@@ -5584,6 +5586,377 @@ test('Scenario 6: Manual reclassification updates category, confidence, and audi
 
   // Clean up
   store.deleteDocument(testDocId);
+});
+
+// ============================================================================
+// TEST GROUP 21: PFD & BFD EXTRACTION PROCESSOR (PHASE 3)
+// ============================================================================
+
+console.log('\n--- Test Group 21: PFD & BFD Extraction Processor (Phase 3) ---');
+
+test('Scenario 1: Extraction of major process blocks & battery limits from Block Flow Diagrams (BFD)', () => {
+  const bfdText = `
+    ONSHORE GAS PROCESSING FACILITY - BLOCK FLOW DIAGRAM
+    ISBL / OSBL OVERALL FACILITY ARCHITECTURE
+
+    BLOCK 1: INLET RECEPTION & SLUG CATCHER
+    Raw wellhead fluids enter at ISBL boundary.
+
+    BLOCK 2: ACID GAS REMOVAL UNIT (AGRU)
+    Sour gas treated with MDEA solvent for H2S and CO2 removal.
+
+    BLOCK 3: GAS DEHYDRATION UNIT (TEG)
+    Water vapor removed to meet pipeline moisture spec < 4 lb/MMSCF.
+
+    BLOCK 4: SALES GAS COMPRESSION & EXPORT
+    Export pipeline to OSBL sales network.
+
+    EMERGENCY & RELIEF:
+    SOUR FLARE HEADER AND RELIEF SYSTEM
+    PRODUCED WATER TREATMENT AND DISPOSAL
+  `;
+
+  const dummyContent = {
+    text: bfdText,
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+    textElements: [],
+  };
+
+  const { extraction } = parsePfdOrBfdDocument(
+    dummyContent,
+    'doc-bfd-001',
+    'BFD-GPF-001_Block_Flow_Diagram.pdf',
+    'proj-test-bfd',
+    'bfd'
+  );
+
+  assert.strictEqual(extraction.category, 'bfd', 'Category must be BFD');
+  assert.ok(extraction.blocks.length >= 4, `Must extract at least 4 process blocks, found: ${extraction.blocks.length}`);
+
+  const blockNames = extraction.blocks.map((b) => b.block_name);
+  assert.ok(blockNames.some((n) => n.includes('Inlet Reception')), 'Must contain Inlet Reception block');
+  assert.ok(blockNames.some((n) => n.includes('Acid Gas Removal')), 'Must contain Acid Gas Removal block');
+  assert.ok(blockNames.some((n) => n.includes('Dehydration')), 'Must contain Gas Dehydration block');
+  assert.ok(blockNames.some((n) => n.includes('Sales Gas')), 'Must contain Sales Gas Compression block');
+
+  // Verify Battery Limits
+  assert.ok(extraction.battery_limits.length >= 2, 'Must detect ISBL and OSBL battery limits');
+  const blTypes = extraction.battery_limits.map((bl) => bl.name);
+  assert.ok(blTypes.some((n) => n.includes('ISBL')), 'Must detect ISBL');
+  assert.ok(blTypes.some((n) => n.includes('OSBL')), 'Must detect OSBL');
+});
+
+test('Scenario 2: Extraction of major unit operations & conditions from Process Flow Diagrams (PFD)', () => {
+  const pfdText = `
+    PROCESS FLOW DIAGRAM - INLET GAS RECEPTION
+    INTELLIGENT ENGINEERING SOLUTIONS (IES) - FACILITY GPF-001
+
+    MAJOR UNIT OPERATIONS:
+    PG-1001: PIG RECEIVER & SLUG CATCHER
+    Operating Conditions: 90 barg @ 120 °C
+    Design Conditions: 95 barg @ 130 °C
+    Capacity: 1200 ID x 8000 LG
+
+    V-1001: HIGH PRESSURE SEPARATOR
+    Operating Conditions: 88 barg @ 45 °C
+    Design Conditions: 95 barg @ 85 °C
+
+    K-1001: RECOVERY BOOSTER COMPRESSOR
+    Operating Conditions: 35 barg @ 70 °C
+    Duty: 15 MW
+
+    E-1001: INLET GAS COOLER
+    Operating Conditions: 85 barg @ 38 °C
+    Duty: 8.5 MW
+  `;
+
+  const dummyContent = {
+    text: pfdText,
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+    textElements: [],
+  };
+
+  const { extraction, equipment } = parsePfdOrBfdDocument(
+    dummyContent,
+    'doc-pfd-001',
+    'PFD-GPF-001-01_Inlet_Reception.pdf',
+    'proj-test-pfd',
+    'pfd'
+  );
+
+  assert.strictEqual(extraction.category, 'pfd', 'Category must be PFD');
+  assert.ok(extraction.major_units.length >= 4, `Must identify major units, found: ${extraction.major_units.length}`);
+
+  const pgUnit = extraction.major_units.find((u) => u.tag === 'PG-1001');
+  assert.ok(pgUnit, 'Must extract PG-1001');
+  assert.strictEqual(pgUnit.equipment_type, 'vessel');
+  assert.strictEqual(pgUnit.operating_pressure.normalized_value, 90, 'Operating pressure must be 90');
+  assert.strictEqual(pgUnit.operating_temperature.normalized_value, 120, 'Operating temperature must be 120');
+  assert.strictEqual(pgUnit.design_pressure.normalized_value, 95, 'Design pressure must be 95');
+
+  const compUnit = extraction.major_units.find((u) => u.tag === 'K-1001');
+  assert.ok(compUnit, 'Must extract K-1001');
+  assert.strictEqual(compUnit.equipment_type, 'compressor');
+  assert.strictEqual(compUnit.operating_pressure.normalized_value, 35);
+
+  // Check generated EquipmentTags
+  assert.ok(equipment.length >= 4, 'Must generate EquipmentTag records');
+  const pgTag = equipment.find((e) => e.tag === 'PG-1001');
+  assert.ok(pgTag, 'PG-1001 equipment record must exist');
+  assert.strictEqual(pgTag.specifications.operating_pressure.value, 90);
+  assert.strictEqual(pgTag.specifications.operating_temperature.value, 120);
+});
+
+test('Scenario 3: Extraction of primary process streams, flow rates & fluid phases', () => {
+  const pfdStreamText = `
+    PFD STREAM TABLE SUMMARY & INTERCONNECTS:
+    Stream 1: Raw Wellhead Fluid from Production Manifold to PG-1001. Operating: 90 barg, 120 °C. Flow: 50 MMSCFD. Multiphase mixture.
+    Stream 2: High Pressure Separated Gas from PG-1001 to V-1001. Operating: 88 barg, 45 °C. Flow: 48 MMSCFD. Gas phase.
+    Stream 3: Separated Hydrocarbon Condensate from PG-1001 to Condensate System. Operating: 88 barg, 45 °C. Flow: 15000 kg/h. Liquid phase.
+    Stream 4: Sour Flare Header Relief from PG-1001 to Sour Flare. Operating: 1.5 barg, 25 °C. Gas phase.
+  `;
+
+  const dummyContent = {
+    text: pfdStreamText,
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+    textElements: [],
+  };
+
+  const { extraction, streams } = parsePfdOrBfdDocument(
+    dummyContent,
+    'doc-pfd-002',
+    'PFD-GPF-001-02_Streams.pdf',
+    'proj-test-pfd-streams',
+    'pfd'
+  );
+
+  assert.ok(extraction.stream_links.length >= 3, `Must extract stream links, found: ${extraction.stream_links.length}`);
+  assert.ok(streams.length >= 3, `Must generate ProcessStream records, found: ${streams.length}`);
+
+  const str1 = streams.find((s) => s.stream_number === 'STR-1');
+  assert.ok(str1, 'Stream 1 must exist');
+  assert.strictEqual(str1.operating_pressure.value, 90);
+  assert.strictEqual(str1.operating_temperature.value, 120);
+  assert.strictEqual(str1.flow_rates.design, 50);
+  assert.strictEqual(str1.flow_rates.unit, 'MMSCFD');
+  assert.strictEqual(str1.flow_rates.basis, 'volumetric');
+  assert.strictEqual(str1.phase, 'multiphase');
+
+  const str3 = streams.find((s) => s.stream_number === 'STR-3');
+  assert.ok(str3, 'Stream 3 must exist');
+  assert.strictEqual(str3.flow_rates.design, 15000);
+  assert.strictEqual(str3.flow_rates.unit, 'kg/h');
+  assert.strictEqual(str3.flow_rates.basis, 'mass');
+  assert.strictEqual(str3.phase, 'liquid');
+});
+
+test('Scenario 4: Strict Non-Fabrication Rule (PFD parser never hallucinates fine instrumentation or unstated parameters)', () => {
+  const sparsePfdText = `
+    PROCESS FLOW DIAGRAM (PFD)
+    V-2001: CONDENSATE COALESCER
+    Operating: 40 barg
+    Stream 10: Rich Condensate Feed
+  `;
+
+  const dummyContent = {
+    text: sparsePfdText,
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+    textElements: [],
+  };
+
+  const { extraction, equipment, streams } = parsePfdOrBfdDocument(
+    dummyContent,
+    'doc-pfd-sparse',
+    'PFD-Sparse.pdf',
+    'proj-sparse-test',
+    'pfd'
+  );
+
+  const coalescer = equipment.find((e) => e.tag === 'V-2001');
+  assert.ok(coalescer, 'Coalescer must be extracted');
+  assert.strictEqual(coalescer.specifications.operating_pressure.value, 40);
+
+  // CRITICAL ENGINEERING AUDIT: Operating temperature was not provided in text.
+  // It MUST NOT be fabricated or defaulted to 0!
+  assert.strictEqual(coalescer.specifications.operating_temperature.value, null, 'Unstated temperature must remain null');
+  assert.strictEqual(coalescer.specifications.operating_temperature.status, 'not_provided');
+
+  // CRITICAL ENGINEERING AUDIT: PFD does not show instrument loops (PT, LIC, BDV, etc.).
+  // The stream's associated_instrument_tags MUST be empty [] and never fabricated!
+  const stream10 = streams.find((s) => s.stream_number === 'STR-10');
+  assert.ok(stream10, 'Stream 10 must exist');
+  assert.deepStrictEqual(stream10.associated_instrument_tags, [], 'Associated instrument tags must be strictly empty');
+  assert.strictEqual(stream10.operating_temperature.value, null, 'Unstated stream temperature must remain null');
+});
+
+test('Scenario 5: Correlation of PFD primary streams with existing P&ID line numbers', () => {
+  const existingLines: PipingLine[] = [
+    {
+      id: 'line-1',
+      project_id: 'proj-corr-test',
+      document_id: 'doc-pid-01',
+      line_number: '10"-PG-00101-A1A',
+      size_nominal: '10"',
+      fluid_service: 'PG',
+      line_sequence: '00101',
+      piping_spec: 'A1A',
+      from_equipment: 'Production Manifold MV-1001',
+      to_equipment: 'PG-1001',
+      confidence: 0.95,
+      status: 'confirmed',
+      source: { document: 'P&ID-01.pdf', page: 1, snippet: '10"-PG-00101-A1A' },
+      is_manual_entry: false,
+      created_at: new Date().toISOString(),
+    },
+  ];
+
+  const pfdContent = {
+    text: `
+      PFD INLET SECTION:
+      Stream 1: Sour Gas Feed from Production Manifold MV-1001 to PG-1001. Operating: 90 barg.
+    `,
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+    textElements: [],
+  };
+
+  const { extraction, streams } = parsePfdOrBfdDocument(
+    pfdContent,
+    'doc-pfd-corr',
+    'PFD-Corr.pdf',
+    'proj-corr-test',
+    'pfd',
+    existingLines
+  );
+
+  const stream1 = streams.find((s) => s.stream_number === 'STR-1');
+  assert.ok(stream1, 'Stream 1 must exist');
+  assert.strictEqual(stream1.line_number, '10"-PG-00101-A1A', 'Must correlate PFD stream with existing P&ID line');
+
+  const streamLink = extraction.stream_links.find((s) => s.stream_number === 'STR-1');
+  assert.ok(streamLink, 'Stream link must exist');
+  assert.strictEqual(streamLink.correlated_pid_line_number, '10"-PG-00101-A1A');
+  assert.ok((streamLink.correlation_confidence || 0) > 0.7);
+});
+
+test('Scenario 6: Store persistence, query & retrieval of PFD/BFD extraction results', () => {
+  const store = new PsiDataStore();
+  const testDocId = `doc-pfd-store-${Date.now()}`;
+  const testProjectId = `proj-pfd-store-${Date.now()}`;
+
+  const mockExtraction: PfdExtractionResult = {
+    id: `pfd-ext-${Date.now()}`,
+    project_id: testProjectId,
+    document_id: testDocId,
+    document_name: 'PFD-Overall-Train-1.pdf',
+    category: 'pfd',
+    blocks: [
+      {
+        id: 'block-1',
+        project_id: testProjectId,
+        document_id: testDocId,
+        block_name: 'Inlet Reception',
+        block_type: 'process_unit',
+        description: 'Inlet Reception Unit',
+        sequence_order: 1,
+        inlet_streams: ['STR-01'],
+        outlet_streams: ['STR-02'],
+        confidence: 0.9,
+      },
+    ],
+    major_units: [
+      {
+        id: 'unit-1',
+        project_id: testProjectId,
+        document_id: testDocId,
+        tag: 'PG-1001',
+        name: 'Slug Catcher (PG-1001)',
+        equipment_type: 'vessel',
+        operating_pressure: {
+          id: 'prov-1',
+          original_value: '90 barg',
+          normalized_value: 90,
+          original_unit: 'barg',
+          normalized_unit: 'barg',
+          source_document_id: testDocId,
+          source_document_name: 'PFD-Overall-Train-1.pdf',
+          source_category: 'pfd',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        operating_temperature: {
+          id: 'prov-2',
+          original_value: '120 °C',
+          normalized_value: 120,
+          original_unit: '°C',
+          normalized_unit: '°C',
+          source_document_id: testDocId,
+          source_document_name: 'PFD-Overall-Train-1.pdf',
+          source_category: 'pfd',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        design_pressure: {
+          id: 'prov-3',
+          original_value: '95 barg',
+          normalized_value: 95,
+          original_unit: 'barg',
+          normalized_unit: 'barg',
+          source_document_id: testDocId,
+          source_document_name: 'PFD-Overall-Train-1.pdf',
+          source_category: 'pfd',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        design_temperature: {
+          id: 'prov-4',
+          original_value: null,
+          normalized_value: null,
+          source_document_id: testDocId,
+          source_document_name: 'PFD-Overall-Train-1.pdf',
+          source_category: 'pfd',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.0,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        inlet_stream_numbers: ['STR-01'],
+        outlet_stream_numbers: ['STR-02'],
+        confidence: 0.92,
+      },
+    ],
+    stream_links: [],
+    battery_limits: [{ name: 'ISBL Inlet', type: 'inlet', stream_numbers: ['STR-01'] }],
+    extraction_warnings: [],
+    extracted_at: new Date().toISOString(),
+  };
+
+  store.savePfdExtraction(mockExtraction);
+
+  // Retrieve by document ID
+  const retrievedDoc = store.getPfdExtraction(testDocId);
+  assert.ok(retrievedDoc, 'Must retrieve PFD extraction by document ID');
+  assert.strictEqual(retrievedDoc.document_name, 'PFD-Overall-Train-1.pdf');
+  assert.strictEqual(retrievedDoc.major_units[0].tag, 'PG-1001');
+
+  // List by project ID
+  const list = store.listPfdExtractions(testProjectId);
+  assert.strictEqual(list.length, 1, 'Must list exactly 1 extraction for project');
 });
 
 console.log(`\n========================================`);

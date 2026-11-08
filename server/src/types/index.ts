@@ -416,6 +416,7 @@ export type EquipmentStatus =
 export type EquipmentType =
   | 'vessel'
   | 'tank'
+  | 'column'
   | 'mixing_tank'
   | 'pump'
   | 'compressor'
@@ -648,6 +649,77 @@ export interface ProcessStream {
   notes?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// --- PFD & BFD EXTRACTION DATA MODELS ---
+
+export interface ProcessBlock {
+  id: string;
+  project_id: string;
+  document_id: string;
+  block_name: string;
+  block_type: 'battery_limit' | 'process_unit' | 'utility' | 'treatment' | 'storage' | 'emission';
+  description: string;
+  sequence_order: number;
+  inlet_streams: string[];
+  outlet_streams: string[];
+  battery_limit_type?: 'inlet' | 'outlet' | 'tie_in' | 'internal' | null;
+  operating_summary?: string | null;
+  confidence: number;
+}
+
+export interface MajorUnitOperation {
+  id: string;
+  project_id: string;
+  document_id: string;
+  tag: string;
+  name: string;
+  equipment_type: EquipmentType;
+  operating_pressure: UnifiedProvenanceValue<number>;
+  operating_temperature: UnifiedProvenanceValue<number>;
+  design_pressure: UnifiedProvenanceValue<number>;
+  design_temperature: UnifiedProvenanceValue<number>;
+  capacity_or_duty?: UnifiedProvenanceValue<number | string>;
+  inlet_stream_numbers: string[];
+  outlet_stream_numbers: string[];
+  associated_block_name?: string | null;
+  confidence: number;
+}
+
+export interface PfdStreamLink {
+  id: string;
+  project_id: string;
+  document_id: string;
+  stream_number: string;
+  stream_name?: string | null;
+  source_tag: string | null;
+  destination_tag: string | null;
+  operating_temperature: UnifiedProvenanceValue<number>;
+  operating_pressure: UnifiedProvenanceValue<number>;
+  mass_flow_rate?: UnifiedProvenanceValue<number>;
+  volumetric_flow_rate?: UnifiedProvenanceValue<number>;
+  phase?: StreamPhase | null;
+  correlated_pid_line_number?: string | null;
+  correlation_confidence?: number | null;
+  confidence: number;
+}
+
+export interface PfdExtractionResult {
+  id: string;
+  project_id: string;
+  document_id: string;
+  document_name: string;
+  category: 'pfd' | 'bfd';
+  blocks: ProcessBlock[];
+  major_units: MajorUnitOperation[];
+  stream_links: PfdStreamLink[];
+  battery_limits: {
+    name: string;
+    type: 'inlet' | 'outlet' | 'tie_in';
+    stream_numbers: string[];
+  }[];
+  extraction_warnings: string[];
+  extracted_at: string;
 }
 
 export interface CreateStreamInput {

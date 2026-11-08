@@ -57,6 +57,10 @@ import {
   DocumentCategory,
   DiscrepancyStatus,
   UnifiedProvenanceValue,
+  PfdExtractionResult,
+  ProcessBlock,
+  MajorUnitOperation,
+  PfdStreamLink,
 } from '../types';
 import { detectConflictsForProject } from '../services/conflictDetector';
 import { validateProcessGraph } from '../services/graphValidationService';
@@ -92,6 +96,7 @@ interface DatabaseSchema {
   discrepancies: CrossDocumentDiscrepancy[];
   engineering_matrix: UnifiedEngineeringMatrixEntry[];
   philosophy_rules: EngineeringPhilosophyRule[];
+  pfd_extractions: PfdExtractionResult[];
 }
 
 const DATA_DIR = path.resolve(__dirname, '../../data');
@@ -122,6 +127,7 @@ export class PsiDataStore {
     discrepancies: [],
     engineering_matrix: [],
     philosophy_rules: [],
+    pfd_extractions: [],
   };
 
   constructor() {
@@ -169,6 +175,7 @@ export class PsiDataStore {
           discrepancies: parsed.discrepancies || [],
           engineering_matrix: parsed.engineering_matrix || [],
           philosophy_rules: parsed.philosophy_rules || [],
+          pfd_extractions: parsed.pfd_extractions || [],
         };
 
         // Non-destructive migration for DocumentRecord category and metadata
@@ -493,6 +500,28 @@ export class PsiDataStore {
       this.data.philosophy_rules[idx] = rule;
     } else {
       this.data.philosophy_rules.push(rule);
+    }
+    this.saveDatabase();
+  }
+
+  // --- PFD & BFD EXTRACTION RESULTS ---
+  public listPfdExtractions(projectId: string): PfdExtractionResult[] {
+    return (this.data.pfd_extractions || []).filter((p) => p.project_id === projectId);
+  }
+
+  public getPfdExtraction(documentId: string): PfdExtractionResult | undefined {
+    return (this.data.pfd_extractions || []).find((p) => p.document_id === documentId);
+  }
+
+  public savePfdExtraction(result: PfdExtractionResult): void {
+    if (!this.data.pfd_extractions) this.data.pfd_extractions = [];
+    const idx = this.data.pfd_extractions.findIndex(
+      (p) => p.document_id === result.document_id || p.id === result.id
+    );
+    if (idx >= 0) {
+      this.data.pfd_extractions[idx] = result;
+    } else {
+      this.data.pfd_extractions.push(result);
     }
     this.saveDatabase();
   }
@@ -2955,6 +2984,10 @@ export class PsiDataStore {
         mime_type: 'application/pdf',
         size_bytes: 412500,
         doc_type: 'sds',
+        category: 'sds',
+        revision: 'A',
+        extraction_status: 'completed',
+        verification_status: 'unverified',
         upload_timestamp: new Date('2026-03-15T08:05:00Z').toISOString(),
         pages_count: 8,
         is_readable: true,
@@ -2969,6 +3002,10 @@ export class PsiDataStore {
         mime_type: 'application/pdf',
         size_bytes: 388100,
         doc_type: 'sds',
+        category: 'sds',
+        revision: 'B',
+        extraction_status: 'completed',
+        verification_status: 'unverified',
         upload_timestamp: new Date('2026-03-15T08:06:00Z').toISOString(),
         pages_count: 6,
         is_readable: true,
@@ -2983,6 +3020,10 @@ export class PsiDataStore {
         mime_type: 'application/pdf',
         size_bytes: 350200,
         doc_type: 'sds',
+        category: 'sds',
+        revision: 'A',
+        extraction_status: 'completed',
+        verification_status: 'unverified',
         upload_timestamp: new Date('2026-03-15T08:08:00Z').toISOString(),
         pages_count: 7,
         is_readable: true,
@@ -2997,6 +3038,10 @@ export class PsiDataStore {
         mime_type: 'image/png',
         size_bytes: 1250000,
         doc_type: 'pid',
+        category: 'pid',
+        revision: '0',
+        extraction_status: 'completed',
+        verification_status: 'unverified',
         upload_timestamp: new Date('2026-03-15T08:10:00Z').toISOString(),
         pages_count: 1,
         is_readable: true,
@@ -3011,6 +3056,10 @@ export class PsiDataStore {
         mime_type: 'application/pdf',
         size_bytes: 2890000,
         doc_type: 'pid',
+        category: 'pid',
+        revision: '0',
+        extraction_status: 'failed',
+        verification_status: 'unverified',
         upload_timestamp: new Date('2026-03-15T08:12:00Z').toISOString(),
         pages_count: 2,
         is_readable: false,

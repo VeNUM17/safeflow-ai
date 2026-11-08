@@ -15,11 +15,12 @@ import { normalizeDrawing } from '../services/drawingNormalizationService';
 import { validateCandidateTopology } from '../services/topologyValidationService';
 import { classifyDocument } from '../services/documentClassifier';
 import { generateDigitalPidFromExtracted } from '../services/digitalDrawingGenerator';
-import { DocumentRecord, DocumentType, PipingLine, EquipmentTag, createDefaultSpecifications, ProcessStream } from '../types';
+import { DocumentRecord, DocumentCategory, DocumentType, PipingLine, EquipmentTag, createDefaultSpecifications, ProcessStream } from '../types';
 import { parseGasCompositionReportText } from '../services/chemicalIdentificationEngine';
 import { evaluateEquipmentChemicalMapping, evaluateProjectChemicalMappings } from '../services/chemicalMappingEngine';
 import { validateProjectPsiCompleteness } from '../services/psiValidationService';
 import { attachChemicalContextToPhaNode } from '../services/phaService';
+import { parsePfdOrBfdDocument } from '../services/pfdParser';
 
 const router = Router();
 
@@ -185,6 +186,21 @@ router.get('/projects/:id/philosophy-rules', (req: Request, res: Response) => {
   const id = getParam(req.params.id);
   const rules = store.listPhilosophyRules(id);
   res.json({ success: true, data: rules });
+});
+
+router.get('/projects/:id/pfd-extractions', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const extractions = store.listPfdExtractions(id);
+  res.json({ success: true, data: extractions });
+});
+
+router.get('/documents/:id/pfd-extraction', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const extraction = store.getPfdExtraction(id);
+  if (!extraction) {
+    return res.status(404).json({ success: false, error: 'PFD/BFD extraction not found for this document' });
+  }
+  res.json({ success: true, data: extraction });
 });
 
 router.post('/documents/:id/reclassify', (req: Request, res: Response) => {
@@ -358,6 +374,42 @@ router.post(
           store.saveDrawing(digitalDrawing, 'Auto Digital P&ID Generator', 'Initial digital schematic generated from uploaded P&ID');
         } catch (drawErr: any) {
           console.error('Auto digital drawing generation error:', drawErr.message);
+        }
+      }
+
+      // If document is PFD or BFD, run dedicated PFD/BFD extraction processor
+      if ((determinedCategory === 'pfd' || determinedCategory === 'bfd') && extracted.isReadable) {
+        try {
+          const existingLines = store.listLines(projectId);
+          const existingEquipment = store.listEquipment(projectId);
+          const pfdResult = parsePfdOrBfdDocument(
+            extracted,
+            docId,
+            file.originalname,
+            projectId,
+            determinedCategory,
+            existingLines,
+            existingEquipment
+          );
+          store.savePfdExtraction(pfdResult.extraction);
+          if (pfdResult.equipment.length > 0) {
+            store.addEquipment(
+              pfdResult.equipment,
+              'PFD/BFD Parser',
+              `Extracted major unit operations from ${determinedCategory.toUpperCase()}`
+            );
+            newEquipment.push(...pfdResult.equipment);
+          }
+          if (pfdResult.streams.length > 0) {
+            store.addStreams(
+              pfdResult.streams,
+              'PFD/BFD Parser',
+              `Extracted primary process streams from ${determinedCategory.toUpperCase()}`
+            );
+            newStreams.push(...pfdResult.streams);
+          }
+        } catch (pfdErr: any) {
+          console.error(`Auto ${determinedCategory.toUpperCase()} extraction error:`, pfdErr.message);
         }
       }
     }
