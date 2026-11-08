@@ -22,6 +22,7 @@ import {
   Split,
   Database,
   ListChecks,
+  Sparkles,
 } from 'lucide-react';
 import {
   ProcessProject,
@@ -344,49 +345,57 @@ Nitrogen         0.80`
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
       {/* 1. Header Banner & Engineering Principle */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
+      <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-500" />
+        
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <div className="flex items-center gap-3">
-              <div className="bg-cyan-500/20 p-2.5 rounded-lg border border-cyan-500/30 text-cyan-400">
-                <FlaskConical className="w-6 h-6" />
+              <div className="bg-gradient-to-br from-cyan-500/20 to-teal-500/10 p-3 rounded-xl border border-cyan-500/30 text-cyan-400 shadow-md shadow-cyan-950/40">
+                <FlaskConical className="w-7 h-7" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-white tracking-tight">
-                  Hybrid Chemical Identification & Process Mapping Engine
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Evidence-Grounded Chemical Inventory, Phase-Aware Topology Mapping & OSHA 1910.119(d)(1) Verification
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h2 className="text-xl font-black text-white tracking-tight">
+                    Chemical Identification & Process Mapping Engine
+                  </h2>
+                  <div className="flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 text-xs font-semibold shadow-sm">
+                    <Sparkles className="w-3 h-3 text-cyan-400" />
+                    <span>Engineered by <strong className="text-white">Shlok</strong></span>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Phase-Aware Topology Grounding, Chromatography Ingestion & OSHA 1910.119(d)(1) Verification
                 </p>
               </div>
             </div>
           </div>
 
           {/* KPI Completeness vs Verification */}
-          <div className="flex items-center gap-4 bg-slate-950/80 px-4 py-2.5 rounded-lg border border-slate-800">
+          <div className="flex items-center gap-4 bg-slate-950/90 px-5 py-3 rounded-xl border border-slate-800 shadow-inner">
             <div className="text-center">
-              <div className="text-xl font-bold text-cyan-400 font-mono">
+              <div className="text-2xl font-black text-cyan-400 font-mono text-glow-cyan">
                 {psiReport?.overall_completeness_pct ?? 0}%
               </div>
-              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
-                PSI Completeness
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">
+                Completeness
               </div>
             </div>
-            <div className="h-8 w-px bg-slate-800" />
+            <div className="h-9 w-px bg-slate-800" />
             <div className="text-center">
-              <div className="text-xl font-bold text-emerald-400 font-mono">
+              <div className="text-2xl font-black text-emerald-400 font-mono text-glow-emerald">
                 {psiReport?.overall_verification_pct ?? 0}%
               </div>
-              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
-                PE Verification
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">
+                PE Verified
               </div>
             </div>
-            <div className="h-8 w-px bg-slate-800" />
+            <div className="h-9 w-px bg-slate-800" />
             <div className="text-center">
-              <div className="text-xl font-bold text-amber-400 font-mono">
+              <div className="text-2xl font-black text-amber-400 font-mono">
                 {assignments.length}
               </div>
-              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">
                 Assignments
               </div>
             </div>
@@ -394,7 +403,7 @@ Nitrogen         0.80`
         </div>
 
         {/* Critical Principle Notice */}
-        <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center gap-2 text-xs text-amber-300/90 bg-amber-500/10 px-3 py-2 rounded-md border border-amber-500/20">
+        <div className="mt-4 pt-3.5 border-t border-slate-800/80 flex items-center gap-2.5 text-xs text-amber-300/90 bg-amber-500/10 px-3.5 py-2.5 rounded-xl border border-amber-500/20">
           <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
           <span>
             <strong>Critical Process Safety Principle:</strong> Never convert an assumed or AI-inferred chemical identity, composition, concentration, operating condition or equipment property into verified process data. Unverified values remain candidates until approved by a Professional Engineer.
@@ -403,7 +412,7 @@ Nitrogen         0.80`
       </div>
 
       {/* 2. Navigation Tabs */}
-      <div className="flex bg-slate-900 p-1.5 rounded-lg border border-slate-800 gap-1 overflow-x-auto text-xs font-medium">
+      <div className="flex bg-slate-900/90 p-1.5 rounded-xl border border-slate-800 gap-1 overflow-x-auto text-xs font-semibold shadow-inner">
         <button
           onClick={() => setActiveSubTab('assignment')}
           className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all ${

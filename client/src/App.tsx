@@ -488,10 +488,34 @@ export const App: React.FC = () => {
       />
 
       {/* Footer */}
-      <footer className="border-t border-slate-900 bg-slate-950 py-4 text-center text-[11px] text-slate-400">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>OSHA 29 CFR 1910.119(d)(1) Process Safety Information Identification Engine</span>
-          <span>Qualified Process Safety Engineer Sign-Off Mandatory</span>
+      <footer className="border-t border-slate-800/80 bg-slate-950/90 backdrop-blur-md py-6 text-xs text-slate-400 mt-auto shadow-2xl">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="font-bold text-white tracking-wide flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+              SafeFlow AI Enterprise
+            </span>
+            <span className="text-slate-700">•</span>
+            <span className="text-slate-300">
+              Architected & Built with Precision by <strong className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-teal-300 to-emerald-400 font-extrabold">Shlok</strong>
+            </span>
+            <span className="text-slate-700">•</span>
+            <span className="text-slate-500 font-mono text-[11px]">
+              OSHA 29 CFR 1910.119(d)(1) Evidence-Grounded PSI Engine
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3 text-[11px] font-mono text-slate-500 flex-wrap">
+            <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              Engine Operational
+            </span>
+            <span>API 520 / 521</span>
+            <span>•</span>
+            <span>NACE MR0175</span>
+            <span>•</span>
+            <span>ASME Sec VIII</span>
+          </div>
         </div>
       </footer>
     </div>
