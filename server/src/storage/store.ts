@@ -67,6 +67,7 @@ import {
   DatasheetExtractionResult,
   ExtractedDatasheetRecord,
   NozzleScheduleItem,
+  PhilosophyExtractionResult,
 } from '../types';
 import { detectConflictsForProject } from '../services/conflictDetector';
 import { validateProcessGraph } from '../services/graphValidationService';
@@ -105,6 +106,7 @@ interface DatabaseSchema {
   pfd_extractions: PfdExtractionResult[];
   stream_table_extractions: StreamTableExtractionResult[];
   datasheet_extractions: DatasheetExtractionResult[];
+  philosophy_extractions: PhilosophyExtractionResult[];
 }
 
 const DATA_DIR = path.resolve(__dirname, '../../data');
@@ -138,6 +140,7 @@ export class PsiDataStore {
     pfd_extractions: [],
     stream_table_extractions: [],
     datasheet_extractions: [],
+    philosophy_extractions: [],
   };
 
   constructor() {
@@ -188,6 +191,7 @@ export class PsiDataStore {
           pfd_extractions: parsed.pfd_extractions || [],
           stream_table_extractions: parsed.stream_table_extractions || [],
           datasheet_extractions: parsed.datasheet_extractions || [],
+          philosophy_extractions: parsed.philosophy_extractions || [],
         };
 
         // Non-destructive migration for DocumentRecord category and metadata
@@ -512,6 +516,41 @@ export class PsiDataStore {
       this.data.philosophy_rules[idx] = rule;
     } else {
       this.data.philosophy_rules.push(rule);
+    }
+    this.saveDatabase();
+  }
+
+  public addPhilosophyRules(rules: EngineeringPhilosophyRule[]): void {
+    if (!this.data.philosophy_rules) this.data.philosophy_rules = [];
+    for (const rule of rules) {
+      const idx = this.data.philosophy_rules.findIndex((r) => r.id === rule.id);
+      if (idx >= 0) {
+        this.data.philosophy_rules[idx] = rule;
+      } else {
+        this.data.philosophy_rules.push(rule);
+      }
+    }
+    this.saveDatabase();
+  }
+
+  // --- ENGINEERING PHILOSOPHY EXTRACTIONS ---
+  public listPhilosophyExtractions(projectId: string): PhilosophyExtractionResult[] {
+    return (this.data.philosophy_extractions || []).filter((p) => p.project_id === projectId);
+  }
+
+  public getPhilosophyExtraction(documentId: string): PhilosophyExtractionResult | undefined {
+    return (this.data.philosophy_extractions || []).find((p) => p.document_id === documentId);
+  }
+
+  public savePhilosophyExtraction(result: PhilosophyExtractionResult): void {
+    if (!this.data.philosophy_extractions) this.data.philosophy_extractions = [];
+    const idx = this.data.philosophy_extractions.findIndex(
+      (p) => p.document_id === result.document_id || p.id === result.id
+    );
+    if (idx >= 0) {
+      this.data.philosophy_extractions[idx] = result;
+    } else {
+      this.data.philosophy_extractions.push(result);
     }
     this.saveDatabase();
   }

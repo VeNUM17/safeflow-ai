@@ -817,6 +817,65 @@ export interface DatasheetExtractionResult {
   extracted_at: string;
 }
 
+export interface SparingPhilosophy {
+  equipment_tag_or_type: string;
+  configuration: string; // e.g. "2 x 100%", "1 duty + 1 standby", "3 x 50%"
+  service_description?: string;
+  notes?: string;
+}
+
+export interface DesignMarginRule {
+  parameter: string; // e.g. "Design Pressure Margin", "Overdesign Allowance", "Fouling Margin"
+  margin_value: string; // e.g. "+10% or 1.8 barg above max operating", "+15% flow margin"
+  equipment_type_or_tag?: string;
+  source_standard?: string; // e.g. "API 520", "ASME Section VIII", "DEP 31.22"
+}
+
+export interface ShutdownHierarchyLevel {
+  level: string; // e.g. "ESD-0", "ESD-1", "ESD-2", "Unit Trip"
+  name: string; // e.g. "Total Plant De-energization", "Facility Emergency Blowdown", "Train Isolation"
+  description: string;
+  triggers: string[];
+  actions: string[];
+}
+
+export interface SafeOperatingLimitRule {
+  parameter: string;
+  equipment_tag?: string;
+  normal_range?: string;
+  safe_upper_limit?: string;
+  safe_lower_limit?: string;
+  consequence_of_deviation?: string;
+  corrective_action?: string;
+}
+
+export interface EnvironmentalDesignLimits {
+  min_ambient_temp?: string;
+  max_ambient_temp?: string;
+  solar_radiation?: string;
+  seismic_zone?: string;
+  basic_wind_speed?: string;
+  site_elevation?: string;
+  relative_humidity?: string;
+}
+
+export interface PhilosophyExtractionResult {
+  id: string;
+  project_id: string;
+  document_id: string;
+  document_name: string;
+  document_category: DocumentCategory;
+  rules: EngineeringPhilosophyRule[];
+  sparing_philosophies: SparingPhilosophy[];
+  design_margins: DesignMarginRule[];
+  shutdown_hierarchy: ShutdownHierarchyLevel[];
+  safe_operating_limits: SafeOperatingLimitRule[];
+  environmental_limits?: EnvironmentalDesignLimits;
+  total_rules_found: number;
+  extraction_warnings: string[];
+  extracted_at: string;
+}
+
 export interface CreateStreamInput {
   project_id: string;
   stream_number?: string;

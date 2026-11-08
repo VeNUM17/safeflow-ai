@@ -23,6 +23,7 @@ import { attachChemicalContextToPhaNode } from '../services/phaService';
 import { parsePfdOrBfdDocument } from '../services/pfdParser';
 import { parseStreamTableDocument } from '../services/streamTableParser';
 import { parseDatasheetDocument } from '../services/datasheetParser';
+import { parsePhilosophyDocument } from '../services/philosophyParser';
 
 const router = Router();
 
@@ -235,6 +236,21 @@ router.get('/documents/:id/datasheet-extraction', (req: Request, res: Response) 
   res.json({ success: true, data: extraction });
 });
 
+router.get('/projects/:id/philosophy-extractions', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const extractions = store.listPhilosophyExtractions(id);
+  res.json({ success: true, data: extractions });
+});
+
+router.get('/documents/:id/philosophy-extraction', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const extraction = store.getPhilosophyExtraction(id);
+  if (!extraction) {
+    return res.status(404).json({ success: false, error: 'Philosophy extraction not found for this document' });
+  }
+  res.json({ success: true, data: extraction });
+});
+
 router.post('/documents/:id/reclassify', (req: Request, res: Response) => {
   const id = getParam(req.params.id);
   const doc = store.getDocument(id);
@@ -278,6 +294,7 @@ router.post(
     const newEquipment: any[] = [];
     const newLines: any[] = [];
     const newStreams: any[] = [];
+    const newPhilosophyRules: any[] = [];
 
     for (const file of files) {
       const docId = uuidv4();
@@ -496,6 +513,34 @@ router.post(
           console.error('Auto Datasheet extraction error:', dsErr.message);
         }
       }
+
+      // If document is Engineering Philosophy / Basis of Design, run philosophy processor
+      const isPhilosophyDoc = [
+        'basis_of_design',
+        'process_design_philosophy',
+        'operating_philosophy',
+        'control_philosophy',
+        'shutdown_philosophy',
+      ].includes(determinedCategory);
+
+      if (isPhilosophyDoc && extracted.isReadable) {
+        try {
+          const philResult = parsePhilosophyDocument(
+            extracted,
+            docId,
+            file.originalname,
+            projectId,
+            determinedCategory
+          );
+          store.savePhilosophyExtraction(philResult.extraction);
+          if (philResult.rules.length > 0) {
+            store.addPhilosophyRules(philResult.rules);
+            newPhilosophyRules.push(...philResult.rules);
+          }
+        } catch (philErr: any) {
+          console.error('Auto Philosophy extraction error:', philErr.message);
+        }
+      }
     }
 
     const summary = store.getDashboardSummary(projectId);
@@ -508,6 +553,7 @@ router.post(
         equipment_tags_added: newEquipment.length,
         piping_lines_added: newLines.length,
         streams_added: newStreams.length,
+        philosophy_rules_added: newPhilosophyRules.length,
         summary,
       },
     });

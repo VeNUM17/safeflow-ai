@@ -52,10 +52,18 @@ import {
   PfdExtractionResult,
   StreamTableExtractionResult,
   DatasheetExtractionResult,
+  PhilosophyExtractionResult,
+  EngineeringPhilosophyRule,
+  SparingPhilosophy,
+  DesignMarginRule,
+  ShutdownHierarchyLevel,
+  SafeOperatingLimitRule,
+  EnvironmentalDesignLimits,
 } from '../server/src/types';
 import { parsePfdOrBfdDocument } from '../server/src/services/pfdParser';
 import { parseStreamTableDocument } from '../server/src/services/streamTableParser';
 import { parseDatasheetDocument } from '../server/src/services/datasheetParser';
+import { parsePhilosophyDocument } from '../server/src/services/philosophyParser';
 import { classifyDocument, classifyEngineeringCategory } from '../server/src/services/documentClassifier';
 import { extractTextFromDocument } from '../server/src/services/pdfExtractor';
 import { extractVectorGeometry } from '../server/src/services/vectorPdfService';
@@ -6722,6 +6730,338 @@ test('Scenario 6: Store persistence, query & retrieval of Datasheet extraction r
   // List by project ID
   const list = store.listDatasheetExtractions(testProjectId);
   assert.strictEqual(list.length, 1, 'Must list 1 datasheet extraction for project');
+});
+
+// ============================================================================
+// TEST GROUP 24: ENGINEERING PHILOSOPHY & BASIS OF DESIGN EXTRACTION (PHASE 6)
+// ============================================================================
+
+console.log('\n--- Test Group 24: Engineering Philosophy & Basis of Design Extraction (Phase 6) ---');
+
+test('Scenario 1: Extraction of Shutdown Hierarchy, ESD Actions & Interlocks from Shutdown Philosophy', () => {
+  const shutdownPhilosophyText = `
+    PROCESS SAFETY & SHUTDOWN PHILOSOPHY
+    PROJECT: OFFSHORE SOUR GAS SEPARATION FACILITY
+    DOCUMENT NO: IES-SD-PHIL-001 | REVISION: B
+
+    1. EMERGENCY SHUTDOWN HIERARCHY
+    ESD-0: Total Plant De-energization - Initiated by manual ESD-0 pushbutton or confirmed catastrophic utility loss.
+    ESD-1: Facility Emergency Depressuring - Initiated by confirmed hydrocarbon gas fire or multi-detector gas leak. Automates opening of all BDVs to flare and closure of feed valves.
+    ESD-2: Train Isolation - Isolates processing train without depressurization upon localized equipment upset.
+    ESD-3: Unit Trip - Individual unit trips (e.g. compressor shutdown).
+
+    2. CAUSE AND EFFECT / INTERLOCK MATRIX
+    Interlock I-101: On high-high pressure PSHH-1002 (>= 90.0 barg) in Separator PG-1001, initiate ESD-1: close ESD isolation valves XV-1001 and XV-1002 (fail-closed), open blowdown valve BDV-1001 to high pressure flare (fail-open). SIL 2 rated.
+    Interlock I-102: On high-high liquid level LSHH-1001 in Knock-Out Drum V-1001, trip compressor K-1001 and close compressor suction valve XV-1003 (fail closed). SIL 3 rated.
+    Interlock I-103: On low-low pressure PSLL-1004 (<= 15.0 barg) indicating pipeline rupture, close isolation valve XV-1005 (fail-closed). SIL 2.
+  `;
+
+  const docId = 'doc-sd-phil-01';
+  const docName = 'IES-SD-PHIL-001_RevB.pdf';
+  const projectId = 'proj-sd-01';
+
+  const { extraction, rules } = parsePhilosophyDocument(
+    {
+      text: shutdownPhilosophyText,
+      pages: [{ pageNumber: 1, text: shutdownPhilosophyText }],
+      pagesCount: 1,
+      isReadable: true,
+      isScanned: false,
+    },
+    docId,
+    docName,
+    projectId,
+    'shutdown_philosophy'
+  );
+
+  assert.ok(extraction, 'Must return extraction result');
+  assert.strictEqual(extraction.document_category, 'shutdown_philosophy');
+  assert.ok(extraction.rules.length >= 3, `Expected at least 3 rules, got ${extraction.rules.length}`);
+
+  // Verify ESD-1 Interlock I-101
+  const ruleI101 = extraction.rules.find((r) => r.condition.includes('PSHH-1002') || (r.loop_tag && r.loop_tag.includes('PSHH-1002')));
+  assert.ok(ruleI101, 'Must extract Interlock I-101 rule');
+  assert.strictEqual(ruleI101.equipment_tag, 'PG-1001');
+  assert.strictEqual(ruleI101.rule_type, 'esd_action');
+  assert.strictEqual(ruleI101.sil_rating, 'SIL 2');
+  assert.strictEqual(ruleI101.is_confirmed_setpoint, true, '90.0 barg setpoint is confirmed');
+  assert.ok(ruleI101.action.includes('XV-1001') && ruleI101.action.includes('BDV-1001'));
+
+  // Verify LSHH Interlock I-102
+  const ruleI102 = extraction.rules.find((r) => r.condition.includes('LSHH-1001') || (r.notes && r.notes.includes('I-102')));
+  assert.ok(ruleI102, 'Must extract Interlock I-102');
+  assert.strictEqual(ruleI102.sil_rating, 'SIL 3');
+  assert.strictEqual(ruleI102.fail_safe_position, 'fail_closed');
+
+  // Verify Shutdown Hierarchy
+  assert.ok(extraction.shutdown_hierarchy.length >= 4, `Expected 4 hierarchy levels, got ${extraction.shutdown_hierarchy.length}`);
+  const esd1Level = extraction.shutdown_hierarchy.find((h) => h.level.includes('ESD-1'));
+  assert.ok(esd1Level, 'Must capture ESD-1 in shutdown hierarchy');
+  assert.ok(esd1Level.actions.some((a) => a.toLowerCase().includes('depressur') || a.toLowerCase().includes('flare')));
+});
+
+test('Scenario 2: Extraction of Primary Control Loops & Fail-Safe Positions from Control Philosophy', () => {
+  const controlPhilosophyText = `
+    CONTROL PHILOSOPHY & INSTRUMENT SPECIFICATION
+    PROJECT: GAS SWEETENING FACILITY
+
+    1. PRIMARY CONTROL LOOPS
+    Loop PIC-1001 modulates PCV-1001 on the overhead line to maintain Separator PG-1001 at 68.0 barg. PCV-1001 is fail-open to flare.
+    Loop LIC-1001 modulates LCV-1001 to regulate bottom liquid level at 50% range in Separator PG-1001. Valve LCV-1001 is fail-closed.
+    Loop TIC-1001 regulates process stream temperature via steam valve TCV-1001 on Inlet Gas Cooler E-1001 to 40.0 °C. TCV-1001 is fail-closed.
+    Loop FIC-1001 modulates FCV-1001 to maintain amine feed flow rate at 120.0 m3/h. FCV-1001 is fail-locked.
+  `;
+
+  const docId = 'doc-ctrl-phil-01';
+  const docName = 'Control_Philosophy_Rev0.docx';
+  const projectId = 'proj-ctrl-01';
+
+  const { extraction, rules } = parsePhilosophyDocument(
+    {
+      text: controlPhilosophyText,
+      pages: [{ pageNumber: 1, text: controlPhilosophyText }],
+      pagesCount: 1,
+      isReadable: true,
+      isScanned: false,
+    },
+    docId,
+    docName,
+    projectId,
+    'control_philosophy'
+  );
+
+  assert.ok(extraction, 'Must return extraction result');
+  assert.strictEqual(extraction.document_category, 'control_philosophy');
+
+  // Verify PIC-1001
+  const picLoop = rules.find((r) => r.loop_tag === 'PIC-1001');
+  assert.ok(picLoop, 'Must extract PIC-1001 control loop');
+  assert.strictEqual(picLoop.rule_type, 'control_objective');
+  assert.strictEqual(picLoop.fail_safe_position, 'fail_open');
+  assert.strictEqual(picLoop.is_confirmed_setpoint, true);
+  assert.strictEqual(picLoop.equipment_tag, 'PG-1001');
+
+  // Verify LIC-1001
+  const licLoop = rules.find((r) => r.loop_tag === 'LIC-1001');
+  assert.ok(licLoop, 'Must extract LIC-1001 control loop');
+  assert.strictEqual(licLoop.fail_safe_position, 'fail_closed');
+
+  // Verify FIC-1001
+  const ficLoop = rules.find((r) => r.loop_tag === 'FIC-1001');
+  assert.ok(ficLoop, 'Must extract FIC-1001 control loop');
+  assert.strictEqual(ficLoop.fail_safe_position, 'fail_locked');
+});
+
+test('Scenario 3: Extraction of Sparing Philosophies & Design Margins from Process Design Philosophy', () => {
+  const designPhilosophyText = `
+    PROCESS DESIGN PHILOSOPHY
+    FACILITY: OFFSHORE CENTRAL PROCESSING PLATFORM
+    
+    1. SPARING PHILOSOPHY
+    Hydrocarbon Feed Pumps P-1001A/B are configured as 2 x 100% (1 duty + 1 standby with auto-start).
+    Booster Gas Compressors K-1001A/B shall be 2 x 100% capacity with independent lube oil skids.
+    Chemical Injection Pumps P-2001A/B/C are configured as 3 x 50% capacity.
+
+    2. DESIGN MARGINS AND OVERDESIGN PHILOSOPHY
+    Design Pressure Margin: Equipment design pressure shall be maximum operating pressure + 10% or + 1.8 barg (whichever is greater) up to 35 barg; per API 520.
+    Design Temperature Margin: Design temperature shall be maximum operating temperature + 15 °C.
+    Flow / Capacity Margin: Pumps and piping systems shall have +15% flow margin over rated normal flows.
+    Heat Exchanger Fouling Allowance: Shell and tube exchangers shall include +10% excess area for fouling.
+  `;
+
+  const docId = 'doc-pdp-01';
+  const docName = 'IES-PDP-001.pdf';
+  const projectId = 'proj-pdp-01';
+
+  const { extraction } = parsePhilosophyDocument(
+    {
+      text: designPhilosophyText,
+      pages: [{ pageNumber: 1, text: designPhilosophyText }],
+      pagesCount: 1,
+      isReadable: true,
+      isScanned: false,
+    },
+    docId,
+    docName,
+    projectId,
+    'process_design_philosophy'
+  );
+
+  // Sparing checks
+  assert.ok(extraction.sparing_philosophies.length >= 2, `Expected at least 2 sparing entries, got ${extraction.sparing_philosophies.length}`);
+  const pumpSparing = extraction.sparing_philosophies.find((s) => s.equipment_tag_or_type.includes('P-1001') || s.configuration.includes('2 x 100%'));
+  assert.ok(pumpSparing, 'Must capture pump sparing philosophy (2 x 100%)');
+
+  // Design margins checks
+  assert.ok(extraction.design_margins.length >= 3, `Expected at least 3 design margins, got ${extraction.design_margins.length}`);
+  const dpMargin = extraction.design_margins.find((m) => m.parameter === 'Design Pressure Margin');
+  assert.ok(dpMargin, 'Must capture Design Pressure Margin');
+  assert.ok(dpMargin.margin_value.includes('10%') || dpMargin.margin_value.includes('1.8 barg'));
+  assert.strictEqual(dpMargin.source_standard, 'API 520');
+
+  const dtMargin = extraction.design_margins.find((m) => m.parameter === 'Design Temperature Margin');
+  assert.ok(dtMargin, 'Must capture Design Temperature Margin');
+  assert.ok(dtMargin.margin_value.includes('15 °C') || dtMargin.margin_value.includes('+15'));
+});
+
+test('Scenario 4: Extraction of Environmental & Atmospheric Limits from Basis of Design (BOD)', () => {
+  const bodText = `
+    BASIS OF DESIGN (BOD)
+    PROJECT: DESERT GAS RECOVERY PLANT
+    LOCATION: MIDDLE EAST FACILITY
+
+    1. ENVIRONMENTAL & METEOROLOGICAL DESIGN CONDITIONS
+    Minimum Ambient Temperature: -15 °C
+    Maximum Ambient Temperature: +48 °C
+    Site Elevation: 150 m AMSL
+    Basic Wind Speed: 140 km/h
+    Seismic Zone: Zone-3
+    Solar Radiation: 1000 W/m2
+
+    2. RELIEF AND FLARE PHILOSOPHY
+    Relief valve PSV-1001 is set at 95.0 barg protecting Separator PG-1001 against blocked outlet and external pool fire per API 521.
+  `;
+
+  const docId = 'doc-bod-01';
+  const docName = 'BOD_Rev0.pdf';
+  const projectId = 'proj-bod-01';
+
+  const { extraction, rules } = parsePhilosophyDocument(
+    {
+      text: bodText,
+      pages: [{ pageNumber: 1, text: bodText }],
+      pagesCount: 1,
+      isReadable: true,
+      isScanned: false,
+    },
+    docId,
+    docName,
+    projectId,
+    'basis_of_design'
+  );
+
+  assert.ok(extraction.environmental_limits, 'Must extract environmental limits');
+  assert.strictEqual(extraction.environmental_limits.min_ambient_temp, '-15 °C');
+  assert.strictEqual(extraction.environmental_limits.max_ambient_temp, '48 °C');
+  assert.strictEqual(extraction.environmental_limits.site_elevation, '150 m AMSL');
+  assert.strictEqual(extraction.environmental_limits.basic_wind_speed, '140 km/h');
+  assert.strictEqual(extraction.environmental_limits.seismic_zone, 'Zone-3');
+
+  // Relief philosophy rule
+  const reliefRule = rules.find((r) => r.rule_type === 'relief_basis');
+  assert.ok(reliefRule, 'Must extract relief philosophy rule');
+  assert.strictEqual(reliefRule.equipment_tag, 'PG-1001');
+  assert.strictEqual(reliefRule.is_confirmed_setpoint, true);
+  assert.ok(reliefRule.action.includes('blocked outlet') || reliefRule.action.includes('fire'));
+});
+
+test('Scenario 5: Safe Operating Limits (SOL) & Non-Fabrication of Provisional/TBD Setpoints', () => {
+  const solText = `
+    OPERATING PHILOSOPHY & SAFE OPERATING LIMITS
+    PLANT SECTION: SEPARATION UNIT
+
+    Safe Operating Limit for Separator Pressure: Normal Range 65 - 70 barg, Safe Upper Limit 85.0 barg. Consequence of Deviation: Opening of PSV-1001 to high pressure flare.
+    
+    Interlock I-201: On high reactor temperature in R-1001, initiate reactor quench valve XV-2001. Setpoint is TBD pending detailed exothermic kinetic simulation.
+  `;
+
+  const docId = 'doc-op-phil-01';
+  const docName = 'Operating_Philosophy_RevA.docx';
+  const projectId = 'proj-op-01';
+
+  const { extraction, rules } = parsePhilosophyDocument(
+    {
+      text: solText,
+      pages: [{ pageNumber: 1, text: solText }],
+      pagesCount: 1,
+      isReadable: true,
+      isScanned: false,
+    },
+    docId,
+    docName,
+    projectId,
+    'operating_philosophy'
+  );
+
+  // Safe Operating Limits
+  assert.ok(extraction.safe_operating_limits.length >= 1, 'Must extract safe operating limit');
+  const sol = extraction.safe_operating_limits[0];
+  assert.ok(sol.parameter.includes('Separator Pressure') || sol.parameter.includes('Pressure'));
+  assert.ok(sol.safe_upper_limit?.includes('85'));
+  assert.ok(sol.consequence_of_deviation?.includes('PSV-1001'));
+
+  // Non-fabrication & Provisional setpoint test
+  const tbdRule = rules.find((r) => r.notes?.includes('I-201') || r.action.includes('XV-2001'));
+  assert.ok(tbdRule, 'Must extract Interlock I-201');
+  assert.strictEqual(tbdRule.is_confirmed_setpoint, false, 'TBD setpoint must be marked is_confirmed_setpoint = false');
+  assert.strictEqual(tbdRule.sil_rating, undefined, 'Unstated SIL rating must NOT be fabricated');
+});
+
+test('Scenario 6: Store persistence, query & retrieval of Philosophy Extraction Results and Rules', () => {
+  const store = new PsiDataStore();
+  const testDocId = `doc-phil-store-${Date.now()}`;
+  const testProjectId = `proj-phil-store-${Date.now()}`;
+
+  const mockRule: EngineeringPhilosophyRule = {
+    id: `rule-test-${Date.now()}`,
+    project_id: testProjectId,
+    source_document_id: testDocId,
+    source_document_name: 'Shutdown_Philosophy.pdf',
+    source_category: 'shutdown_philosophy',
+    rule_type: 'esd_action',
+    equipment_tag: 'PG-1001',
+    loop_tag: 'PSHH-1002',
+    condition: 'Pressure exceeds 90 barg on PSHH-1002',
+    action: 'Close XV-1001, open BDV-1001',
+    fail_safe_position: 'fail_closed',
+    sil_rating: 'SIL 2',
+    is_confirmed_setpoint: true,
+    verification_status: 'unverified',
+  };
+
+  const mockExtraction: PhilosophyExtractionResult = {
+    id: `phil-ext-${Date.now()}`,
+    project_id: testProjectId,
+    document_id: testDocId,
+    document_name: 'Shutdown_Philosophy.pdf',
+    document_category: 'shutdown_philosophy',
+    rules: [mockRule],
+    sparing_philosophies: [],
+    design_margins: [],
+    shutdown_hierarchy: [
+      {
+        level: 'ESD-1',
+        name: 'Facility Depressuring',
+        description: 'Total facility blowdown',
+        triggers: ['Confirmed fire'],
+        actions: ['Open BDVs'],
+      },
+    ],
+    safe_operating_limits: [],
+    total_rules_found: 1,
+    extraction_warnings: [],
+    extracted_at: new Date().toISOString(),
+  };
+
+  store.savePhilosophyExtraction(mockExtraction);
+  store.addPhilosophyRules([mockRule]);
+
+  // Retrieve by document ID
+  const retrievedExtraction = store.getPhilosophyExtraction(testDocId);
+  assert.ok(retrievedExtraction, 'Must retrieve philosophy extraction by document ID');
+  assert.strictEqual(retrievedExtraction.document_name, 'Shutdown_Philosophy.pdf');
+  assert.strictEqual(retrievedExtraction.rules.length, 1);
+  assert.strictEqual(retrievedExtraction.shutdown_hierarchy.length, 1);
+
+  // Retrieve rules by project ID
+  const projectRules = store.listPhilosophyRules(testProjectId);
+  assert.strictEqual(projectRules.length, 1, 'Must list 1 philosophy rule for project');
+  assert.strictEqual(projectRules[0].sil_rating, 'SIL 2');
+  assert.strictEqual(projectRules[0].equipment_tag, 'PG-1001');
+
+  // List extractions by project ID
+  const projectExtractions = store.listPhilosophyExtractions(testProjectId);
+  assert.strictEqual(projectExtractions.length, 1, 'Must list 1 philosophy extraction for project');
 });
 
 console.log(`\n========================================`);
