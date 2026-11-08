@@ -442,6 +442,9 @@ export const App: React.FC = () => {
             documents={documents}
             onOpenUploadModal={() => setIsUploadOpen(true)}
             onDeleteDocument={handleDeleteDocument}
+            onRefreshDocuments={async () => {
+              if (currentProject) await loadProjectData(currentProject.id);
+            }}
           />
         )}
       </main>

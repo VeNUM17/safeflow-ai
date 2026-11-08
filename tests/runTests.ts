@@ -1,4 +1,6 @@
 import assert from 'assert';
+import fs from 'fs';
+import path from 'path';
 import { parseSdsContent } from '../server/src/services/sdsParser';
 import { detectConflictsForProject } from '../server/src/services/conflictDetector';
 import { buildProcessTopologyGraph } from '../server/src/services/graphService';
@@ -48,7 +50,8 @@ import {
   GasCompositionReport,
   ProjectPsiDashboardValidation,
 } from '../server/src/types';
-import { classifyDocument } from '../server/src/services/documentClassifier';
+import { classifyDocument, classifyEngineeringCategory } from '../server/src/services/documentClassifier';
+import { extractTextFromDocument } from '../server/src/services/pdfExtractor';
 import { extractVectorGeometry } from '../server/src/services/vectorPdfService';
 import { preprocessRasterImage } from '../server/src/services/rasterPreprocessingService';
 import { recognizeDrawingText } from '../server/src/services/ocrService';
@@ -5426,6 +5429,161 @@ test('Scenario 6: Engineering philosophy rules capture interlocks, fail-safe pos
   assert.strictEqual(found.sil_rating, 'SIL 2');
   assert.strictEqual(found.is_confirmed_setpoint, true);
   assert.strictEqual(found.verification_status, 'engineer_verified');
+});
+
+// ============================================================================
+// TEST GROUP 20: MULTI-DOCUMENT CLASSIFICATION & INGESTION ENGINE (PHASE 2)
+// ============================================================================
+
+console.log('\n--- Test Group 20: Multi-Document Classification & Ingestion Engine (Phase 2) ---');
+
+test('Scenario 1: Classification of Safety Data Sheets (SDS) vs P&ID drawings vs Process Flow Diagrams (PFD)', () => {
+  // SDS Classification
+  const sdsResult = classifyEngineeringCategory(
+    'Ammonia_Anhydrous_Safety_Data_Sheet.pdf',
+    'SAFETY DATA SHEET SECTION 1: IDENTIFICATION SECTION 2: HAZARDS IDENTIFICATION CAS No: 7664-41-7 GHS Hazard Statements'
+  );
+  assert.strictEqual(sdsResult.category, 'sds', 'Must classify as SDS');
+  assert.ok(sdsResult.confidence >= 0.8, 'SDS confidence must be high');
+
+  // P&ID Classification
+  const pidResult = classifyEngineeringCategory(
+    'P&ID-GPF-001-02_Pig_Receiver.pdf',
+    'PIPING AND INSTRUMENTATION DIAGRAM PIG RECEIVER / SLUG CATCHER PG-1001 10"-PG-00101-A1A VALVE INDEX INSTRUMENT INDEX'
+  );
+  assert.strictEqual(pidResult.category, 'pid', 'Must classify as P&ID');
+  assert.ok(pidResult.confidence >= 0.8, 'P&ID confidence must be high');
+
+  // PFD Classification
+  const pfdResult = classifyEngineeringCategory(
+    'PFD-001_Inlet_Separation_Scheme.pdf',
+    'PROCESS FLOW DIAGRAM HEAT & MATERIAL BALANCE SUMMARY INLET SLUG CATCHER GAS RECOVERY SCHEME'
+  );
+  assert.strictEqual(pfdResult.category, 'pfd', 'Must classify as PFD');
+  assert.ok(pfdResult.confidence >= 0.7, 'PFD confidence must be high');
+});
+
+test('Scenario 2: Classification of Block Flow Diagrams (BFD) and Stream Tables (H&MB)', () => {
+  // BFD Classification
+  const bfdResult = classifyEngineeringCategory(
+    'Overall_Facility_Block_Flow_Diagram.pdf',
+    'BLOCK FLOW DIAGRAM OVERALL FACILITY SEQUENCE BATTERY LIMITS GAS SWEETENING UNIT DEW POINT CONTROL'
+  );
+  assert.strictEqual(bfdResult.category, 'bfd', 'Must classify as BFD');
+
+  // Stream Table (Spreadsheet)
+  const streamResult = classifyEngineeringCategory(
+    'Wellstream_Heat_and_Material_Balance.xlsx',
+    'STREAM TABLE STREAM NUMBER MOLE FRACTION MASS FLOW RATE OPERATING PRESSURE OPERATING TEMPERATURE VAPOR FRACTION'
+  );
+  assert.strictEqual(streamResult.category, 'stream_table', 'Must classify spreadsheet as stream table');
+  assert.ok(streamResult.confidence >= 0.75);
+});
+
+test('Scenario 3: Classification of Equipment Datasheets and Basis of Design (BOD)', () => {
+  // Equipment Datasheet
+  const dsResult = classifyEngineeringCategory(
+    'DS-PG-1001_Slug_Catcher_Datasheet.pdf',
+    'EQUIPMENT DATASHEET VESSEL SPECIFICATION DESIGN PRESSURE 95 BARG DESIGN TEMPERATURE 120 C MATERIAL OF CONSTRUCTION NOZZLE SCHEDULE'
+  );
+  assert.strictEqual(dsResult.category, 'equipment_datasheet', 'Must classify as equipment datasheet');
+
+  // Basis of Design
+  const bodResult = classifyEngineeringCategory(
+    'Project_Basis_of_Design_Rev_0.docx',
+    'PROJECT BASIS OF DESIGN FEED ENVELOPE PLANT DESIGN CAPACITY AMBIENT DESIGN CONDITIONS DESIGN MARGINS 25-YEAR DESIGN LIFE'
+  );
+  assert.strictEqual(bodResult.category, 'basis_of_design', 'Must classify as basis of design');
+});
+
+test('Scenario 4: Classification of Philosophies (Process Design, Operating, Control, and Shutdown/ESD)', () => {
+  // Process Design Philosophy
+  const pdpResult = classifyEngineeringCategory(
+    'Overpressure_and_Relief_Philosophy.pdf',
+    'PROCESS DESIGN PHILOSOPHY OVERPRESSURE PROTECTION PHILOSOPHY RELIEF AND DEPRESSURING PHILOSOPHY API 520 / 521 SPARING PHILOSOPHY'
+  );
+  assert.strictEqual(pdpResult.category, 'process_design_philosophy', 'Must classify as process design philosophy');
+
+  // Operating Philosophy
+  const opResult = classifyEngineeringCategory(
+    'Facility_Operating_Philosophy_Manual.docx',
+    'FACILITY OPERATING PHILOSOPHY STANDARD OPERATING PROCEDURE NORMAL OPERATIONS STARTUP PROCEDURE SHUTDOWN PROCEDURE TURNDOWN LIMITS'
+  );
+  assert.strictEqual(opResult.category, 'operating_philosophy', 'Must classify as operating philosophy');
+
+  // Control Philosophy
+  const cpResult = classifyEngineeringCategory(
+    'Inlet_Separation_Control_Philosophy.docx',
+    'CONTROL PHILOSOPHY PROCESS CONTROL NARRATIVE DISTRIBUTED CONTROL SYSTEM LOOP DESCRIPTION PIC-1001 LIC-1001 SPLIT-RANGE CONTROL'
+  );
+  assert.strictEqual(cpResult.category, 'control_philosophy', 'Must classify as control philosophy');
+
+  // Shutdown / ESD Philosophy
+  const esdResult = classifyEngineeringCategory(
+    'Emergency_Shutdown_and_Interlock_Philosophy.pdf',
+    'EMERGENCY SHUTDOWN PHILOSOPHY CAUSE AND EFFECT MATRIX C&E MATRIX SAFETY INSTRUMENTED SYSTEM SIL RATING SIL 2 INTERLOCK LOGIC'
+  );
+  assert.strictEqual(esdResult.category, 'shutdown_philosophy', 'Must classify as shutdown philosophy');
+});
+
+test('Scenario 5: Multi-format text extraction parses plain text, CSV, and handles non-PDF file formats', async () => {
+  const tmpCsvPath = path.resolve(__dirname, 'test_stream_table.csv');
+  const csvContent = 'Stream,Phase,Temp_C,Press_barg,Flow_kg_h\n101,Vapor,45.0,90.0,15400\n102,Liquid,40.0,90.0,3200';
+  fs.writeFileSync(tmpCsvPath, csvContent, 'utf8');
+
+  try {
+    const extracted = await extractTextFromDocument(tmpCsvPath, 'text/csv', 'test_stream_table.csv');
+    assert.strictEqual(extracted.isReadable, true, 'CSV must be readable');
+    assert.ok(extracted.text.includes('15400'), 'Must contain flow rate');
+    assert.ok(extracted.text.includes('Stream,Phase'), 'Must contain header');
+
+    const classification = classifyEngineeringCategory('test_stream_table.csv', extracted.text, 'text/csv');
+    assert.strictEqual(classification.category, 'stream_table', 'CSV stream table must be classified correctly');
+  } finally {
+    if (fs.existsSync(tmpCsvPath)) fs.unlinkSync(tmpCsvPath);
+  }
+});
+
+test('Scenario 6: Manual reclassification updates category, confidence, and audit trail', () => {
+  const store = new PsiDataStore();
+  const testDocId = `doc-reclass-${Date.now()}`;
+
+  store.addDocument({
+    id: testDocId,
+    project_id: 'proj-reclass-test',
+    name: 'Ambiguous_Drawing.pdf',
+    original_filename: 'Ambiguous_Drawing.pdf',
+    file_path: '/uploads/ambiguous.pdf',
+    mime_type: 'application/pdf',
+    size_bytes: 5120,
+    doc_type: 'pid',
+    category: 'pid',
+    category_confidence: 0.55,
+    revision: '0',
+    upload_timestamp: new Date().toISOString(),
+    pages_count: 1,
+    is_readable: true,
+    chemical_ids: [],
+    extraction_status: 'completed',
+    verification_status: 'unverified',
+  });
+
+  const reclassified = store.updateDocumentMetadata(testDocId, {
+    category: 'pfd',
+    user_overridden_category: 'pfd',
+    notes: 'Manually verified as Process Flow Diagram by Process Engineer',
+    verification_status: 'engineer_verified',
+    verified_by: 'Senior Chemical Engineer (PE)',
+  });
+
+  assert.ok(reclassified, 'Document must be updated');
+  assert.strictEqual(reclassified.category, 'pfd');
+  assert.strictEqual(reclassified.user_overridden_category, 'pfd');
+  assert.strictEqual(reclassified.verification_status, 'engineer_verified');
+  assert.strictEqual(reclassified.verified_by, 'Senior Chemical Engineer (PE)');
+
+  // Clean up
+  store.deleteDocument(testDocId);
 });
 
 console.log(`\n========================================`);

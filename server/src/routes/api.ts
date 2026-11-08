@@ -28,6 +28,8 @@ const getParam = (val: unknown): string => {
   return String(val || '');
 };
 
+import { classifyEngineeringCategory } from '../services/documentClassifier';
+
 // Configure Multer for secure file uploads
 const UPLOADS_DIR = path.resolve(__dirname, '../../uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
@@ -52,6 +54,12 @@ const ALLOWED_MIME_TYPES = [
   'image/jpg',
   'image/svg+xml',
   'image/webp',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+  'text/csv',
+  'text/plain',
 ];
 
 const upload = multer({
@@ -61,12 +69,25 @@ const upload = multer({
   },
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    const allowedExts = ['.pdf', '.png', '.jpg', '.jpeg', '.svg', '.webp'];
+    const allowedExts = [
+      '.pdf',
+      '.png',
+      '.jpg',
+      '.jpeg',
+      '.svg',
+      '.webp',
+      '.docx',
+      '.doc',
+      '.xlsx',
+      '.xls',
+      '.csv',
+      '.txt',
+    ];
 
     if (ALLOWED_MIME_TYPES.includes(file.mimetype) || allowedExts.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error(`Unsupported file type: ${file.mimetype}. Only PDF, PNG, JPG, JPEG, SVG, and WebP are allowed.`));
+      cb(new Error(`Unsupported file type: ${file.mimetype}. Supported formats: PDF, DOCX, XLSX, CSV, TXT, PNG, JPG, JPEG, SVG, WebP.`));
     }
   },
 });
@@ -166,6 +187,24 @@ router.get('/projects/:id/philosophy-rules', (req: Request, res: Response) => {
   res.json({ success: true, data: rules });
 });
 
+router.post('/documents/:id/reclassify', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const doc = store.getDocument(id);
+  if (!doc) {
+    return res.status(404).json({ success: false, error: 'Document not found' });
+  }
+  const { category, reason } = req.body;
+  if (!category) {
+    return res.status(400).json({ success: false, error: 'Category is required' });
+  }
+  const updated = store.updateDocumentMetadata(id, {
+    category,
+    user_overridden_category: category,
+    notes: reason ? `${doc.notes ? doc.notes + '; ' : ''}Manually reclassified to ${category}: ${reason}` : doc.notes,
+  });
+  res.json({ success: true, data: updated, message: `Document reclassified to ${category}` });
+});
+
 router.post(
   '/projects/:id/upload',
   upload.array('files', 10),
@@ -181,8 +220,10 @@ router.post(
       return res.status(400).json({ success: false, error: 'No files provided' });
     }
 
-    // Explicit doc_type hint from user (e.g. 'sds' or 'pid' or 'auto')
-    const docTypeHint = (req.body.doc_type as string) || 'auto';
+    // Explicit category or doc_type hint from user (e.g. 'sds', 'pid', 'pfd', 'stream_table', etc. or 'auto')
+    const requestedCategory = (req.body.category || req.body.doc_type || 'auto') as string;
+    const revision = (req.body.revision as string) || 'A';
+    const sourceOrg = (req.body.source_organization as string) || 'Engineering Team';
 
     const processedDocs: DocumentRecord[] = [];
     const newChemicals: any[] = [];
@@ -192,30 +233,20 @@ router.post(
 
     for (const file of files) {
       const docId = uuidv4();
-      let determinedType: DocumentType = 'sds';
 
-      if (docTypeHint === 'pid') {
-        determinedType = 'pid';
-      } else if (docTypeHint === 'sds') {
-        determinedType = 'sds';
-      } else {
-        // Auto-detect based on filename and mime type
-        const lowerName = file.originalname.toLowerCase();
-        if (
-          file.mimetype.startsWith('image/') ||
-          lowerName.includes('p&id') ||
-          lowerName.includes('pid') ||
-          lowerName.includes('diagram') ||
-          lowerName.includes('drawing')
-        ) {
-          determinedType = 'pid';
-        } else {
-          determinedType = 'sds';
-        }
+      // Extract document text using universal multi-format reader (PDF, Word DOCX, Excel XLSX, CSV, Images)
+      const extracted = await extractTextFromDocument(file.path, file.mimetype, file.originalname);
+
+      // Automated 11-category classification
+      const classification = classifyEngineeringCategory(file.originalname, extracted.text, file.mimetype);
+
+      let determinedCategory: DocumentCategory = classification.category;
+      let userOverridden: DocumentCategory | null = null;
+
+      if (requestedCategory && requestedCategory !== 'auto') {
+        determinedCategory = requestedCategory as DocumentCategory;
+        userOverridden = requestedCategory as DocumentCategory;
       }
-
-      // Extract document text
-      const extracted = await extractTextFromDocument(file.path, file.mimetype);
 
       const docRecord: DocumentRecord = {
         id: docId,
@@ -225,20 +256,28 @@ router.post(
         file_path: `/uploads/${file.filename}`,
         mime_type: file.mimetype,
         size_bytes: file.size,
-        doc_type: determinedType,
+        doc_type: determinedCategory,
+        category: determinedCategory,
+        category_confidence: userOverridden ? 1.0 : classification.confidence,
+        user_overridden_category: userOverridden,
+        revision,
+        source_organization: sourceOrg,
         upload_timestamp: new Date().toISOString(),
         pages_count: extracted.pagesCount,
         is_readable: extracted.isReadable,
         unreadable_reason: extracted.unreadableReason,
         is_scanned_ocr_attempted: extracted.isScanned,
         chemical_ids: [],
+        extraction_status: extracted.isReadable ? 'completed' : 'failed',
+        verification_status: 'unverified',
+        notes: userOverridden ? `User confirmed category: ${userOverridden}` : classification.reason,
       };
 
       store.addDocument(docRecord);
       processedDocs.push(docRecord);
 
       // If document is readable and is SDS, run OSHA PSI extractor
-      if (determinedType === 'sds' && extracted.isReadable) {
+      if (determinedCategory === 'sds' && extracted.isReadable) {
         const chemical = parseSdsContent(
           extracted,
           docId,
@@ -251,7 +290,7 @@ router.post(
       }
 
       // If document is P&ID, run P&ID extractor
-      if (determinedType === 'pid') {
+      if (determinedCategory === 'pid') {
         const existingChems = store.listChemicals(projectId);
         const { equipment, lines, streams } = parsePidDocument(
           extracted,

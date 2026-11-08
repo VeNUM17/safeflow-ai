@@ -1,7 +1,8 @@
 import fs from 'fs';
+import path from 'path';
 import Tesseract from 'tesseract.js';
 
-// Using dynamic require or import for PDFParse
+// Using dynamic require or import for PDFParse, XLSX, and Mammoth
 const pdfLib = require('pdf-parse');
 const PDFParse = pdfLib.PDFParse || pdfLib;
 
@@ -21,17 +22,134 @@ export interface ExtractedDocumentContent {
 
 export async function extractTextFromDocument(
   filePath: string,
-  mimeType: string
+  mimeType: string,
+  originalFileName?: string
 ): Promise<ExtractedDocumentContent> {
-  // If it's an image format (P&ID)
+  const ext = path.extname(originalFileName || filePath).toLowerCase();
+
+  // 1. Plain Text and CSV Files
+  if (ext === '.txt' || ext === '.csv' || mimeType.startsWith('text/')) {
+    try {
+      const text = fs.readFileSync(filePath, 'utf8');
+      const lines = text.split(/\r?\n/);
+      const isReadable = text.trim().length > 0;
+      return {
+        text,
+        pages: [{ pageNumber: 1, text }],
+        pagesCount: Math.max(1, Math.ceil(lines.length / 50)),
+        isReadable,
+        isScanned: false,
+        unreadableReason: isReadable ? undefined : 'Text document is completely empty.',
+      };
+    } catch (err: any) {
+      return {
+        text: '',
+        pages: [],
+        pagesCount: 0,
+        isReadable: false,
+        isScanned: false,
+        unreadableReason: `Failed to read text file: ${err.message}`,
+      };
+    }
+  }
+
+  // 2. Microsoft Word DOCX Files
+  if (ext === '.docx' || mimeType.includes('wordprocessingml')) {
+    try {
+      const mammoth = require('mammoth');
+      const result = await mammoth.extractRawText({ path: filePath });
+      const text = (result.value || '').trim();
+      const isReadable = text.length > 0;
+      return {
+        text,
+        pages: [{ pageNumber: 1, text }],
+        pagesCount: 1,
+        isReadable,
+        isScanned: false,
+        unreadableReason: isReadable ? undefined : 'Word document contains no extractable text.',
+      };
+    } catch (err: any) {
+      console.error('Word extraction error:', err.message);
+      return {
+        text: '',
+        pages: [],
+        pagesCount: 0,
+        isReadable: false,
+        isScanned: false,
+        unreadableReason: `Failed to parse DOCX file: ${err.message}`,
+      };
+    }
+  }
+
+  // 3. Microsoft Excel XLSX / XLS Spreadsheets
+  if (
+    ext === '.xlsx' ||
+    ext === '.xls' ||
+    mimeType.includes('spreadsheetml') ||
+    mimeType.includes('excel')
+  ) {
+    try {
+      const xlsx = require('xlsx');
+      const workbook = xlsx.readFile(filePath);
+      const pages: { pageNumber: number; text: string }[] = [];
+      let fullText = '';
+
+      workbook.SheetNames.forEach((sheetName: string, idx: number) => {
+        const worksheet = workbook.Sheets[sheetName];
+        const csv = xlsx.utils.sheet_to_csv(worksheet);
+        const sheetText = `[Sheet: ${sheetName}]\n${csv}`;
+        pages.push({ pageNumber: idx + 1, text: sheetText });
+        fullText += sheetText + '\n\n';
+      });
+
+      const trimmed = fullText.trim();
+      const isReadable = trimmed.length > 0;
+
+      return {
+        text: fullText,
+        pages,
+        pagesCount: workbook.SheetNames.length,
+        isReadable,
+        isScanned: false,
+        unreadableReason: isReadable ? undefined : 'Spreadsheet contains no data rows or cells.',
+      };
+    } catch (err: any) {
+      console.error('Excel extraction error:', err.message);
+      return {
+        text: '',
+        pages: [],
+        pagesCount: 0,
+        isReadable: false,
+        isScanned: false,
+        unreadableReason: `Failed to parse Excel spreadsheet: ${err.message}`,
+      };
+    }
+  }
+
+  // 4. Raster Images and Vector SVG
   if (
     mimeType.startsWith('image/') ||
-    filePath.endsWith('.png') ||
-    filePath.endsWith('.jpg') ||
-    filePath.endsWith('.jpeg') ||
-    filePath.endsWith('.svg') ||
-    filePath.endsWith('.webp')
+    ext === '.png' ||
+    ext === '.jpg' ||
+    ext === '.jpeg' ||
+    ext === '.svg' ||
+    ext === '.webp'
   ) {
+    if (ext === '.svg') {
+      try {
+        const svgContent = fs.readFileSync(filePath, 'utf8');
+        return {
+          text: svgContent,
+          pages: [{ pageNumber: 1, text: svgContent }],
+          pagesCount: 1,
+          isReadable: svgContent.length > 0,
+          isScanned: false,
+        };
+      } catch (e: any) {
+        // Fall back to OCR if SVG read fails
+      }
+    }
+
     try {
       const ocrRes = await Tesseract.recognize(filePath, 'eng');
       const ocrData = ocrRes.data as any;
@@ -81,7 +199,7 @@ export async function extractTextFromDocument(
     }
   }
 
-  // If it's a PDF
+  // 5. PDF Files (Vector & Scanned)
   let parser: any = null;
   try {
     const dataBuffer = fs.readFileSync(filePath);
