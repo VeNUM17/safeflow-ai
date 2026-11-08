@@ -2221,6 +2221,43 @@ export const PidGraphViewer: React.FC<Props> = ({
                     </div>
                   )}
 
+                  {/* Process Stream & Chemical Grounding Card */}
+                  <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-cyan-400 flex items-center gap-1.5">
+                        <FlaskConical className="w-3.5 h-3.5" />
+                        Chemical & Phase Mapping
+                      </span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                        {selectedEquipment.tag.startsWith('PG-') || selectedEquipment.equipment_type === 'separator' ? 'Multiphase' : 'Single Phase'}
+                      </span>
+                    </div>
+
+                    {(() => {
+                      const incoming = lines.filter((l) => l.functional_type === 'piping_line' && l.to_equipment.toUpperCase() === selectedEquipment.tag.toUpperCase());
+                      const outgoing = lines.filter((l) => l.functional_type === 'piping_line' && l.from_equipment.toUpperCase() === selectedEquipment.tag.toUpperCase());
+
+                      return (
+                        <div className="space-y-1.5 text-[11px]">
+                          <div className="flex justify-between text-slate-300">
+                            <span className="text-slate-400">Inlet Feed Lines:</span>
+                            <span className="font-mono text-cyan-300">{incoming.length > 0 ? incoming.map((l) => l.line_number).join(', ') : 'None / Boundary'}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-300">
+                            <span className="text-slate-400">Outlet Discharge:</span>
+                            <span className="font-mono text-emerald-300">{outgoing.length > 0 ? outgoing.map((l) => l.line_number).join(', ') : 'None / Boundary'}</span>
+                          </div>
+                          <div className="pt-1 text-[10px] text-slate-400 flex items-center justify-between border-t border-slate-800/60">
+                            <span>Grounding Status:</span>
+                            <span className="text-amber-400 font-semibold">
+                              {incoming.length > 0 || outgoing.length > 0 ? 'CANDIDATE STREAM DATA' : 'ISOLATED'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
                   {/* Quick Confirm Button */}
                   {selectedEquipment.status !== 'confirmed' && (
                     <button

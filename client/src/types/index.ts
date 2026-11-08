@@ -825,6 +825,9 @@ export interface PhaStudyNode {
   reassessment_reasons?: string[];
   missing_specifications?: PhaMissingSpecAlert[];
   applicable_deviations?: PhaDeviationScenario[];
+  chemical_mapping?: ChemicalMappingResult | null;
+  comprehensive_hazop_deviations?: ComprehensiveHazopDeviation[];
+  chemical_context_summary?: string;
   created_at: string;
   updated_at: string;
 }
@@ -1319,5 +1322,188 @@ export interface CommonDrawingModel {
     engineer_verified_count: number;
   };
   processed_at: string;
+}
+
+// ============================================================================
+// MODULE B, C, D, E, F: HYBRID CHEMICAL IDENTIFICATION & PROCESS MAPPING TYPES
+// ============================================================================
+
+export type ChemicalIdentificationStatus = 'CONFIRMED' | 'CANDIDATE' | 'UNKNOWN';
+export type ChemicalMappingStatus = 'VERIFIED MAPPING' | 'PROPOSED MAPPING' | 'INCOMPLETE MAPPING';
+export type PsiParameterDataState = 'VERIFIED' | 'UNVERIFIED' | 'MISSING' | 'NOT_APPLICABLE' | 'REQUIRES_REVIEW';
+export type ConcentrationUnit = 'mol%' | 'vol%' | 'wt%' | 'ppm' | 'mg/L' | 'g/L' | 'fraction' | 'barg' | 'other';
+
+export interface ChemicalAssignment {
+  id: string;
+  project_id: string;
+  chemical_id: string;
+  chemical_name: string;
+  cas_number?: string | null;
+  equipment_id?: string | null;
+  equipment_tag?: string | null;
+  stream_id?: string | null;
+  stream_number?: string | null;
+  connection_endpoint?: 'inlet' | 'outlet' | 'internal' | 'all' | null;
+  concentration?: number | null;
+  concentration_unit?: ConcentrationUnit | null;
+  phase?: StreamPhase | null;
+  source_document?: string | null;
+  source_document_id?: string | null;
+  source_page_or_location?: string | null;
+  verification_status: 'unverified' | 'verified';
+  identification_status: ChemicalIdentificationStatus;
+  reviewer?: string | null;
+  review_date?: string | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MappedChemicalItem {
+  chemical_id: string;
+  chemical_name: string;
+  cas_number?: string | null;
+  concentration: number | null;
+  concentration_unit: ConcentrationUnit | null;
+  phase: StreamPhase | null;
+  identification_status: ChemicalIdentificationStatus;
+  source_provenance: string;
+  connection_tag?: string;
+  is_verified: boolean;
+}
+
+export interface ChemicalMappingResult {
+  id: string;
+  project_id: string;
+  target_type: 'equipment' | 'stream';
+  target_id: string;
+  target_tag: string;
+  mapping_status: ChemicalMappingStatus;
+  phase: StreamPhase | 'multiphase' | 'unknown';
+  inlet_chemicals: MappedChemicalItem[];
+  outlet_chemicals: MappedChemicalItem[];
+  internal_chemicals: MappedChemicalItem[];
+  separation_summary?: string | null;
+  unresolved_gaps: string[];
+  source_provenance: string;
+  is_multiphase_separation: boolean;
+  last_evaluated_at: string;
+}
+
+export interface PsiCompletenessCategoryReport {
+  category_key: keyof PsiParameters;
+  category_name: string;
+  is_populated: boolean;
+  is_verified: boolean;
+  data_state: PsiParameterDataState;
+  findings_count: number;
+  value_summary: string | null;
+  source_evidence: string | null;
+  notes?: string | null;
+}
+
+export interface ChemicalPsiCompletenessReport {
+  chemical_id: string;
+  chemical_name: string;
+  cas_number: string | null;
+  identification_status: ChemicalIdentificationStatus;
+  categories: PsiCompletenessCategoryReport[];
+  total_categories: number;
+  populated_categories_count: number;
+  verified_categories_count: number;
+  completeness_percentage: number;
+  verification_percentage: number;
+  is_fully_verified: boolean;
+  missing_critical_topics: string[];
+  conflicts_count: number;
+  actionable_engineering_checklist: string[];
+}
+
+export interface ProjectPsiDashboardValidation {
+  project_id: string;
+  total_chemicals: number;
+  confirmed_chemicals_count: number;
+  candidate_chemicals_count: number;
+  unknown_chemicals_count: number;
+  fully_verified_psi_count: number;
+  partially_verified_psi_count: number;
+  unverified_psi_count: number;
+  overall_completeness_pct: number;
+  overall_verification_pct: number;
+  chemical_reports: ChemicalPsiCompletenessReport[];
+  global_engineering_checklist: {
+    chemical_name: string;
+    missing_topic: string;
+    priority: 'high' | 'medium' | 'low';
+    description: string;
+  }[];
+  evaluated_at: string;
+}
+
+export interface GasCompositionComponent {
+  component_name: string;
+  formula?: string | null;
+  cas_number?: string | null;
+  concentration: number;
+  unit: ConcentrationUnit;
+  normalized_mol_pct?: number | null;
+  phase: StreamPhase;
+  is_hazardous: boolean;
+}
+
+export interface GasCompositionReport {
+  id: string;
+  project_id: string;
+  document_id: string;
+  report_title: string;
+  sample_point: string;
+  sample_date?: string | null;
+  analysis_method?: string | null;
+  components: GasCompositionComponent[];
+  total_concentration: number;
+  concentration_unit: ConcentrationUnit;
+  associated_stream_number?: string | null;
+  associated_stream_id?: string | null;
+  ambiguity_flag?: string | null;
+  extracted_at: string;
+}
+
+export interface VerificationHistoryEntry {
+  id: string;
+  project_id: string;
+  target_type: 'chemical' | 'assignment' | 'mapping' | 'psi_category' | 'stream';
+  target_id: string;
+  target_name: string;
+  previous_status: string;
+  new_status: string;
+  reviewer: string;
+  reason: string;
+  timestamp: string;
+}
+
+export type HazopParameterCategory =
+  | 'Pressure'
+  | 'Temperature'
+  | 'Flow'
+  | 'Level'
+  | 'Composition'
+  | 'Phase'
+  | 'Direction'
+  | 'Contamination';
+
+export interface ComprehensiveHazopDeviation {
+  id: string;
+  parameter: HazopParameterCategory;
+  deviation: string; // e.g. "More Flow", "Off-spec Composition", "Liquid Carryover"
+  guideword: string;
+  causes: string[];
+  consequences: string[];
+  existing_safeguards: string[];
+  recommended_safeguards: string[];
+  information_gaps: string[];
+  severity: 'high' | 'medium' | 'low';
+  likelihood: 'high' | 'medium' | 'low';
+  risk_rank: string;
+  requires_engineering_review: boolean;
 }
 

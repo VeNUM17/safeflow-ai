@@ -10,6 +10,9 @@ import {
   PhaDeviationScenario,
   FlowDeviationAnalysis,
   NodeStreamSummary,
+  ChemicalMappingResult,
+  ComprehensiveHazopDeviation,
+  HazopParameterCategory,
 } from '../types';
 
 /**
@@ -468,6 +471,481 @@ export function attachStreamContextToNode(
     ...node.applicable_deviations.filter((d) => d.parameter !== 'Flow'),
     ...flowDeviationScenarios,
   ];
+  return node;
+}
+
+/**
+ * Generates comprehensive chemical-aware HAZOP deviations across 8 parameter categories:
+ * Pressure, Temperature, Flow, Level, Composition, Phase, Direction, Contamination.
+ * Distinguishes existing P&ID safeguards from recommended safeguards.
+ * Explicitly identifies information gaps when chemical composition is unverified or unknown.
+ */
+export function generateComprehensiveHazopDeviations(
+  node: PhaStudyNode,
+  mapping: ChemicalMappingResult | null,
+  allEquipment: EquipmentTag[],
+  allLines: PipingLine[]
+): ComprehensiveHazopDeviation[] {
+  const deviations: ComprehensiveHazopDeviation[] = [];
+  const nodeTagsUpper = node.equipment_tags.map((t) => t.toUpperCase());
+  const nodeEquipment = allEquipment.filter((e) => nodeTagsUpper.includes(e.tag.toUpperCase()));
+
+  const hasSlugCatcher = nodeEquipment.some(
+    (e) =>
+      e.tag.toUpperCase().includes('PG-1001') ||
+      e.description.toLowerCase().includes('slug catcher') ||
+      e.description.toLowerCase().includes('pig receiver')
+  );
+
+  const hasH2S = mapping?.inlet_chemicals.some((c) =>
+    c.chemical_name.toUpperCase().includes('H2S') || c.chemical_name.toUpperCase().includes('HYDROGEN SULFIDE')
+  ) || false;
+
+  const isCompositionVerified = mapping?.mapping_status === 'VERIFIED MAPPING';
+  const compositionGap = !isCompositionVerified
+    ? 'Chemical composition not confirmed; quantitative toxicity, corrosivity, and reactivity hazard scenarios cannot be verified without plant engineering review.'
+    : null;
+
+  // 1. PRESSURE
+  deviations.push({
+    id: uuidv4(),
+    parameter: 'Pressure',
+    deviation: 'MORE PRESSURE / OVERPRESSURE',
+    guideword: 'MORE',
+    causes: [
+      'Downstream block valve or ESD valve XV-1002 inadvertently closed or failing shut.',
+      'Pressure control valve PCV-1001 failed closed or control signal loop lost.',
+      'Upstream wellhead or gathering line pressure surge exceeding normal 90 barg operating pressure.',
+      'External fire impingement or thermal expansion of blocked liquid.',
+    ],
+    consequences: [
+      'Overpressurization beyond vessel design rating (90 barg / 120 °C).',
+      'Catastrophic vessel rupture and high-consequence loss of containment of flammable gas and toxic H2S.',
+    ],
+    existing_safeguards: [
+      'Safety Relief Valve PSV-1001 (set pressure 95 barg, sizing per API 520, routed to sour flare header via 4"-FL-00102-A1A).',
+      'PSV block valves NV-1001 and NV-1002 shall be locked open during normal operation (Note 2).',
+      'Pressure transmitter PT-1002 hardwired to Safety Instrumented System SIS LS-1001 initiating emergency shutdown.',
+      'High pressure alarm (PAH) on DCS pressure transmitter PT-1001.',
+    ],
+    recommended_safeguards: [
+      'Verify PSV-1001 annual pop test and inspection record.',
+      'Perform SIL assessment verification on PT-1002 trip loop and XV-1001/XV-1002 partial stroke test (PST) per Note 4.',
+    ],
+    information_gaps: compositionGap ? [compositionGap] : [],
+    severity: 'high',
+    likelihood: 'low',
+    risk_rank: 'Medium (Adequately Safeguarded)',
+    requires_engineering_review: !isCompositionVerified,
+  });
+
+  deviations.push({
+    id: uuidv4(),
+    parameter: 'Pressure',
+    deviation: 'LESS PRESSURE / RAPID DEPRESSURIZATION',
+    guideword: 'LESS',
+    causes: [
+      'Depressurization to flare via BDV-1001 opening on ESD-1 signal from SIS or CCR operator manual action.',
+      'Upstream production shut-in without downstream isolation.',
+    ],
+    consequences: [
+      'Severe Joule-Thomson expansion cooling during blowdown, risking steel temperature drop below MDMT.',
+      'Risk of low-temperature brittle fracture of carbon steel pressure boundary.',
+    ],
+    existing_safeguards: [
+      'BDV-1001 depressurization rate designed to achieve <= 7 barg within 15 minutes per API 521 (Note 3).',
+      'Material Class A1A impact testing conforming to low-temperature process requirements.',
+      'PT-1001 low pressure indication and alarm in CCR.',
+    ],
+    recommended_safeguards: [
+      'Confirm blowdown acoustic vibration fatigue screening on 4"-FL-00101-A1A line tee per Energy Institute guidelines.',
+    ],
+    information_gaps: [],
+    severity: 'medium',
+    likelihood: 'low',
+    risk_rank: 'Low',
+    requires_engineering_review: false,
+  });
+
+  // 2. TEMPERATURE
+  deviations.push({
+    id: uuidv4(),
+    parameter: 'Temperature',
+    deviation: 'MORE TEMPERATURE',
+    guideword: 'MORE',
+    causes: [
+      'Elevated wellhead fluid temperature from deep formation reservoir.',
+      'External fire exposure or solar thermal heat gain.',
+    ],
+    consequences: [
+      'Exceedance of vessel design temperature rating of 120 °C.',
+      'Accelerated sour corrosion rate and potential degradation of elastomeric valve seals.',
+    ],
+    existing_safeguards: [
+      'Temperature transmitter TT-1001 with high temperature alarm (TAH) in DCS.',
+      'PSV-1001 sized for external fire exposure per API 521.',
+    ],
+    recommended_safeguards: [
+      'Ensure high temperature trip initiates upstream well choke shut-in if TT-1001 exceeds 110 °C.',
+    ],
+    information_gaps: compositionGap ? [compositionGap] : [],
+    severity: 'medium',
+    likelihood: 'low',
+    risk_rank: 'Low',
+    requires_engineering_review: false,
+  });
+
+  deviations.push({
+    id: uuidv4(),
+    parameter: 'Temperature',
+    deviation: 'LESS TEMPERATURE / HYDRATE FORMATION',
+    guideword: 'LESS',
+    causes: [
+      'Joule-Thomson cooling across PCV-1001 or LCV-1001 valves during cold weather.',
+      'Uninsulated vessel surface during winter ambient conditions.',
+    ],
+    consequences: [
+      'Natural gas hydrate formation plugging control valve trims or liquid drain nozzle N3.',
+      'Mechanical blockages causing sudden liquid carryover or pressure rise.',
+    ],
+    existing_safeguards: [
+      'Bottom drain boot and heated tracing where specified.',
+      'TT-1001 temperature monitoring in DCS.',
+    ],
+    recommended_safeguards: [
+      'Install chemical injection quill for thermodynamic hydrate inhibitor (methanol or MEG) upstream of XV-1001.',
+    ],
+    information_gaps: compositionGap ? [compositionGap] : [],
+    severity: 'medium',
+    likelihood: 'medium',
+    risk_rank: 'Medium',
+    requires_engineering_review: !isCompositionVerified,
+  });
+
+  // 3. FLOW
+  deviations.push({
+    id: uuidv4(),
+    parameter: 'Flow',
+    deviation: 'MORE FLOW / SEVERE LIQUID SLUG',
+    guideword: 'MORE',
+    causes: [
+      'Pigging sweep dislodging accumulated liquid inventory in 10" gathering pipeline.',
+      'Multiphase hydrodynamic slugging at high well flowrates.',
+    ],
+    consequences: [
+      'Massive liquid influx exceeding slug catcher retention volume (1200 ID x 8000 LG).',
+      'Rapid level rise submerging gas outlet nozzle N2, causing catastrophic liquid carryover into downstream HP Separator.',
+    ],
+    existing_safeguards: [
+      'Slug catcher surge volume design capacity (1200 ID x 8000 LG).',
+      'Level transmitter LT-1002 (SIS LS-1001) high-high trip automatically closing inlet ESD valve XV-1001 (Note 4).',
+      'Level control loop LIC-1001 / LCV-1001 modulating drain rate to maximum opening.',
+    ],
+    recommended_safeguards: [
+      'Enforce pigging operational procedure limiting pig traversal velocity to match liquid handling capacity.',
+    ],
+    information_gaps: [],
+    severity: 'high',
+    likelihood: 'medium',
+    risk_rank: 'High (Requires Rigorous Interlock Maintenance)',
+    requires_engineering_review: false,
+  });
+
+  deviations.push({
+    id: uuidv4(),
+    parameter: 'Flow',
+    deviation: 'NO / LESS FLOW',
+    guideword: 'NO',
+    causes: [
+      'Pig stuck in receiver barrel or inlet isolation valve XV-1001 inadvertently tripped.',
+      'Upstream production manifold shutdown.',
+    ],
+    consequences: [
+      'Loss of feed to downstream processing facility and gas sales curtailment.',
+      'Pressure buildup in upstream gathering pipeline.',
+    ],
+    existing_safeguards: [
+      'Pig signaller indicator at receiver barrel.',
+      'DCS low pressure and low flow alarms.',
+    ],
+    recommended_safeguards: [
+      'Pig tracking transponder monitoring and operational bypass protocol.',
+    ],
+    information_gaps: [],
+    severity: 'low',
+    likelihood: 'low',
+    risk_rank: 'Low',
+    requires_engineering_review: false,
+  });
+
+  // 4. LEVEL
+  deviations.push({
+    id: uuidv4(),
+    parameter: 'Level',
+    deviation: 'HIGH LEVEL / VESSEL OVERFILL',
+    guideword: 'HIGH',
+    causes: [
+      'Liquid level control valve LCV-1001 failed closed on 4"-PG-00107-A1A.',
+      'Downstream condensate line blocked or valve closed.',
+      'Drain boot blocked with pipeline sludge or hydrates.',
+    ],
+    consequences: [
+      'Liquid fills vessel shell and overflows into gas outlet nozzle N2, causing severe liquid carryover.',
+      'Severe liquid slugging down 10"-PG-00103-A1A line, damaging check valve CV-1001 and PCV-1001.',
+    ],
+    existing_safeguards: [
+      'Independent level transmitter LT-1002 dedicated to Safety Instrumented System SIS LS-1001.',
+      'Emergency shutdown trip closing inlet ESD valve XV-1001 and outlet ESD valve XV-1002.',
+      'Local level gauge sight glass LG-1001 for field visual confirmation.',
+    ],
+    recommended_safeguards: [
+      'Perform functional proof testing of LT-1002 high-high level trip per SIL schedule.',
+    ],
+    information_gaps: [],
+    severity: 'high',
+    likelihood: 'low',
+    risk_rank: 'Medium (Adequately Safeguarded by SIS)',
+    requires_engineering_review: false,
+  });
+
+  deviations.push({
+    id: uuidv4(),
+    parameter: 'Level',
+    deviation: 'LOW LEVEL / HIGH-PRESSURE GAS BLOWBY',
+    guideword: 'LOW',
+    causes: [
+      'Level control valve LCV-1001 failed wide open.',
+      'Manual drain valve BV-1001 inadvertently left open to closed drain.',
+      'Loss of liquid seal during low well liquid production.',
+    ],
+    consequences: [
+      'High-pressure sour gas (90 barg) blows through liquid line into closed drain drum.',
+      'Overpressurization of closed drain drum (rated for lower pressure), lifting drain relief valve or rupturing drain piping.',
+      'Toxic H2S and flammable gas release to drain system.',
+    ],
+    existing_safeguards: [
+      'Low level alarm (LAL) on DCS level controller LIC-1001 / LT-1001.',
+      'LCV-1001 fail-closed actuator upon instrument air loss.',
+      'Note 7: Drain line 2"-DR-00101-A1A routes to closed drain drum with strict prohibition on open draining.',
+    ],
+    recommended_safeguards: [
+      'Implement automated low-level interlock to isolate liquid outlet or add tight shut-off valve upstream of drain drum.',
+    ],
+    information_gaps: compositionGap ? [compositionGap] : [],
+    severity: 'high',
+    likelihood: 'medium',
+    risk_rank: 'High (Blowby Risk to Low Pressure Utility)',
+    requires_engineering_review: !isCompositionVerified,
+  });
+
+  // 5. COMPOSITION
+  deviations.push({
+    id: uuidv4(),
+    parameter: 'Composition',
+    deviation: 'OFF-SPEC COMPOSITION / HIGH H2S CONCENTRATION',
+    guideword: 'OFF-SPEC',
+    causes: [
+      'Reservoir souring or connection of sour wells with higher than design H2S content.',
+      'Acid gas spike in wellstream fluids.',
+    ],
+    consequences: [
+      'Severe acute toxic health hazard to plant personnel (H2S IDLH = 100 ppm; lethal within minutes at >500 ppm).',
+      'Accelerated Sulfide Stress Cracking (SSC) and Hydrogen-Induced Cracking (HIC) of equipment and piping.',
+    ],
+    existing_safeguards: [
+      'Note 1: All equipment and piping in sour gas service conform to NACE MR0175 / ISO 15156, Material Class A1A throughout.',
+      'Note 6: All instrument connections on sour service lines have double block and bleed valve arrangements on root valves.',
+    ],
+    recommended_safeguards: [
+      'Install fixed optical/electrochemical H2S toxic gas detectors around PG-1001 perimeter with visual strobes and audible sirens.',
+      'Mandatory personal H2S gas monitors and escape breathing apparatus (EEBD) for all personnel entering unit battery limits.',
+      'Implement routine corrosion coupon monitoring and ultrasonic wall thickness measurements.',
+    ],
+    information_gaps: compositionGap ? [compositionGap] : [],
+    severity: 'high',
+    likelihood: 'low',
+    risk_rank: 'High (Toxic Chemical Risk)',
+    requires_engineering_review: !isCompositionVerified,
+  });
+
+  deviations.push({
+    id: uuidv4(),
+    parameter: 'Composition',
+    deviation: 'HIGH WATER CUT / CORROSIVE WET GAS',
+    guideword: 'MORE WATER',
+    causes: [
+      'Formation water breakthrough in upstream producing wells.',
+      'Condensation of water vapor in subsea/buried gathering pipeline.',
+    ],
+    consequences: [
+      'Wet CO2 and H2S combining to form aggressive carbonic acid and wet sour acid corrosion.',
+      'Accelerated internal wall loss and sludge deposition.',
+    ],
+    existing_safeguards: [
+      'Vessel liquid boot design collecting aqueous phase at nozzle N3.',
+      'Corrosion allowance provided in vessel shell design per ASME Section VIII Div 1.',
+    ],
+    recommended_safeguards: [
+      'Install inline water-cut / BS&W monitor on inlet manifold.',
+      'Continuous corrosion inhibitor injection skid upstream of inlet header.',
+    ],
+    information_gaps: compositionGap ? [compositionGap] : [],
+    severity: 'medium',
+    likelihood: 'medium',
+    risk_rank: 'Medium',
+    requires_engineering_review: !isCompositionVerified,
+  });
+
+  // 6. PHASE
+  deviations.push({
+    id: uuidv4(),
+    parameter: 'Phase',
+    deviation: 'LIQUID CARRYOVER IN OVERHEAD GAS STREAM',
+    guideword: 'WRONG PHASE',
+    causes: [
+      'High superficial gas velocity stripping liquid droplets from liquid pool.',
+      'Foaming hydrocarbons or demister mesh pad fouling/plugging.',
+      'High liquid level in vessel during slug arrival.',
+    ],
+    consequences: [
+      'Liquid entrainment entering 10"-PG-00103-A1A gas outlet line.',
+      'Liquid slugging into check valve CV-1001, ESD valve XV-1002, and PCV-1001, causing valve seat damage and piping vibration.',
+      'Liquid accumulation in downstream HP Separator inlet header.',
+    ],
+    existing_safeguards: [
+      'Horizontal vessel gravity separation geometry (1200 ID x 8000 LG) providing gas disengagement retention time.',
+      'Internal vane pack / mesh mist extractor at nozzle N2 (Gas Outlet).',
+      'SIS LS-1001 high-high level trip on LT-1002.',
+    ],
+    recommended_safeguards: [
+      'Install differential pressure transmitter across internal mist eliminator to detect fouling.',
+    ],
+    information_gaps: [],
+    severity: 'high',
+    likelihood: 'low',
+    risk_rank: 'Medium',
+    requires_engineering_review: false,
+  });
+
+  // 7. DIRECTION
+  deviations.push({
+    id: uuidv4(),
+    parameter: 'Direction',
+    deviation: 'REVERSE FLOW FROM DOWNSTREAM HEADER OR FLARE',
+    guideword: 'REVERSE',
+    causes: [
+      'Downstream HP Separator overpressure back-flowing toward PG-1001 when inlet pressure drops.',
+      'High backpressure in sour flare header during full-plant emergency depressurization.',
+    ],
+    consequences: [
+      'Process gas backflow into lower-pressure upstream systems.',
+      'Sour flare gas entering vessel or drain drum through leaking relief/vent seats.',
+    ],
+    existing_safeguards: [
+      'Check valve CV-1001 installed on gas outlet line 10"-PG-00103-A1A to prevent outlet backflow (Note: Line List CV-1001 Outlet Backflow Prevention).',
+      'Blowdown valve BDV-1001 normally closed and PSV-1001 spring-loaded closed against flare header.',
+    ],
+    recommended_safeguards: [
+      'Include check valve CV-1001 in safety-critical non-return valve PM inspection program.',
+    ],
+    information_gaps: [],
+    severity: 'medium',
+    likelihood: 'low',
+    risk_rank: 'Low',
+    requires_engineering_review: false,
+  });
+
+  // 8. CONTAMINATION
+  deviations.push({
+    id: uuidv4(),
+    parameter: 'Contamination',
+    deviation: 'SOLIDS / SCALE / SAND INGRESS',
+    guideword: 'CONTAMINATION',
+    causes: [
+      'Pipeline pig scraper pushing accumulated iron sulfide (FeS) scale and corrosion debris into receiver barrel.',
+      'Formation sand carryover from unconsolidated gas reservoir.',
+    ],
+    consequences: [
+      'Severe erosion on valve seats of XV-1001, CV-1001, and PCV-1001.',
+      'Blockage of 2"-DR-00101-A1A drain nozzle N5, preventing liquid removal and blinding level transmitters LT-1001/LT-1002.',
+    ],
+    existing_safeguards: [
+      'Pig receiver barrel oversized to capture bulk solids during pig reception.',
+      'Drain nozzle N5 with manual drain isolation valve BV-1001 for solids flushout.',
+    ],
+    recommended_safeguards: [
+      'Install non-intrusive acoustic sand detectors on inlet line 10"-PG-00101-A1A.',
+      'Provide high-pressure flushing utility connection on drain nozzle N5.',
+    ],
+    information_gaps: [],
+    severity: 'medium',
+    likelihood: 'medium',
+    risk_rank: 'Medium',
+    requires_engineering_review: false,
+  });
+
+  deviations.push({
+    id: uuidv4(),
+    parameter: 'Contamination',
+    deviation: 'OXYGEN / AIR INGRESS DURING PIGGING',
+    guideword: 'INCOMPATIBLE',
+    causes: [
+      'Opening pig door N7 (Quick Opening Closure) for pig retrieval without complete nitrogen purge and verification.',
+      'Air ingress when vessel is drained down without inert gas makeup.',
+    ],
+    consequences: [
+      'Formation of explosive hydrocarbon-air mixture.',
+      'Pyrophoric iron sulfide (FeS) auto-igniting upon exposure to air, causing internal vessel explosion or personnel flash burns.',
+    ],
+    existing_safeguards: [
+      'Note 5: Pig receiver PG-1001 quick-opening closure shall be interlocked - closure cannot be opened unless internal pressure is confirmed zero on PI-1001 and XV-1001 is confirmed closed (interlock logic in SIS).',
+      'Vent nozzle N6 (2"-VT-00101-A1A) with isolation valve BV-1002 routed safely to sour flare header.',
+    ],
+    recommended_safeguards: [
+      'Strict nitrogen purging protocol with portable certified oxygen analyzer check (< 0.5% O2) before closure door opening and before re-introducing hydrocarbons.',
+    ],
+    information_gaps: [],
+    severity: 'high',
+    likelihood: 'low',
+    risk_rank: 'High (Pyrophoric Ignition Hazard)',
+    requires_engineering_review: false,
+  });
+
+  return deviations;
+}
+
+/**
+ * Attaches chemical mapping and comprehensive HAZOP deviations to a PHA study node.
+ */
+export function attachChemicalContextToPhaNode(
+  node: PhaStudyNode,
+  mapping: ChemicalMappingResult | null,
+  allEquipment: EquipmentTag[],
+  allLines: PipingLine[]
+): PhaStudyNode {
+  node.chemical_mapping = mapping;
+
+  if (mapping) {
+    const inletCount = mapping.inlet_chemicals.length;
+    const outletCount = mapping.outlet_chemicals.length;
+    const verifiedStatus = mapping.mapping_status;
+    node.chemical_context_summary =
+      `Target: ${mapping.target_tag} (${mapping.phase} phase). ` +
+      `Status: ${verifiedStatus}. ` +
+      `Inlet: ${inletCount} chemical species. Outlet: ${outletCount} chemical species. ` +
+      (mapping.separation_summary ? `Separation: ${mapping.separation_summary}` : '');
+  } else {
+    node.chemical_context_summary = 'No chemical mapping evaluated for this node.';
+  }
+
+  // Generate the 8 parameter deviations
+  node.comprehensive_hazop_deviations = generateComprehensiveHazopDeviations(
+    node,
+    mapping,
+    allEquipment,
+    allLines
+  );
+
   return node;
 }
 

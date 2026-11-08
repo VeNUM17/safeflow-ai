@@ -16,6 +16,10 @@ import { validateCandidateTopology } from '../services/topologyValidationService
 import { classifyDocument } from '../services/documentClassifier';
 import { generateDigitalPidFromExtracted } from '../services/digitalDrawingGenerator';
 import { DocumentRecord, DocumentType, PipingLine, EquipmentTag, createDefaultSpecifications, ProcessStream } from '../types';
+import { parseGasCompositionReportText } from '../services/chemicalIdentificationEngine';
+import { evaluateEquipmentChemicalMapping, evaluateProjectChemicalMappings } from '../services/chemicalMappingEngine';
+import { validateProjectPsiCompleteness } from '../services/psiValidationService';
+import { attachChemicalContextToPhaNode } from '../services/phaService';
 
 const router = Router();
 
@@ -1404,6 +1408,295 @@ router.post('/projects/:id/sync-connections', (req: Request, res: Response) => {
 
   const summary = store.getDashboardSummary(projectId);
   res.json({ success: true, data: { ...result, summary } });
+});
+
+// ============================================================================
+// HYBRID CHEMICAL IDENTIFICATION & PROCESS MAPPING ROUTES
+// ============================================================================
+
+// --- Chemical Assignments ---
+router.get('/projects/:id/chemical-assignments', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const assignments = store.listChemicalAssignments(projectId);
+  res.json({ success: true, data: assignments });
+});
+
+router.post('/projects/:id/chemical-assignments', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const {
+    chemical_id,
+    chemical_name,
+    cas_number,
+    equipment_id,
+    equipment_tag,
+    stream_id,
+    stream_number,
+    connection_endpoint,
+    concentration,
+    concentration_unit,
+    phase,
+    source_document,
+    source_page_or_location,
+    notes,
+    author,
+    verification_status,
+  } = req.body;
+
+  if (!chemical_id || !chemical_name) {
+    return res.status(400).json({ success: false, error: 'chemical_id and chemical_name are required' });
+  }
+
+  const assignment = store.saveChemicalAssignment(
+    {
+      project_id: projectId,
+      chemical_id,
+      chemical_name,
+      cas_number,
+      equipment_id,
+      equipment_tag,
+      stream_id,
+      stream_number,
+      connection_endpoint: connection_endpoint || 'all',
+      concentration: concentration !== undefined && concentration !== '' ? Number(concentration) : null,
+      concentration_unit: concentration_unit || 'mol%',
+      phase: phase || null,
+      source_document: source_document || 'Manual Plant Engineering Entry',
+      source_page_or_location,
+      notes,
+      verification_status: verification_status || 'unverified',
+    },
+    author || 'Process Safety Engineer'
+  );
+
+  // Trigger mapping re-evaluation
+  const equipment = store.listEquipment(projectId);
+  const lines = store.listLines(projectId);
+  const streams = store.listStreams(projectId);
+  const assignments = store.listChemicalAssignments(projectId);
+  const gasReports = store.listGasCompositionReports(projectId);
+
+  const mappings = evaluateProjectChemicalMappings({
+    projectId,
+    equipment,
+    lines,
+    streams,
+    assignments,
+    gasReports,
+  });
+  for (const m of mappings) {
+    store.saveChemicalMapping(m);
+  }
+
+  res.status(201).json({ success: true, data: assignment });
+});
+
+router.put('/projects/:id/chemical-assignments/:assignmentId', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const assignmentId = getParam(req.params.assignmentId);
+
+  const existing = store.getChemicalAssignment(assignmentId);
+  if (!existing || existing.project_id !== projectId) {
+    return res.status(404).json({ success: false, error: 'Chemical assignment not found' });
+  }
+
+  const updated = store.saveChemicalAssignment(
+    {
+      ...req.body,
+      id: assignmentId,
+      project_id: projectId,
+      chemical_id: req.body.chemical_id || existing.chemical_id,
+      chemical_name: req.body.chemical_name || existing.chemical_name,
+      concentration:
+        req.body.concentration !== undefined && req.body.concentration !== ''
+          ? Number(req.body.concentration)
+          : null,
+    },
+    req.body.author || 'Process Safety Engineer'
+  );
+
+  res.json({ success: true, data: updated });
+});
+
+router.delete('/projects/:id/chemical-assignments/:assignmentId', (req: Request, res: Response) => {
+  const assignmentId = getParam(req.params.assignmentId);
+  const author = req.body?.author || 'Process Safety Engineer';
+  const deleted = store.deleteChemicalAssignment(assignmentId, author);
+
+  if (!deleted) {
+    return res.status(404).json({ success: false, error: 'Chemical assignment not found' });
+  }
+
+  res.json({ success: true, message: 'Assignment deleted' });
+});
+
+router.post('/projects/:id/chemical-assignments/:assignmentId/verify', (req: Request, res: Response) => {
+  const assignmentId = getParam(req.params.assignmentId);
+  const reviewer = req.body.reviewer || 'Lead Process Safety Engineer (PE)';
+  const status = req.body.status || 'verified';
+
+  try {
+    const verified = store.verifyChemicalAssignment(assignmentId, reviewer, status);
+    res.json({ success: true, data: verified });
+  } catch (err: any) {
+    res.status(404).json({ success: false, error: err.message });
+  }
+});
+
+// --- Chemical Mappings ---
+router.get('/projects/:id/chemical-mappings', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  let mappings = store.listChemicalMappings(projectId);
+
+  if (mappings.length === 0) {
+    const equipment = store.listEquipment(projectId);
+    const lines = store.listLines(projectId);
+    const streams = store.listStreams(projectId);
+    const assignments = store.listChemicalAssignments(projectId);
+    const gasReports = store.listGasCompositionReports(projectId);
+
+    mappings = evaluateProjectChemicalMappings({
+      projectId,
+      equipment,
+      lines,
+      streams,
+      assignments,
+      gasReports,
+    });
+    for (const m of mappings) {
+      store.saveChemicalMapping(m);
+    }
+  }
+
+  res.json({ success: true, data: mappings });
+});
+
+router.post('/projects/:id/chemical-mappings/evaluate', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const equipment = store.listEquipment(projectId);
+  const lines = store.listLines(projectId);
+  const streams = store.listStreams(projectId);
+  const assignments = store.listChemicalAssignments(projectId);
+  const gasReports = store.listGasCompositionReports(projectId);
+
+  const mappings = evaluateProjectChemicalMappings({
+    projectId,
+    equipment,
+    lines,
+    streams,
+    assignments,
+    gasReports,
+  });
+
+  for (const m of mappings) {
+    store.saveChemicalMapping(m);
+  }
+
+  res.json({ success: true, data: mappings });
+});
+
+// --- Gas Composition Reports ---
+router.get('/projects/:id/gas-composition-reports', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const reports = store.listGasCompositionReports(projectId);
+  res.json({ success: true, data: reports });
+});
+
+router.post('/projects/:id/gas-composition-reports', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const { raw_text, report_title, sample_point, associated_stream_number, components, concentration_unit } = req.body;
+
+  let report: any;
+  if (raw_text) {
+    report = parseGasCompositionReportText(
+      raw_text,
+      projectId,
+      'doc-gas-analysis-manual',
+      report_title || 'Wellhead Gas Composition Analysis'
+    );
+    if (sample_point) report.sample_point = sample_point;
+    if (associated_stream_number) report.associated_stream_number = associated_stream_number;
+  } else if (Array.isArray(components)) {
+    const total = components.reduce((sum: number, c: any) => sum + (Number(c.concentration) || 0), 0);
+    report = {
+      id: uuidv4(),
+      project_id: projectId,
+      document_id: 'doc-gas-analysis-manual',
+      report_title: report_title || 'Laboratory Gas Composition Report',
+      sample_point: sample_point || 'Inlet Reception Manifold',
+      sample_date: new Date().toISOString().split('T')[0],
+      analysis_method: 'Gas Chromatography (ASTM D1945)',
+      components,
+      total_concentration: Number(total.toFixed(2)),
+      concentration_unit: concentration_unit || 'mol%',
+      associated_stream_number: associated_stream_number || null,
+      associated_stream_id: null,
+      ambiguity_flag: null,
+      extracted_at: new Date().toISOString(),
+    };
+  } else {
+    return res.status(400).json({ success: false, error: 'raw_text or components array is required' });
+  }
+
+  const saved = store.saveGasCompositionReport(report);
+
+  // Re-evaluate chemical mappings across project
+  const equipment = store.listEquipment(projectId);
+  const lines = store.listLines(projectId);
+  const streams = store.listStreams(projectId);
+  const assignments = store.listChemicalAssignments(projectId);
+  const gasReports = store.listGasCompositionReports(projectId);
+
+  const mappings = evaluateProjectChemicalMappings({
+    projectId,
+    equipment,
+    lines,
+    streams,
+    assignments,
+    gasReports,
+  });
+  for (const m of mappings) {
+    store.saveChemicalMapping(m);
+  }
+
+  res.status(201).json({ success: true, data: saved, mappings_updated: mappings.length });
+});
+
+// --- PSI Completeness Report ---
+router.get('/projects/:id/psi-completeness', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const completeness = store.getPsiCompletenessReport(projectId);
+  res.json({ success: true, data: completeness });
+});
+
+// --- Verification History ---
+router.get('/projects/:id/verification-history', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const history = store.getVerificationHistory(projectId);
+  res.json({ success: true, data: history });
+});
+
+// --- PHA Chemical Context Integration ---
+router.get('/projects/:id/pha-chemical-context/:nodeId', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const nodeId = getParam(req.params.nodeId);
+
+  const nodes = store.listPhaNodes(projectId);
+  const node = nodes.find((n) => n.id === nodeId || n.node_id === nodeId);
+  if (!node) {
+    return res.status(404).json({ success: false, error: 'PHA Node not found' });
+  }
+
+  const equipment = store.listEquipment(projectId);
+  const lines = store.listLines(projectId);
+  const mappings = store.listChemicalMappings(projectId);
+
+  // Match mapping for node's primary equipment
+  const matchingMapping = mappings.find((m) =>
+    node.equipment_tags.some((t) => t.toUpperCase() === m.target_tag.toUpperCase())
+  ) || null;
+
+  const enrichedNode = attachChemicalContextToPhaNode(node, matchingMapping, equipment, lines);
+  res.json({ success: true, data: enrichedNode });
 });
 
 // --- HEALTH CHECK ---

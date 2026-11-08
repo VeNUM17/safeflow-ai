@@ -10,6 +10,7 @@ import { ConflictResolutionModal } from './components/ConflictResolutionModal';
 import { ExportModal } from './components/ExportModal';
 import { NewProjectModal } from './components/NewProjectModal';
 import { ManualChemicalModal } from './components/ManualChemicalModal';
+import { ChemicalInventoryAssignmentView } from './components/ChemicalInventoryAssignmentView';
 import {
   ProcessProject,
   ProjectDashboardSummary,
@@ -34,7 +35,7 @@ export const App: React.FC = () => {
   const [graph, setGraph] = useState<TopologyGraph | null>(null);
   const [selectedChemicalId, setSelectedChemicalId] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'workspace' | 'pid-graph' | 'documents'>('workspace');
+  const [activeTab, setActiveTab] = useState<'workspace' | 'pid-graph' | 'chemical-inventory' | 'documents'>('workspace');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -421,6 +422,18 @@ export const App: React.FC = () => {
               }
             }}
             onRefreshProject={async () => {
+              if (currentProject) await loadProjectData(currentProject.id);
+            }}
+          />
+        ) : activeTab === 'chemical-inventory' ? (
+          <ChemicalInventoryAssignmentView
+            projectId={currentProject?.id || ''}
+            project={currentProject}
+            chemicals={chemicals}
+            equipment={equipment}
+            lines={lines}
+            onOpenManualChemicalModal={handleOpenCreateChemical}
+            onRefreshData={async () => {
               if (currentProject) await loadProjectData(currentProject.id);
             }}
           />

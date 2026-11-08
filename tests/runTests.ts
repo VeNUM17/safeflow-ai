@@ -43,6 +43,10 @@ import {
   CommonDrawingModel,
   ConnectionCandidate,
   ProcessDescriptionExtraction,
+  ChemicalAssignment,
+  ChemicalMappingResult,
+  GasCompositionReport,
+  ProjectPsiDashboardValidation,
 } from '../server/src/types';
 import { classifyDocument } from '../server/src/services/documentClassifier';
 import { extractVectorGeometry } from '../server/src/services/vectorPdfService';
@@ -53,6 +57,20 @@ import { tracePipingNetwork, findLineIntersection } from '../server/src/services
 import { parseProcessDescription } from '../server/src/services/processDescriptionService';
 import { reconcileConnections } from '../server/src/services/connectionReconciliationService';
 import { validateCandidateTopology } from '../server/src/services/topologyValidationService';
+import {
+  parseGasCompositionReportText,
+  determineIdentificationStatus,
+} from '../server/src/services/chemicalIdentificationEngine';
+import {
+  evaluateEquipmentChemicalMapping,
+  evaluateProjectChemicalMappings,
+  isMultiphaseSeparator,
+} from '../server/src/services/chemicalMappingEngine';
+import { validateProjectPsiCompleteness } from '../server/src/services/psiValidationService';
+import {
+  attachChemicalContextToPhaNode,
+  generateComprehensiveHazopDeviations,
+} from '../server/src/services/phaService';
 
 console.log('🧪 Starting SafeFlow AI & PSI Engine Comprehensive Test Suite...\n');
 
@@ -4676,6 +4694,484 @@ test('Scenario 3: Authoritative topology graph achieves zero isolated nodes for 
 
   const isolatedNodes = graph.nodes.filter((n) => n.is_isolated);
   assert.strictEqual(isolatedNodes.length, 0, 'No equipment item should remain falsely isolated');
+});
+
+// ============================================================================
+// TEST GROUP 18: HYBRID CHEMICAL IDENTIFICATION & PROCESS MAPPING ENGINE
+// ============================================================================
+
+console.log('\n--- Test Group 18: Hybrid Chemical Identification & Process Mapping Engine ---');
+
+test('Scenario 1: P&ID Only — Unconfirmed chemical identities remain UNKNOWN and no numerical concentrations are invented', () => {
+  const dummyEq: EquipmentTag = {
+    id: 'eq-pg1001-test',
+    project_id: 'proj-pid-only',
+    document_id: 'doc-pid-1',
+    tag: 'PG-1001',
+    description: 'PIG RECEIVER / SLUG CATCHER',
+    equipment_type: 'separator',
+    assigned_chemical_id: null,
+    confidence: 0.95,
+    status: 'confirmed',
+    source: { document: 'P&ID-GPF-001-02', page: 1, snippet: 'PG-1001 PIG RECEIVER' },
+    specifications: createDefaultSpecifications('separator'),
+    created_at: new Date().toISOString(),
+  };
+
+  const dummyLine: PipingLine = {
+    id: 'line-inlet-test',
+    project_id: 'proj-pid-only',
+    document_id: 'doc-pid-1',
+    line_number: '10"-PG-00101-A1A',
+    from_equipment: 'MANIFOLD-MV-1001',
+    to_equipment: 'PG-1001',
+    size: '10"',
+    material: 'A1A',
+    functional_type: 'piping_line',
+    flow_direction: 'forward',
+    assigned_chemical_id: null,
+    stream_label: 'Feed from production manifold',
+    status: 'confirmed',
+    confidence: 0.92,
+    source: { document: 'P&ID-GPF-001-02', page: 1, snippet: '10"-PG-00101-A1A' },
+    created_at: new Date().toISOString(),
+  };
+
+  // Determine status with zero SDS and zero gas reports
+  const statusWithoutEvidence = determineIdentificationStatus('PG-1001', 'equipment', {
+    explicitPipingLabels: [dummyLine.stream_label || ''],
+    associatedReports: [],
+    verifiedAssignments: false,
+    hasProjectChemicals: false,
+  });
+
+  assert.strictEqual(statusWithoutEvidence, 'UNKNOWN', 'Without chemical evidence, chemical status must be UNKNOWN');
+
+  // Evaluate chemical mapping
+  const mapping = evaluateEquipmentChemicalMapping(dummyEq, {
+    projectId: 'proj-pid-only',
+    equipment: [dummyEq],
+    lines: [dummyLine],
+    streams: [],
+    assignments: [],
+    gasReports: [],
+  });
+
+  assert.strictEqual(mapping.mapping_status, 'INCOMPLETE MAPPING', 'Mapping must be INCOMPLETE MAPPING when no chemicals are identified');
+  assert.strictEqual(mapping.inlet_chemicals.length, 0, 'No inlet chemicals should be hallucinated');
+  assert.strictEqual(mapping.outlet_chemicals.length, 0, 'No outlet chemicals should be hallucinated');
+  assert.ok(mapping.unresolved_gaps.length > 0, 'Must record unresolved gaps stating chemical composition is missing');
+});
+
+test('Scenario 2: P&ID + SDS — SDS chemicals exist in inventory but are NOT automatically assigned without evidence', () => {
+  const dummyChem: ChemicalRecord = {
+    id: 'chem-h2s-test',
+    project_id: 'proj-sds-test',
+    sds_document_id: 'doc-sds-h2s',
+    origin: 'sds_extracted',
+    record_status: 'active',
+    chemical_name: {
+      ...createEmptyPsiFieldRecord('chemical_name'),
+      value: 'Hydrogen Sulfide',
+      review_status: 'confirmed',
+    },
+    cas_number: {
+      ...createEmptyPsiFieldRecord('cas_number'),
+      value: '7783-06-4',
+      review_status: 'confirmed',
+    },
+    sds_revision_date: createEmptyPsiFieldRecord('sds_revision_date'),
+    manufacturer: createEmptyPsiFieldRecord('manufacturer'),
+    psi_parameters: createEmptyPsiParameters('machine'),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  const dummyEq: EquipmentTag = {
+    id: 'eq-pg1001-sds',
+    project_id: 'proj-sds-test',
+    document_id: 'doc-pid-1',
+    tag: 'PG-1001',
+    description: 'PIG RECEIVER / SLUG CATCHER',
+    equipment_type: 'separator',
+    assigned_chemical_id: null, // Note: NOT explicitly assigned yet!
+    confidence: 0.95,
+    status: 'confirmed',
+    source: { document: 'P&ID-GPF-001-02', page: 1, snippet: 'PG-1001' },
+    specifications: createDefaultSpecifications('separator'),
+    created_at: new Date().toISOString(),
+  };
+
+  const dummyLine: PipingLine = {
+    id: 'line-pg101',
+    project_id: 'proj-sds-test',
+    document_id: 'doc-pid-1',
+    line_number: '10"-PG-00101-A1A',
+    from_equipment: 'MANIFOLD',
+    to_equipment: 'PG-1001',
+    size: '10"',
+    material: 'A1A',
+    functional_type: 'piping_line',
+    flow_direction: 'forward',
+    assigned_chemical_id: null,
+    status: 'confirmed',
+    confidence: 0.9,
+    source: { document: 'P&ID-GPF-001-02', page: 1, snippet: '10"-PG-00101-A1A' },
+    created_at: new Date().toISOString(),
+  };
+
+  // Evaluate mapping without manual assignment
+  const mapping = evaluateEquipmentChemicalMapping(dummyEq, {
+    projectId: 'proj-sds-test',
+    equipment: [dummyEq],
+    lines: [dummyLine],
+    streams: [],
+    assignments: [], // Empty assignments!
+    gasReports: [],
+  });
+
+  // CRITICAL CHECK: Simply uploading an SDS does NOT assign it to PG-1001!
+  assert.strictEqual(mapping.inlet_chemicals.length, 0, 'SDS chemical must NOT be automatically assigned to equipment without evidence');
+  assert.strictEqual(mapping.mapping_status, 'INCOMPLETE MAPPING');
+
+  // But the chemical is a CANDIDATE at the project level
+  const status = determineIdentificationStatus('PG-1001', 'equipment', {
+    explicitPipingLabels: [],
+    associatedReports: [],
+    verifiedAssignments: false,
+    hasProjectChemicals: true,
+  });
+  assert.strictEqual(status, 'CANDIDATE', 'Chemical should remain a CANDIDATE in project inventory until assigned');
+});
+
+test('Scenario 3: P&ID + Gas Composition Report — Extracts components, normalizes concentrations, and links to stream', () => {
+  const sampleGasReportText = `
+Sample Point: Inlet Reception Manifold (10"-PG-00101-A1A)
+Analysis Method: Gas Chromatography (ASTM D1945)
+Date: 2026-06-15
+
+Component       mol%
+Methane         82.40
+Ethane           5.80
+Propane          3.20
+i-Butane         0.85
+n-Butane         1.15
+i-Pentane        0.45
+n-Pentane        0.55
+Hexanes+         1.20
+Hydrogen Sulfide 2.10
+Carbon Dioxide   1.50
+Nitrogen         0.80
+`;
+
+  const report = parseGasCompositionReportText(sampleGasReportText, 'proj-gas-test', 'doc-gas-1');
+
+  assert.strictEqual(report.components.length, 11, 'Must extract all 11 gas components');
+  assert.strictEqual(report.concentration_unit, 'mol%', 'Detected unit must be mol%');
+  assert.strictEqual(report.sample_point, 'Inlet Reception Manifold (10"-PG-00101-A1A)');
+
+  // Verify H2S extraction
+  const h2s = report.components.find((c) => c.component_name.toLowerCase().includes('hydrogen sulfide') || c.component_name.toLowerCase().includes('h2s'));
+  assert.ok(h2s, 'Hydrogen Sulfide must be extracted');
+  assert.strictEqual(h2s.concentration, 2.1);
+  assert.strictEqual(h2s.formula, 'H2S');
+  assert.strictEqual(h2s.is_hazardous, true);
+  assert.strictEqual(h2s.phase, 'gas');
+
+  // Verify Pentanes / Hexanes liquid phase assignment
+  const c6plus = report.components.find((c) => c.component_name.toLowerCase().includes('hexanes+'));
+  assert.ok(c6plus, 'Hexanes+ must be extracted');
+  assert.strictEqual(c6plus.phase, 'liquid', 'Hexanes+ should have default phase liquid');
+
+  // Verify normalization
+  assert.strictEqual(report.total_concentration, 100, 'Total concentration sum must equal 100 mol%');
+  assert.strictEqual(report.ambiguity_flag, null, 'No ambiguity flag when sum is 100%');
+});
+
+test('Scenario 4: Manual Chemical Assignment & Audit Trail — Full verification workflow with reviewer attribution', () => {
+  const store = new PsiDataStore();
+
+  const asgn = store.saveChemicalAssignment(
+    {
+      project_id: 'proj-assign-test',
+      chemical_id: 'chem-h2s-assigned',
+      chemical_name: 'Hydrogen Sulfide',
+      cas_number: '7783-06-4',
+      equipment_tag: 'PG-1001',
+      connection_endpoint: 'inlet',
+      concentration: 2.1,
+      concentration_unit: 'mol%',
+      phase: 'gas',
+      source_document: 'P&ID-GPF-001-02 Note 1',
+      notes: 'Sour gas service complying with NACE MR0175',
+      verification_status: 'unverified',
+    },
+    'Junior Engineer'
+  );
+
+  assert.ok(asgn.id, 'Assignment ID must be generated');
+  assert.strictEqual(asgn.verification_status, 'unverified');
+  assert.strictEqual(asgn.identification_status, 'CANDIDATE', 'Unverified manual assignment is a CANDIDATE');
+
+  // Engineer verifies the assignment
+  const verified = store.verifyChemicalAssignment(asgn.id, 'Lead Process Safety Engineer (PE)', 'verified');
+  assert.strictEqual(verified.verification_status, 'verified');
+  assert.strictEqual(verified.identification_status, 'CONFIRMED', 'Verified assignment transitions to CONFIRMED');
+  assert.strictEqual(verified.reviewer, 'Lead Process Safety Engineer (PE)');
+
+  // Verify history entry
+  const history = store.getVerificationHistory('proj-assign-test');
+  assert.ok(history.length >= 1, 'Verification history entry must be logged');
+  assert.strictEqual(history[0].new_status, 'verified');
+  assert.strictEqual(history[0].reviewer, 'Lead Process Safety Engineer (PE)');
+});
+
+test('Scenario 5: Multiphase Separation Mapping — Vessel partitions inlet into gas/liquid outlets without fabricating concentrations', () => {
+  const dummyEq: EquipmentTag = {
+    id: 'eq-pg1001-sep',
+    project_id: 'proj-multiphase',
+    document_id: 'doc-pid-1',
+    tag: 'PG-1001',
+    description: 'PIG RECEIVER / SLUG CATCHER (1200 ID x 8000 LG, 90 BARG / 120 °C)',
+    equipment_type: 'separator',
+    assigned_chemical_id: null,
+    confidence: 0.98,
+    status: 'confirmed',
+    source: { document: 'P&ID-GPF-001-02', page: 1, snippet: 'PG-1001' },
+    specifications: createDefaultSpecifications('separator'),
+    created_at: new Date().toISOString(),
+  };
+
+  assert.ok(isMultiphaseSeparator(dummyEq), 'PG-1001 must be recognized as a multiphase separator');
+
+  const inletLine: PipingLine = {
+    id: 'line-inlet',
+    project_id: 'proj-multiphase',
+    document_id: 'doc-pid-1',
+    line_number: '10"-PG-00101-A1A',
+    from_equipment: 'MANIFOLD',
+    to_equipment: 'PG-1001',
+    size: '10"',
+    material: 'A1A',
+    functional_type: 'piping_line',
+    flow_direction: 'forward',
+    assigned_chemical_id: null,
+    status: 'confirmed',
+    confidence: 0.95,
+    source: { document: 'P&ID-GPF-001-02', page: 1, snippet: '10"-PG-00101-A1A' },
+    created_at: new Date().toISOString(),
+  };
+
+  const gasOutletLine: PipingLine = {
+    id: 'line-gas-out',
+    project_id: 'proj-multiphase',
+    document_id: 'doc-pid-1',
+    line_number: '10"-PG-00103-A1A',
+    from_equipment: 'PG-1001',
+    to_equipment: 'CV-1001',
+    size: '10"',
+    material: 'A1A',
+    functional_type: 'piping_line',
+    flow_direction: 'forward',
+    stream_label: 'Gas Outlet N2',
+    assigned_chemical_id: null,
+    status: 'confirmed',
+    confidence: 0.95,
+    source: { document: 'P&ID-GPF-001-02', page: 1, snippet: '10"-PG-00103-A1A' },
+    created_at: new Date().toISOString(),
+  };
+
+  const liquidOutletLine: PipingLine = {
+    id: 'line-liq-out',
+    project_id: 'proj-multiphase',
+    document_id: 'doc-pid-1',
+    line_number: '4"-PG-00107-A1A',
+    from_equipment: 'PG-1001',
+    to_equipment: 'LCV-1001',
+    size: '4"',
+    material: 'A1A',
+    functional_type: 'piping_line',
+    flow_direction: 'forward',
+    stream_label: 'Liquid Outlet N3 (Condensate)',
+    assigned_chemical_id: null,
+    status: 'confirmed',
+    confidence: 0.95,
+    source: { document: 'P&ID-GPF-001-02', page: 1, snippet: '4"-PG-00107-A1A' },
+    created_at: new Date().toISOString(),
+  };
+
+  // Gas report on the inlet line
+  const gasReport: GasCompositionReport = {
+    id: 'report-inlet',
+    project_id: 'proj-multiphase',
+    document_id: 'doc-gas-1',
+    report_title: 'Inlet Wet Sour Gas Chromatography',
+    sample_point: '10"-PG-00101-A1A',
+    associated_stream_number: '10"-PG-00101-A1A',
+    total_concentration: 100,
+    concentration_unit: 'mol%',
+    analysis_method: 'ASTM D1945',
+    extracted_at: new Date().toISOString(),
+    components: [
+      { component_name: 'Methane', concentration: 82.5, unit: 'mol%', phase: 'gas', is_hazardous: true },
+      { component_name: 'Hydrogen Sulfide', concentration: 2.5, unit: 'mol%', phase: 'gas', is_hazardous: true },
+      { component_name: 'Condensate (C5+)', concentration: 5.0, unit: 'mol%', phase: 'liquid', is_hazardous: true },
+      { component_name: 'Produced Water', concentration: 2.0, unit: 'mol%', phase: 'liquid', is_hazardous: false },
+    ],
+  };
+
+  const mapping = evaluateEquipmentChemicalMapping(dummyEq, {
+    projectId: 'proj-multiphase',
+    equipment: [dummyEq],
+    lines: [inletLine, gasOutletLine, liquidOutletLine],
+    streams: [],
+    assignments: [],
+    gasReports: [gasReport],
+  });
+
+  assert.strictEqual(mapping.is_multiphase_separation, true);
+  assert.strictEqual(mapping.phase, 'multiphase');
+  assert.strictEqual(mapping.inlet_chemicals.length, 4);
+
+  // Check outlet partitioning
+  assert.ok(mapping.outlet_chemicals.length >= 2, 'Gas and liquid outlets must be partitioned');
+
+  const outletGasChems = mapping.outlet_chemicals.filter((c) => c.phase === 'gas');
+  const outletLiqChems = mapping.outlet_chemicals.filter((c) => c.phase === 'liquid');
+  assert.ok(outletGasChems.some((c) => c.chemical_name === 'Methane'), 'Methane must partition to gas outlet');
+  assert.ok(outletLiqChems.some((c) => c.chemical_name.includes('Condensate')), 'Condensate must partition to liquid outlet');
+
+  // CRITICAL ENGINEERING ASSERTION: SafeFlow AI MUST NOT fabricate numerical outlet concentrations!
+  for (const outChem of mapping.outlet_chemicals) {
+    assert.strictEqual(outChem.concentration, null, `Concentration of outlet component ${outChem.chemical_name} must be strictly null (not guessed)`);
+    assert.strictEqual(outChem.is_verified, false, 'Outlet component must not be marked verified without flash calculation');
+  }
+
+  assert.strictEqual(mapping.mapping_status, 'PROPOSED MAPPING');
+  assert.ok(
+    mapping.unresolved_gaps.some((g) => g.toLowerCase().includes('flash') || g.toLowerCase().includes('stream table')),
+    'Must document unresolved gap requiring flash calculation or stream table'
+  );
+});
+
+test('Scenario 6: PHA Engine Integration — 8 parameter categories with unverified composition gap flag & safeguard splitting', () => {
+  const dummyEq: EquipmentTag = {
+    id: 'eq-pg1001-pha',
+    project_id: 'proj-pha-test',
+    document_id: 'doc-pid-1',
+    tag: 'PG-1001',
+    description: 'PIG RECEIVER / SLUG CATCHER (1200 ID x 8000 LG, 90 BARG / 120 °C)',
+    equipment_type: 'separator',
+    assigned_chemical_id: null,
+    confidence: 0.98,
+    status: 'confirmed',
+    source: { document: 'P&ID-GPF-001-02', page: 1, snippet: 'PG-1001' },
+    specifications: createDefaultSpecifications('separator'),
+    created_at: new Date().toISOString(),
+  };
+
+  const dummyNode: PhaStudyNode = {
+    id: 'node-slugcatcher',
+    project_id: 'proj-pha-test',
+    node_id: 'N-1001',
+    name: 'Natural Gas Inlet Reception & Slug Catching Node',
+    design_intent: 'Receive multiphase wellstream from production manifold, separate liquid slugs, and regulate gas/liquid export.',
+    equipment_tags: ['PG-1001', 'XV-1001', 'XV-1002', 'PCV-1001', 'LCV-1001', 'PSV-1001'],
+    line_numbers: ['10"-PG-00101-A1A', '10"-PG-00103-A1A', '4"-PG-00107-A1A'],
+    inlet_boundaries: ['10"-PG-00101-A1A from Production Manifold'],
+    outlet_boundaries: ['10"-PG-00104-A1A to HP Separator', '4"-PG-00108-A1A to Condensate'],
+    basis_for_grouping: 'Primary inlet phase separation and pressure containment',
+    status: 'candidate',
+    unresolved_questions: [],
+    operating_limits: {
+      temperature_safe_upper: 120,
+      temperature_safe_lower: -20,
+      pressure_safe_upper: 90,
+      pressure_safe_lower: 0,
+      flow_safe_upper: null,
+      flow_safe_lower: null,
+      level_safe_upper: null,
+      level_safe_lower: null,
+      concentration_safe_upper: null,
+      concentration_safe_lower: null,
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  // Evaluate deviations with unverified/proposed chemical mapping
+  const dummyMapping: ChemicalMappingResult = {
+    id: 'map-test',
+    project_id: 'proj-pha-test',
+    target_type: 'equipment',
+    target_id: dummyEq.id,
+    target_tag: 'PG-1001',
+    mapping_status: 'PROPOSED MAPPING',
+    phase: 'multiphase',
+    inlet_chemicals: [
+      {
+        chemical_id: 'chem-h2s',
+        chemical_name: 'Hydrogen Sulfide',
+        cas_number: '7783-06-4',
+        concentration: 2.5,
+        concentration_unit: 'mol%',
+        phase: 'gas',
+        identification_status: 'CANDIDATE',
+        source_provenance: 'Preliminary well test',
+        is_verified: false,
+      },
+    ],
+    outlet_chemicals: [],
+    internal_chemicals: [],
+    unresolved_gaps: ['Flash calculation required for outlet splits'],
+    source_provenance: 'Unverified test sheet',
+    is_multiphase_separation: true,
+    last_evaluated_at: new Date().toISOString(),
+  };
+
+  const enriched = attachChemicalContextToPhaNode(dummyNode, dummyMapping, [dummyEq], []);
+
+  assert.ok(enriched.comprehensive_hazop_deviations, 'Must generate comprehensive HAZOP deviations');
+  const devs = enriched.comprehensive_hazop_deviations;
+
+  // Verify all 8 categories exist
+  const categories = new Set(devs.map((d) => d.parameter));
+  assert.ok(categories.has('Pressure'), 'Must evaluate Pressure deviations');
+  assert.ok(categories.has('Temperature'), 'Must evaluate Temperature deviations');
+  assert.ok(categories.has('Flow'), 'Must evaluate Flow deviations');
+  assert.ok(categories.has('Level'), 'Must evaluate Level deviations');
+  assert.ok(categories.has('Composition'), 'Must evaluate Composition deviations');
+  assert.ok(categories.has('Phase'), 'Must evaluate Phase deviations');
+  assert.ok(categories.has('Direction'), 'Must evaluate Direction deviations');
+  assert.ok(categories.has('Contamination'), 'Must evaluate Contamination deviations');
+
+  // Verify information gaps flag unverified composition
+  const offSpecComp = devs.find((d) => d.parameter === 'Composition' && d.deviation.includes('OFF-SPEC'));
+  assert.ok(offSpecComp, 'Must have Off-spec Composition deviation');
+  assert.ok(
+    offSpecComp.information_gaps.some((g) => g.includes('Chemical composition not confirmed')),
+    'Must explain information gap when composition is unverified'
+  );
+  assert.strictEqual(offSpecComp.requires_engineering_review, true);
+
+  // Verify separation of existing safeguards vs recommended safeguards
+  assert.ok(
+    offSpecComp.existing_safeguards.some((s) => s.includes('NACE MR0175')),
+    'Existing safeguards must cite P&ID Note 1 (NACE MR0175 Material Class A1A)'
+  );
+  assert.ok(
+    offSpecComp.recommended_safeguards.some((s) => s.toLowerCase().includes('fixed') || s.toLowerCase().includes('detector')),
+    'Recommended safeguards must suggest fixed toxic H2S detectors and corrosion coupon monitoring'
+  );
+
+  // Verify Level deviations distinguish carryover from blowby
+  const highLevel = devs.find((d) => d.parameter === 'Level' && d.guideword === 'HIGH');
+  assert.ok(highLevel, 'Must have High Level deviation');
+  assert.ok(highLevel.consequences.some((c) => c.toLowerCase().includes('carryover')), 'High level must warn of liquid carryover into gas outlet N2');
+
+  const lowLevel = devs.find((d) => d.parameter === 'Level' && d.guideword === 'LOW');
+  assert.ok(lowLevel, 'Must have Low Level deviation');
+  assert.ok(lowLevel.consequences.some((c) => c.toLowerCase().includes('blowby') || c.toLowerCase().includes('drain')), 'Low level must warn of high-pressure gas blowby into closed drain drum');
 });
 
 console.log(`\n========================================`);

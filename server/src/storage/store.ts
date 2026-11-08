@@ -40,6 +40,17 @@ import {
   CommonDrawingModel,
   ConnectionCandidate,
   ProcessDescriptionExtraction,
+  ChemicalAssignment,
+  ChemicalMappingResult,
+  ChemicalPsiCompletenessReport,
+  ProjectPsiDashboardValidation,
+  GasCompositionReport,
+  VerificationHistoryEntry,
+  ChemicalIdentificationStatus,
+  ChemicalMappingStatus,
+  PsiCompletenessCategoryReport,
+  PsiParameterDataState,
+  ComprehensiveHazopDeviation,
 } from '../types';
 import { detectConflictsForProject } from '../services/conflictDetector';
 import { validateProcessGraph } from '../services/graphValidationService';
@@ -68,6 +79,10 @@ interface DatabaseSchema {
   drawing_acknowledged_warnings: Record<string, string[]>;
   process_descriptions: ProcessDescriptionExtraction[];
   common_drawings: CommonDrawingModel[];
+  chemical_assignments: ChemicalAssignment[];
+  chemical_mappings: ChemicalMappingResult[];
+  gas_composition_reports: GasCompositionReport[];
+  verification_history: VerificationHistoryEntry[];
 }
 
 const DATA_DIR = path.resolve(__dirname, '../../data');
@@ -91,6 +106,10 @@ export class PsiDataStore {
     drawing_acknowledged_warnings: {},
     process_descriptions: [],
     common_drawings: [],
+    chemical_assignments: [],
+    chemical_mappings: [],
+    gas_composition_reports: [],
+    verification_history: [],
   };
 
   constructor() {
@@ -131,6 +150,10 @@ export class PsiDataStore {
           drawing_acknowledged_warnings: parsed.drawing_acknowledged_warnings || {},
           process_descriptions: parsed.process_descriptions || [],
           common_drawings: parsed.common_drawings || [],
+          chemical_assignments: parsed.chemical_assignments || [],
+          chemical_mappings: parsed.chemical_mappings || [],
+          gas_composition_reports: parsed.gas_composition_reports || [],
+          verification_history: parsed.verification_history || [],
         };
         // Ensure sample streams are seeded if this is the sample project and streams are empty
         if (this.data.streams.length === 0 && this.data.projects.some((p) => p.id === 'proj-sample-ammonia-demo')) {
@@ -3508,6 +3531,380 @@ export class PsiDataStore {
     this.data.drawings.push(sampleDrawing);
     this.saveDatabase();
     return sampleDrawing;
+  }
+
+  // ==========================================================================
+  // HYBRID CHEMICAL IDENTIFICATION & PROCESS MAPPING METHODS
+  // ==========================================================================
+
+  public listChemicalAssignments(projectId: string): ChemicalAssignment[] {
+    return this.data.chemical_assignments.filter((a) => a.project_id === projectId);
+  }
+
+  public getChemicalAssignment(id: string): ChemicalAssignment | undefined {
+    return this.data.chemical_assignments.find((a) => a.id === id);
+  }
+
+  public saveChemicalAssignment(
+    input: Partial<ChemicalAssignment> & { project_id: string; chemical_id: string; chemical_name: string },
+    author = 'Process Safety Engineer'
+  ): ChemicalAssignment {
+    const now = new Date().toISOString();
+    let assignment = this.data.chemical_assignments.find((a) => a.id === input.id);
+    const isNew = !assignment;
+
+    if (!assignment) {
+      assignment = {
+        id: input.id || uuidv4(),
+        project_id: input.project_id,
+        chemical_id: input.chemical_id,
+        chemical_name: input.chemical_name,
+        cas_number: input.cas_number || null,
+        equipment_id: input.equipment_id || null,
+        equipment_tag: input.equipment_tag || null,
+        stream_id: input.stream_id || null,
+        stream_number: input.stream_number || null,
+        connection_endpoint: input.connection_endpoint || 'all',
+        concentration: input.concentration !== undefined ? input.concentration : null,
+        concentration_unit: input.concentration_unit || 'mol%',
+        phase: input.phase || null,
+        source_document: input.source_document || 'Manual Plant Engineering Entry',
+        source_document_id: input.source_document_id || null,
+        source_page_or_location: input.source_page_or_location || null,
+        verification_status: input.verification_status || 'unverified',
+        identification_status:
+          input.verification_status === 'verified'
+            ? 'CONFIRMED'
+            : (input.identification_status || 'CANDIDATE'),
+        reviewer: input.reviewer || null,
+        review_date: input.review_date || null,
+        notes: input.notes || null,
+        created_at: now,
+        updated_at: now,
+      };
+      this.data.chemical_assignments.push(assignment);
+    } else {
+      const prevStatus = assignment.verification_status;
+      assignment.chemical_name = input.chemical_name || assignment.chemical_name;
+      assignment.cas_number = input.cas_number !== undefined ? input.cas_number : assignment.cas_number;
+      assignment.equipment_id = input.equipment_id !== undefined ? input.equipment_id : assignment.equipment_id;
+      assignment.equipment_tag = input.equipment_tag !== undefined ? input.equipment_tag : assignment.equipment_tag;
+      assignment.stream_id = input.stream_id !== undefined ? input.stream_id : assignment.stream_id;
+      assignment.stream_number = input.stream_number !== undefined ? input.stream_number : assignment.stream_number;
+      assignment.connection_endpoint = input.connection_endpoint !== undefined ? input.connection_endpoint : assignment.connection_endpoint;
+      assignment.concentration = input.concentration !== undefined ? input.concentration : assignment.concentration;
+      assignment.concentration_unit = input.concentration_unit || assignment.concentration_unit;
+      assignment.phase = input.phase !== undefined ? input.phase : assignment.phase;
+      assignment.source_document = input.source_document || assignment.source_document;
+      assignment.source_document_id = input.source_document_id !== undefined ? input.source_document_id : assignment.source_document_id;
+      assignment.source_page_or_location = input.source_page_or_location !== undefined ? input.source_page_or_location : assignment.source_page_or_location;
+      assignment.verification_status = input.verification_status || assignment.verification_status;
+      assignment.identification_status =
+        assignment.verification_status === 'verified'
+          ? 'CONFIRMED'
+          : (input.identification_status || assignment.identification_status);
+      assignment.reviewer = input.reviewer !== undefined ? input.reviewer : assignment.reviewer;
+      assignment.review_date = input.review_date !== undefined ? input.review_date : assignment.review_date;
+      assignment.notes = input.notes !== undefined ? input.notes : assignment.notes;
+      assignment.updated_at = now;
+
+      if (prevStatus !== assignment.verification_status) {
+        this.logVerificationHistory({
+          project_id: assignment.project_id,
+          target_type: 'assignment',
+          target_id: assignment.id,
+          target_name: `${assignment.chemical_name} on ${assignment.equipment_tag || assignment.stream_number || 'Process Unit'}`,
+          previous_status: prevStatus,
+          new_status: assignment.verification_status,
+          reviewer: author,
+          reason: input.notes || 'Status updated via chemical assignment interface',
+        });
+      }
+    }
+
+    this.logAudit({
+      project_id: assignment.project_id,
+      entity_type: 'chemical',
+      entity_id: assignment.id,
+      action: isNew ? 'create' : 'update',
+      field_changed: 'chemical_assignment',
+      original_value: isNew ? null : 'modified',
+      revised_value: `${assignment.chemical_name} (${assignment.identification_status}) assigned to ${assignment.equipment_tag || assignment.stream_number || 'process'}`,
+      reviewer: author,
+      change_reason: assignment.notes || 'Chemical assignment updated',
+    });
+
+    this.saveDatabase();
+    return assignment;
+  }
+
+  public deleteChemicalAssignment(id: string, author = 'Process Safety Engineer'): boolean {
+    const idx = this.data.chemical_assignments.findIndex((a) => a.id === id);
+    if (idx === -1) return false;
+    const removed = this.data.chemical_assignments.splice(idx, 1)[0];
+    this.logAudit({
+      project_id: removed.project_id,
+      entity_type: 'chemical',
+      entity_id: removed.id,
+      action: 'delete',
+      field_changed: 'chemical_assignment',
+      original_value: removed.chemical_name,
+      revised_value: null,
+      reviewer: author,
+      change_reason: `Deleted assignment of ${removed.chemical_name} from ${removed.equipment_tag || removed.stream_number || 'process'}`,
+    });
+    this.saveDatabase();
+    return true;
+  }
+
+  public verifyChemicalAssignment(
+    id: string,
+    reviewer: string,
+    status: 'verified' | 'unverified' = 'verified'
+  ): ChemicalAssignment {
+    const assignment = this.data.chemical_assignments.find((a) => a.id === id);
+    if (!assignment) {
+      throw new Error(`Chemical assignment with id ${id} not found`);
+    }
+    const prevStatus = assignment.verification_status;
+    const now = new Date().toISOString();
+    assignment.verification_status = status;
+    assignment.reviewer = reviewer;
+    assignment.review_date = now;
+    assignment.identification_status = status === 'verified' ? 'CONFIRMED' : 'CANDIDATE';
+    assignment.updated_at = now;
+
+    this.logVerificationHistory({
+      project_id: assignment.project_id,
+      target_type: 'assignment',
+      target_id: assignment.id,
+      target_name: `${assignment.chemical_name} on ${assignment.equipment_tag || assignment.stream_number || 'Process Unit'}`,
+      previous_status: prevStatus,
+      new_status: status,
+      reviewer,
+      reason: `Engineer verification ${status === 'verified' ? 'approved' : 'reverted'} by ${reviewer}`,
+    });
+
+    this.logAudit({
+      project_id: assignment.project_id,
+      entity_type: 'chemical',
+      entity_id: assignment.id,
+      action: status === 'verified' ? 'verify' : 'update',
+      field_changed: 'chemical_assignment_verification',
+      original_value: prevStatus,
+      revised_value: status,
+      reviewer,
+      change_reason: `Assignment verification status changed to ${status}`,
+    });
+
+    this.saveDatabase();
+    return assignment;
+  }
+
+  public listGasCompositionReports(projectId: string): GasCompositionReport[] {
+    return this.data.gas_composition_reports.filter((r) => r.project_id === projectId);
+  }
+
+  public saveGasCompositionReport(report: GasCompositionReport): GasCompositionReport {
+    const idx = this.data.gas_composition_reports.findIndex((r) => r.id === report.id);
+    if (idx >= 0) {
+      this.data.gas_composition_reports[idx] = report;
+    } else {
+      this.data.gas_composition_reports.push(report);
+    }
+    this.saveDatabase();
+    return report;
+  }
+
+  public listChemicalMappings(projectId: string): ChemicalMappingResult[] {
+    return this.data.chemical_mappings.filter((m) => m.project_id === projectId);
+  }
+
+  public saveChemicalMapping(mapping: ChemicalMappingResult): ChemicalMappingResult {
+    const idx = this.data.chemical_mappings.findIndex(
+      (m) => m.project_id === mapping.project_id && m.target_id === mapping.target_id
+    );
+    if (idx >= 0) {
+      this.data.chemical_mappings[idx] = mapping;
+    } else {
+      this.data.chemical_mappings.push(mapping);
+    }
+    this.saveDatabase();
+    return mapping;
+  }
+
+  public getVerificationHistory(projectId: string): VerificationHistoryEntry[] {
+    return this.data.verification_history
+      .filter((h) => h.project_id === projectId)
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }
+
+  public logVerificationHistory(entry: Omit<VerificationHistoryEntry, 'id' | 'timestamp'>): VerificationHistoryEntry {
+    const record: VerificationHistoryEntry = {
+      ...entry,
+      id: uuidv4(),
+      timestamp: new Date().toISOString(),
+    };
+    this.data.verification_history.push(record);
+    this.saveDatabase();
+    return record;
+  }
+
+  public getPsiCompletenessReport(projectId: string): ProjectPsiDashboardValidation {
+    const projectChemicals = this.data.chemicals.filter((c) => c.project_id === projectId);
+    const assignments = this.listChemicalAssignments(projectId);
+    const now = new Date().toISOString();
+
+    const oshaCategories: { key: keyof PsiParameters; label: string; critical: boolean }[] = [
+      { key: 'toxicity', label: 'Toxicity', critical: true },
+      { key: 'permissible_exposure_limits', label: 'Permissible Exposure Limits (PEL)', critical: true },
+      { key: 'physical_data', label: 'Physical Data (Boiling Point, Vapor Pressure, Flash Point)', critical: true },
+      { key: 'reactivity_data', label: 'Reactivity Data', critical: true },
+      { key: 'corrosivity_data', label: 'Corrosivity Data', critical: false },
+      { key: 'thermal_and_chemical_stability_data', label: 'Thermal & Chemical Stability Data', critical: true },
+      { key: 'inadvertent_mixing_hazards', label: 'Inadvertent Mixing / Incompatibility Hazards', critical: true },
+    ];
+
+    const chemicalReports: ChemicalPsiCompletenessReport[] = [];
+    const globalChecklist: { chemical_name: string; missing_topic: string; priority: 'high' | 'medium' | 'low'; description: string }[] = [];
+
+    let totalPopulatedCategories = 0;
+    let totalVerifiedCategories = 0;
+    const totalPossibleCategories = projectChemicals.length * oshaCategories.length;
+
+    let confirmedCount = 0;
+    let candidateCount = 0;
+    let unknownCount = 0;
+    let fullyVerifiedCount = 0;
+    let partiallyVerifiedCount = 0;
+    let unverifiedCount = 0;
+
+    for (const chem of projectChemicals) {
+      const chemName = (typeof chem.chemical_name?.value === 'string' && chem.chemical_name.value)
+        ? chem.chemical_name.value
+        : 'Unknown Chemical';
+      const casNum = (typeof chem.cas_number?.value === 'string') ? chem.cas_number.value : null;
+
+      // Determine chemical identification status
+      const relatedAssignments = assignments.filter((a) => a.chemical_id === chem.id);
+      let idStatus: ChemicalIdentificationStatus = 'CANDIDATE';
+      if (relatedAssignments.some((a) => a.verification_status === 'verified')) {
+        idStatus = 'CONFIRMED';
+        confirmedCount++;
+      } else if (chem.origin === 'sds_extracted' || chem.origin === 'manual_entry' || chem.origin === 'hybrid' || relatedAssignments.length > 0) {
+        idStatus = 'CANDIDATE';
+        candidateCount++;
+      } else {
+        idStatus = 'UNKNOWN';
+        unknownCount++;
+      }
+
+      const catReports: PsiCompletenessCategoryReport[] = [];
+      const missingCritical: string[] = [];
+      const chemChecklist: string[] = [];
+      let populatedInChem = 0;
+      let verifiedInChem = 0;
+
+      for (const cat of oshaCategories) {
+        const field = chem.psi_parameters ? chem.psi_parameters[cat.key] : null;
+        const val = field ? field.value : null;
+        const isPopulated = val !== null && val !== undefined && val !== '' && val !== 'Not Provided' && val !== 'N/A';
+        const isVerified = field?.verification_status === 'verified';
+
+        let dataState: PsiParameterDataState = 'MISSING';
+        if (isVerified) {
+          dataState = 'VERIFIED';
+          verifiedInChem++;
+        } else if (isPopulated) {
+          dataState = (field?.review_status === 'needs_review') ? 'REQUIRES_REVIEW' : 'UNVERIFIED';
+        } else {
+          dataState = 'MISSING';
+        }
+
+        if (isPopulated) {
+          populatedInChem++;
+        } else {
+          if (cat.critical) {
+            missingCritical.push(cat.label);
+            chemChecklist.push(`Missing critical safety information: ${cat.label}`);
+            globalChecklist.push({
+              chemical_name: chemName,
+              missing_topic: cat.label,
+              priority: 'high',
+              description: `Collect and verify OSHA mandated safety data for ${cat.label} for chemical ${chemName}.`,
+            });
+          }
+        }
+
+        const valueSummary = typeof val === 'object' && val !== null ? JSON.stringify(val) : (val ? String(val) : null);
+        catReports.push({
+          category_key: cat.key,
+          category_name: cat.label,
+          is_populated: isPopulated,
+          is_verified: isVerified,
+          data_state: dataState,
+          findings_count: isPopulated ? 1 : 0,
+          value_summary: valueSummary,
+          source_evidence: field?.source?.snippet || field?.source?.document || null,
+          notes: field?.missing_reason || null,
+        });
+      }
+
+      totalPopulatedCategories += populatedInChem;
+      totalVerifiedCategories += verifiedInChem;
+
+      const completenessPct = Math.round((populatedInChem / oshaCategories.length) * 100);
+      const verificationPct = Math.round((verifiedInChem / oshaCategories.length) * 100);
+      const isFullyVerified = verifiedInChem === oshaCategories.length;
+
+      if (isFullyVerified) {
+        fullyVerifiedCount++;
+      } else if (verifiedInChem > 0) {
+        partiallyVerifiedCount++;
+      } else {
+        unverifiedCount++;
+      }
+
+      chemicalReports.push({
+        chemical_id: chem.id,
+        chemical_name: chemName,
+        cas_number: casNum,
+        identification_status: idStatus,
+        categories: catReports,
+        total_categories: oshaCategories.length,
+        populated_categories_count: populatedInChem,
+        verified_categories_count: verifiedInChem,
+        completeness_percentage: completenessPct,
+        verification_percentage: verificationPct,
+        is_fully_verified: isFullyVerified,
+        missing_critical_topics: missingCritical,
+        conflicts_count: catReports.filter((c) => c.data_state === 'REQUIRES_REVIEW').length,
+        actionable_engineering_checklist: chemChecklist,
+      });
+    }
+
+    const overallCompleteness = totalPossibleCategories > 0
+      ? Math.round((totalPopulatedCategories / totalPossibleCategories) * 100)
+      : 0;
+    const overallVerification = totalPossibleCategories > 0
+      ? Math.round((totalVerifiedCategories / totalPossibleCategories) * 100)
+      : 0;
+
+    return {
+      project_id: projectId,
+      total_chemicals: projectChemicals.length,
+      confirmed_chemicals_count: confirmedCount,
+      candidate_chemicals_count: candidateCount,
+      unknown_chemicals_count: unknownCount,
+      fully_verified_psi_count: fullyVerifiedCount,
+      partially_verified_psi_count: partiallyVerifiedCount,
+      unverified_psi_count: unverifiedCount,
+      overall_completeness_pct: overallCompleteness,
+      overall_verification_pct: overallVerification,
+      chemical_reports: chemicalReports,
+      global_engineering_checklist: globalChecklist,
+      evaluated_at: now,
+    };
   }
 }
 

@@ -9,6 +9,7 @@ import {
   FileText,
   FileCheck2,
   FolderGit2,
+  FlaskConical,
 } from 'lucide-react';
 import { ProcessProject, ProjectDashboardSummary } from '../types';
 
@@ -22,8 +23,8 @@ interface HeaderProps {
   onOpenManualChemicalModal?: () => void;
   onOpenExportModal: () => void;
   onOpenConflictsModal: () => void;
-  activeTab: 'workspace' | 'pid-graph' | 'documents';
-  setActiveTab: (tab: 'workspace' | 'pid-graph' | 'documents') => void;
+  activeTab: 'workspace' | 'pid-graph' | 'chemical-inventory' | 'documents';
+  setActiveTab: (tab: 'workspace' | 'pid-graph' | 'chemical-inventory' | 'documents') => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -116,6 +117,18 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <GitBranch className="w-3.5 h-3.5" />
                 P&ID & GNN Map
+              </button>
+
+              <button
+                onClick={() => setActiveTab('chemical-inventory')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all ${
+                  activeTab === 'chemical-inventory'
+                    ? 'bg-cyan-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <FlaskConical className="w-3.5 h-3.5" />
+                Chemical Inventory & Mapping
               </button>
 
               <button
