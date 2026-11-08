@@ -1173,6 +1173,18 @@ export interface PhaMissingSpecAlert {
   impact: string;
 }
 
+export interface PhaMultiDocumentContext {
+  matrix_entries: UnifiedEngineeringMatrixEntry[];
+  philosophy_rules: EngineeringPhilosophyRule[];
+  active_discrepancies: CrossDocumentDiscrepancy[];
+  missing_design_specifications: PhaMissingSpecAlert[];
+  unconfirmed_compositions: string[];
+  unverified_safeguards: string[];
+  verified_limits_count: number;
+  unverified_limits_count: number;
+  limit_comparison_status: 'fully_verified' | 'partially_verified' | 'unverified_or_blocked';
+}
+
 export interface PhaStudyNode {
   id: string;
   project_id: string;
@@ -1206,6 +1218,9 @@ export interface PhaStudyNode {
   chemical_mapping?: ChemicalMappingResult | null;
   comprehensive_hazop_deviations?: ComprehensiveHazopDeviation[];
   chemical_context_summary?: string;
+  multi_document_context?: PhaMultiDocumentContext;
+  has_critical_gaps?: boolean;
+  critical_information_gaps?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -1216,6 +1231,8 @@ export interface HazopReadinessResult {
   warnings: string[];
   nodes_ready_count: number;
   total_nodes_count: number;
+  unresolved_discrepancies_count?: number;
+  nodes_with_critical_gaps_count?: number;
   evaluated_at: string;
 }
 

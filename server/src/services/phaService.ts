@@ -13,6 +13,10 @@ import {
   ChemicalMappingResult,
   ComprehensiveHazopDeviation,
   HazopParameterCategory,
+  UnifiedEngineeringMatrixEntry,
+  EngineeringPhilosophyRule,
+  CrossDocumentDiscrepancy,
+  PhaMultiDocumentContext,
 } from '../types';
 
 /**
@@ -475,20 +479,282 @@ export function attachStreamContextToNode(
 }
 
 /**
+ * Attaches multi-document engineering context to a PHA study node.
+ * Evaluates equipment specifications, stream conditions, chemical hazards,
+ * safeguards and interlocks from the Unified Engineering Matrix.
+ * Identifies explicit missing information gaps:
+ * - Missing critical design specifications (design pressure, design temp, metallurgy)
+ * - Unconfirmed chemical compositions
+ * - Unverified safeguards or interlock setpoints
+ * - Active cross-document discrepancies
+ * Strictly enforces that quantitative limit comparisons cannot be claimed as verified
+ * when critical limits are absent or unverified.
+ */
+export function attachMultiDocumentContextToNode(
+  node: PhaStudyNode,
+  matrix: UnifiedEngineeringMatrixEntry[] = [],
+  rules: EngineeringPhilosophyRule[] = [],
+  discrepancies: CrossDocumentDiscrepancy[] = [],
+  chemicals: ChemicalRecord[] = []
+): PhaStudyNode {
+  const nodeTagsUpper = node.equipment_tags.map((t) => t.toUpperCase());
+  const lineNumbersUpper = node.line_numbers.map((l) => l.toUpperCase());
+  const streamNumbersUpper = [
+    ...(node.incoming_streams || []).map((s) => (s.stream_number || s.line_number || s.id).toUpperCase()),
+    ...(node.outgoing_streams || []).map((s) => (s.stream_number || s.line_number || s.id).toUpperCase()),
+  ].filter(Boolean);
+
+  // Match matrix entries for equipment, lines, and streams
+  const matchedMatrix = matrix.filter((entry) => {
+    const tagUpper = entry.entity_tag.toUpperCase();
+    if (entry.entity_type === 'equipment' && nodeTagsUpper.includes(tagUpper)) return true;
+    if (entry.entity_type === 'line' && lineNumbersUpper.includes(tagUpper)) return true;
+    if (entry.entity_type === 'stream' && streamNumbersUpper.includes(tagUpper)) return true;
+    if (entry.connected_equipment?.some((eq) => nodeTagsUpper.includes(eq.toUpperCase()))) return true;
+    return false;
+  });
+
+  // Match philosophy rules
+  const matchedRules = rules.filter((rule) => {
+    if (rule.equipment_tag && nodeTagsUpper.includes(rule.equipment_tag.toUpperCase())) return true;
+    if (rule.loop_tag && (node.associated_instruments?.includes(rule.loop_tag) || node.associated_valves?.includes(rule.loop_tag))) return true;
+    return false;
+  });
+
+  // Match active discrepancies (open or reviewed)
+  const matchedDiscrepancies = discrepancies.filter((d) => {
+    const tagUpper = d.entity_tag.toUpperCase();
+    const isTagMatched =
+      nodeTagsUpper.includes(tagUpper) ||
+      lineNumbersUpper.includes(tagUpper) ||
+      streamNumbersUpper.includes(tagUpper);
+    const isActive = d.status === 'open' || d.status === 'reviewed';
+    return isTagMatched && isActive;
+  });
+
+  // Evaluate missing design specifications
+  const missingDesignSpecs: PhaMissingSpecAlert[] = [];
+  let verifiedLimitsCount = 0;
+  let unverifiedLimitsCount = 0;
+
+  for (const eqTag of node.equipment_tags) {
+    const entry = matchedMatrix.find(
+      (m) => m.entity_type === 'equipment' && m.entity_tag.toUpperCase() === eqTag.toUpperCase()
+    );
+    const designSpecs = entry?.design_specifications;
+
+    // Design Pressure
+    const dp = designSpecs?.design_pressure;
+    if (!dp || dp.normalized_value === null || dp.normalized_value === undefined) {
+      missingDesignSpecs.push({
+        equipment_tag: eqTag,
+        property: 'design_pressure',
+        criticality: 'critical',
+        impact: `[MISSING_DESIGN_PRESSURE] Design pressure missing on ${eqTag}. System cannot claim a quantitative pressure limit comparison has been completed for deviation MORE PRESSURE.`,
+      });
+      unverifiedLimitsCount++;
+    } else {
+      if (dp.verification_status === 'engineer_verified' || (dp.verification_status as any) === 'verified') {
+        verifiedLimitsCount++;
+      } else {
+        unverifiedLimitsCount++;
+      }
+    }
+
+    // Design Temperature
+    const dt = designSpecs?.design_temperature;
+    if (!dt || dt.normalized_value === null || dt.normalized_value === undefined) {
+      missingDesignSpecs.push({
+        equipment_tag: eqTag,
+        property: 'design_temperature',
+        criticality: 'critical',
+        impact: `[MISSING_DESIGN_TEMPERATURE] Design temperature missing on ${eqTag}. Quantitative design temperature limit comparison cannot be verified.`,
+      });
+      unverifiedLimitsCount++;
+    } else {
+      if (dt.verification_status === 'engineer_verified' || (dt.verification_status as any) === 'verified') {
+        verifiedLimitsCount++;
+      } else {
+        unverifiedLimitsCount++;
+      }
+    }
+
+    // Material of Construction / Metallurgy
+    const moc = designSpecs?.material_of_construction;
+    if (!moc || !moc.normalized_value || moc.normalized_value.toLowerCase() === 'unknown') {
+      missingDesignSpecs.push({
+        equipment_tag: eqTag,
+        property: 'material_of_construction',
+        criticality: 'critical',
+        impact: `[MISSING_METALLURGY] Material of construction missing or unknown on ${eqTag}. Chemical compatibility and corrosion allowance cannot be confirmed.`,
+      });
+      unverifiedLimitsCount++;
+    } else {
+      if (moc.verification_status === 'engineer_verified' || (moc.verification_status as any) === 'verified') {
+        verifiedLimitsCount++;
+      } else {
+        unverifiedLimitsCount++;
+      }
+    }
+  }
+
+  // Unconfirmed compositions check
+  const unconfirmedCompositions: string[] = [];
+  const nodeStreams = [...(node.incoming_streams || []), ...(node.outgoing_streams || [])];
+  for (const st of nodeStreams) {
+    if (st.verification_status !== 'verified') {
+      unconfirmedCompositions.push(
+        `Stream ${st.stream_number || st.line_number || st.id}: Composition unverified in stream table.`
+      );
+    }
+  }
+  for (const chem of chemicals) {
+    if (chem.chemical_name?.review_status !== 'confirmed') {
+      unconfirmedCompositions.push(
+        `Chemical ${chem.chemical_name?.user_value || chem.chemical_name?.value || chem.id}: PSI parameters unconfirmed.`
+      );
+    }
+  }
+
+  // Unverified safeguards check
+  const unverifiedSafeguards: string[] = [];
+  for (const rule of matchedRules) {
+    if (rule.verification_status !== 'engineer_verified' || !rule.is_confirmed_setpoint) {
+      unverifiedSafeguards.push(
+        `Rule ${rule.loop_tag || rule.equipment_tag || rule.id}: ${rule.rule_type} condition "${rule.condition}" is unverified / provisional setpoint.`
+      );
+    }
+  }
+
+  // Limit comparison status determination
+  let limitComparisonStatus: 'fully_verified' | 'partially_verified' | 'unverified_or_blocked';
+  const hasCriticalMissingSpecs = missingDesignSpecs.some((s) => s.criticality === 'critical');
+  const hasCriticalDiscrepancies = matchedDiscrepancies.some((d) => d.severity === 'critical');
+
+  if (hasCriticalMissingSpecs || hasCriticalDiscrepancies) {
+    limitComparisonStatus = 'unverified_or_blocked';
+  } else if (unverifiedLimitsCount === 0 && verifiedLimitsCount > 0) {
+    limitComparisonStatus = 'fully_verified';
+  } else {
+    limitComparisonStatus = 'partially_verified';
+  }
+
+  const hasCriticalGaps = limitComparisonStatus === 'unverified_or_blocked' || hasCriticalDiscrepancies;
+
+  // Compile critical information gaps
+  const criticalGaps: string[] = [];
+  for (const ms of missingDesignSpecs) {
+    criticalGaps.push(ms.impact);
+  }
+  for (const uc of unconfirmedCompositions) {
+    criticalGaps.push(`[UNCONFIRMED_CHEMICAL_COMPOSITION] ${uc}`);
+  }
+  for (const us of unverifiedSafeguards) {
+    criticalGaps.push(`[UNVERIFIED_SAFEGUARD] ${us}`);
+  }
+  for (const md of matchedDiscrepancies) {
+    criticalGaps.push(`[OPEN_DISCREPANCY] ${md.entity_tag} (${md.property_name}): ${md.message}`);
+  }
+
+  // Synchronize into missing_process_information
+  const currentMissing = node.missing_process_information || [];
+  const mergedMissing = Array.from(new Set([...currentMissing, ...criticalGaps]));
+  node.missing_process_information = mergedMissing;
+
+  node.has_critical_gaps = hasCriticalGaps;
+  node.critical_information_gaps = criticalGaps;
+
+  node.multi_document_context = {
+    matrix_entries: matchedMatrix,
+    philosophy_rules: matchedRules,
+    active_discrepancies: matchedDiscrepancies,
+    missing_design_specifications: missingDesignSpecs,
+    unconfirmed_compositions: unconfirmedCompositions,
+    unverified_safeguards: unverifiedSafeguards,
+    verified_limits_count: verifiedLimitsCount,
+    unverified_limits_count: unverifiedLimitsCount,
+    limit_comparison_status: limitComparisonStatus,
+  };
+
+  // Safe Operating Limits (SOL) propagation from matrix if not present
+  for (const entry of matchedMatrix) {
+    if (entry.entity_type === 'equipment' && nodeTagsUpper.includes(entry.entity_tag.toUpperCase())) {
+      const dp = entry.design_specifications?.design_pressure?.normalized_value;
+      if (dp !== undefined && dp !== null && node.operating_limits.pressure_safe_upper === null) {
+        node.operating_limits.pressure_safe_upper = dp;
+      }
+      const dt = entry.design_specifications?.design_temperature?.normalized_value;
+      if (dt !== undefined && dt !== null && node.operating_limits.temperature_safe_upper === null) {
+        node.operating_limits.temperature_safe_upper = dt;
+      }
+    }
+  }
+
+  return node;
+}
+
+/**
  * Generates comprehensive chemical-aware HAZOP deviations across 8 parameter categories:
  * Pressure, Temperature, Flow, Level, Composition, Phase, Direction, Contamination.
  * Distinguishes existing P&ID safeguards from recommended safeguards.
- * Explicitly identifies information gaps when chemical composition is unverified or unknown.
+ * Grounds causes, consequences, safeguards and recommendations in multi-document evidence.
+ * Explicitly identifies information gaps when chemical composition or design limits are unverified.
  */
 export function generateComprehensiveHazopDeviations(
   node: PhaStudyNode,
   mapping: ChemicalMappingResult | null,
   allEquipment: EquipmentTag[],
-  allLines: PipingLine[]
+  allLines: PipingLine[],
+  matrixEntries: UnifiedEngineeringMatrixEntry[] = [],
+  rules: EngineeringPhilosophyRule[] = [],
+  discrepancies: CrossDocumentDiscrepancy[] = []
 ): ComprehensiveHazopDeviation[] {
   const deviations: ComprehensiveHazopDeviation[] = [];
   const nodeTagsUpper = node.equipment_tags.map((t) => t.toUpperCase());
   const nodeEquipment = allEquipment.filter((e) => nodeTagsUpper.includes(e.tag.toUpperCase()));
+
+  const primaryEntry = matrixEntries.find(
+    (m) => m.entity_type === 'equipment' && nodeTagsUpper.includes(m.entity_tag.toUpperCase())
+  );
+  const designPress =
+    primaryEntry?.design_specifications?.design_pressure?.normalized_value ??
+    nodeEquipment[0]?.specifications?.design_pressure?.value ??
+    null;
+  const designPressUnit =
+    primaryEntry?.design_specifications?.design_pressure?.normalized_unit ??
+    nodeEquipment[0]?.specifications?.design_pressure?.unit ??
+    'barg';
+  const isPressVerified =
+    primaryEntry?.design_specifications?.design_pressure?.verification_status === 'engineer_verified' ||
+    (primaryEntry?.design_specifications?.design_pressure?.verification_status as any) === 'verified' ||
+    nodeEquipment[0]?.specifications?.design_pressure?.verification_status === 'verified';
+
+  const designTemp =
+    primaryEntry?.design_specifications?.design_temperature?.normalized_value ??
+    nodeEquipment[0]?.specifications?.design_temperature?.value ??
+    null;
+  const designTempUnit =
+    primaryEntry?.design_specifications?.design_temperature?.normalized_unit ??
+    nodeEquipment[0]?.specifications?.design_temperature?.unit ??
+    '°C';
+
+  const reliefValveSet =
+    primaryEntry?.design_specifications?.relief_valve_set_pressure?.normalized_value ??
+    primaryEntry?.datasheet_data?.relief_valve_set_pressure?.normalized_value ??
+    95;
+
+  const matchingRules = rules.filter(
+    (r) =>
+      (r.equipment_tag && nodeTagsUpper.includes(r.equipment_tag.toUpperCase())) ||
+      (r.loop_tag && (node.associated_instruments?.includes(r.loop_tag) || node.associated_valves?.includes(r.loop_tag)))
+  );
+
+  const nodeDiscrepancies = discrepancies.filter(
+    (d) =>
+      (nodeTagsUpper.includes(d.entity_tag.toUpperCase()) ||
+        node.line_numbers.some((l) => l.toUpperCase() === d.entity_tag.toUpperCase())) &&
+      (d.status === 'open' || d.status === 'reviewed')
+  );
 
   const hasSlugCatcher = nodeEquipment.some(
     (e) =>
@@ -507,6 +773,30 @@ export function generateComprehensiveHazopDeviations(
     : null;
 
   // 1. PRESSURE
+  const pressDiscrepancy = nodeDiscrepancies.find(
+    (d) => d.property_name.includes('pressure') || d.discrepancy_type === 'relief_vs_mawp' || d.discrepancy_type === 'trip_vs_design'
+  );
+  const pressureGaps: string[] = [];
+  if (compositionGap) pressureGaps.push(compositionGap);
+  if (designPress === null) {
+    pressureGaps.push('[MISSING_DESIGN_PRESSURE] Quantitative overpressure limit comparison cannot be claimed; scenario remains unverified until MAWP is documented.');
+  }
+  if (pressDiscrepancy) {
+    pressureGaps.push(`[OPEN_DISCREPANCY] ${pressDiscrepancy.message}`);
+  }
+
+  const pressureSafeguards = [
+    `Safety Relief Valve PSV-1001 (set pressure ${reliefValveSet} barg, sizing per API 520, routed to sour flare header via 4"-FL-00102-A1A).`,
+    'PSV block valves NV-1001 and NV-1002 shall be locked open during normal operation (Note 2).',
+    'Pressure transmitter PT-1002 hardwired to Safety Instrumented System SIS LS-1001 initiating emergency shutdown.',
+    'High pressure alarm (PAH) on DCS pressure transmitter PT-1001.',
+  ];
+  for (const r of matchingRules) {
+    if (r.rule_type === 'interlock' || r.rule_type === 'esd_action') {
+      pressureSafeguards.push(`Philosophy Rule: ${r.loop_tag || r.equipment_tag}: ${r.condition} -> ${r.action} (${r.fail_safe_position || 'fail-safe'}).`);
+    }
+  }
+
   deviations.push({
     id: uuidv4(),
     parameter: 'Pressure',
@@ -515,28 +805,25 @@ export function generateComprehensiveHazopDeviations(
     causes: [
       'Downstream block valve or ESD valve XV-1002 inadvertently closed or failing shut.',
       'Pressure control valve PCV-1001 failed closed or control signal loop lost.',
-      'Upstream wellhead or gathering line pressure surge exceeding normal 90 barg operating pressure.',
+      'Upstream wellhead or gathering line pressure surge exceeding normal operating pressure.',
       'External fire impingement or thermal expansion of blocked liquid.',
     ],
     consequences: [
-      'Overpressurization beyond vessel design rating (90 barg / 120 °C).',
+      designPress !== null
+        ? `Overpressurization beyond vessel design rating (${designPress} ${designPressUnit} / ${designTemp ?? 120} ${designTempUnit}).`
+        : 'Potential overpressurization beyond unknown vessel design rating; catastrophic rupture risk cannot be bounded.',
       'Catastrophic vessel rupture and high-consequence loss of containment of flammable gas and toxic H2S.',
     ],
-    existing_safeguards: [
-      'Safety Relief Valve PSV-1001 (set pressure 95 barg, sizing per API 520, routed to sour flare header via 4"-FL-00102-A1A).',
-      'PSV block valves NV-1001 and NV-1002 shall be locked open during normal operation (Note 2).',
-      'Pressure transmitter PT-1002 hardwired to Safety Instrumented System SIS LS-1001 initiating emergency shutdown.',
-      'High pressure alarm (PAH) on DCS pressure transmitter PT-1001.',
-    ],
+    existing_safeguards: pressureSafeguards,
     recommended_safeguards: [
       'Verify PSV-1001 annual pop test and inspection record.',
       'Perform SIL assessment verification on PT-1002 trip loop and XV-1001/XV-1002 partial stroke test (PST) per Note 4.',
     ],
-    information_gaps: compositionGap ? [compositionGap] : [],
+    information_gaps: pressureGaps,
     severity: 'high',
     likelihood: 'low',
-    risk_rank: 'Medium (Adequately Safeguarded)',
-    requires_engineering_review: !isCompositionVerified,
+    risk_rank: designPress === null || pressDiscrepancy ? 'High (Unverified Limits)' : 'Medium (Adequately Safeguarded)',
+    requires_engineering_review: !isCompositionVerified || designPress === null || !isPressVerified || Boolean(pressDiscrepancy),
   });
 
   deviations.push({
@@ -568,6 +855,12 @@ export function generateComprehensiveHazopDeviations(
   });
 
   // 2. TEMPERATURE
+  const tempGaps: string[] = [];
+  if (compositionGap) tempGaps.push(compositionGap);
+  if (designTemp === null) {
+    tempGaps.push('[MISSING_DESIGN_TEMPERATURE] Quantitative design temperature limit comparison cannot be claimed; scenario remains unverified until datasheet is confirmed.');
+  }
+
   deviations.push({
     id: uuidv4(),
     parameter: 'Temperature',
@@ -578,7 +871,9 @@ export function generateComprehensiveHazopDeviations(
       'External fire exposure or solar thermal heat gain.',
     ],
     consequences: [
-      'Exceedance of vessel design temperature rating of 120 °C.',
+      designTemp !== null
+        ? `Exceedance of vessel design temperature rating of ${designTemp} ${designTempUnit}.`
+        : 'Exceedance of unverified vessel design temperature limit.',
       'Accelerated sour corrosion rate and potential degradation of elastomeric valve seals.',
     ],
     existing_safeguards: [
@@ -586,13 +881,13 @@ export function generateComprehensiveHazopDeviations(
       'PSV-1001 sized for external fire exposure per API 521.',
     ],
     recommended_safeguards: [
-      'Ensure high temperature trip initiates upstream well choke shut-in if TT-1001 exceeds 110 °C.',
+      'Ensure high temperature trip initiates upstream well choke shut-in if TT-1001 exceeds safe threshold.',
     ],
-    information_gaps: compositionGap ? [compositionGap] : [],
+    information_gaps: tempGaps,
     severity: 'medium',
     likelihood: 'low',
-    risk_rank: 'Low',
-    requires_engineering_review: false,
+    risk_rank: designTemp === null ? 'Medium (Requires Review)' : 'Low',
+    requires_engineering_review: designTemp === null || !isCompositionVerified,
   });
 
   deviations.push({
@@ -921,7 +1216,10 @@ export function attachChemicalContextToPhaNode(
   node: PhaStudyNode,
   mapping: ChemicalMappingResult | null,
   allEquipment: EquipmentTag[],
-  allLines: PipingLine[]
+  allLines: PipingLine[],
+  matrixEntries: UnifiedEngineeringMatrixEntry[] = [],
+  rules: EngineeringPhilosophyRule[] = [],
+  discrepancies: CrossDocumentDiscrepancy[] = []
 ): PhaStudyNode {
   node.chemical_mapping = mapping;
 
@@ -938,12 +1236,15 @@ export function attachChemicalContextToPhaNode(
     node.chemical_context_summary = 'No chemical mapping evaluated for this node.';
   }
 
-  // Generate the 8 parameter deviations
+  // Generate the 8 parameter deviations grounded in multi-document evidence
   node.comprehensive_hazop_deviations = generateComprehensiveHazopDeviations(
     node,
     mapping,
     allEquipment,
-    allLines
+    allLines,
+    matrixEntries,
+    rules,
+    discrepancies
   );
 
   return node;
@@ -1329,7 +1630,10 @@ export function checkHazopReadiness(
   chemicals: ChemicalRecord[],
   phaNodes: PhaStudyNode[],
   graphApproved: boolean,
-  streams: ProcessStream[] = []
+  streams: ProcessStream[] = [],
+  matrix: UnifiedEngineeringMatrixEntry[] = [],
+  rules: EngineeringPhilosophyRule[] = [],
+  discrepancies: CrossDocumentDiscrepancy[] = []
 ): HazopReadinessResult {
   const blockingReasons: string[] = [];
   const warnings: string[] = [];
@@ -1347,17 +1651,54 @@ export function checkHazopReadiness(
     blockingReasons.push('Process graph has zero piping lines. Disconnected topology cannot be evaluated for loss of containment deviations.');
   }
 
-  // 3. PHA Node Segmentation Gates
+  // 3. Multi-Document Discrepancy Gate
+  const activeDiscrepancies = discrepancies.filter(
+    (d) => d.status === 'open' || d.status === 'reviewed'
+  );
+  const criticalDiscrepancies = activeDiscrepancies.filter((d) => d.severity === 'critical');
+  for (const cd of criticalDiscrepancies) {
+    blockingReasons.push(
+      `Unresolved critical discrepancy: ${cd.entity_tag} (${cd.property_name}) - ${cd.message}. Engineering resolution required before HAZOP signoff.`
+    );
+  }
+  for (const wd of activeDiscrepancies.filter((d) => d.severity === 'warning')) {
+    warnings.push(
+      `Open cross-document discrepancy: ${wd.entity_tag} (${wd.property_name}) - ${wd.message}.`
+    );
+  }
+
+  // 4. PHA Node Segmentation Gates & Multi-Document Verification
   if (phaNodes.length === 0) {
     blockingReasons.push('No PHA study nodes defined. Approved graph must be segmented into HAZOP study nodes.');
   }
 
   let readyNodesCount = 0;
+  let nodesWithCriticalGapsCount = 0;
+
   for (const node of phaNodes) {
+    const multiDoc = node.multi_document_context;
+    const hasCriticalGaps = Boolean(
+      node.has_critical_gaps ||
+      multiDoc?.limit_comparison_status === 'unverified_or_blocked' ||
+      (multiDoc?.missing_design_specifications &&
+        multiDoc.missing_design_specifications.some((s) => s.criticality === 'critical'))
+    );
+
+    if (hasCriticalGaps) {
+      nodesWithCriticalGapsCount++;
+    }
+
     if (node.status !== 'approved') {
       blockingReasons.push(`PHA Node ${node.node_id} ("${node.name}") is in "${node.status}" status. Engineer review and approval is required.`);
     } else {
-      readyNodesCount++;
+      // If approved, enforce the strict non-fabrication limit comparison gate!
+      if (hasCriticalGaps) {
+        blockingReasons.push(
+          `PHA Node ${node.node_id} ("${node.name}") cannot claim verified limit comparisons because critical design limits are absent or unverified.`
+        );
+      } else {
+        readyNodesCount++;
+      }
     }
 
     if (!node.design_intent || node.design_intent.trim().length < 10) {
@@ -1377,6 +1718,18 @@ export function checkHazopReadiness(
       }
     }
 
+    // Multi-document unverified safeguards & unconfirmed compositions warnings
+    if (multiDoc?.unverified_safeguards && multiDoc.unverified_safeguards.length > 0) {
+      warnings.push(
+        `PHA Node ${node.node_id} contains ${multiDoc.unverified_safeguards.length} unverified safeguard(s) or interlock setpoint(s). Field validation required.`
+      );
+    }
+    if (multiDoc?.unconfirmed_compositions && multiDoc.unconfirmed_compositions.length > 0) {
+      warnings.push(
+        `PHA Node ${node.node_id} contains ${multiDoc.unconfirmed_compositions.length} unconfirmed chemical or stream composition(s). Quantitative consequence modeling blocked.`
+      );
+    }
+
     // Operating limits check: Safe Upper/Lower limits
     const lim = node.operating_limits;
     const hasAnyLimit =
@@ -1388,7 +1741,7 @@ export function checkHazopReadiness(
       warnings.push(`PHA Node ${node.node_id} has no verified Safe Upper Operating Limits (SUL). Deviations (MORE TEMP / MORE PRESSURE / MORE FLOW) will lack quantitative threshold evaluation.`);
     }
 
-    // Stream Completeness and Flow-rate Readiness reporting (Requirement 8)
+    // Stream Completeness and Flow-rate Readiness reporting
     if (node.stream_summary) {
       const { unknown_flow_count, unverified_count, incoming_count, outgoing_count } = node.stream_summary;
       if (unknown_flow_count > 0) {
@@ -1402,7 +1755,7 @@ export function checkHazopReadiness(
     }
   }
 
-  // 4. Chemical Hazard Verification
+  // 5. Chemical Hazard Verification
   if (chemicals.length === 0) {
     warnings.push('No chemical Safety Data Sheets (SDSs) linked. Toxicity and exposure limits will not propagate into HAZOP consequences.');
   } else {
@@ -1440,7 +1793,11 @@ export function checkHazopReadiness(
     }
   }
 
-  const isReady = blockingReasons.length === 0 && readyNodesCount > 0 && readyNodesCount === phaNodes.length;
+  const isReady =
+    blockingReasons.length === 0 &&
+    readyNodesCount > 0 &&
+    readyNodesCount === phaNodes.length &&
+    criticalDiscrepancies.length === 0;
 
   return {
     ready: isReady,
@@ -1448,6 +1805,8 @@ export function checkHazopReadiness(
     warnings,
     nodes_ready_count: readyNodesCount,
     total_nodes_count: phaNodes.length,
+    unresolved_discrepancies_count: activeDiscrepancies.length,
+    nodes_with_critical_gaps_count: nodesWithCriticalGapsCount,
     evaluated_at: new Date().toISOString(),
   };
 }

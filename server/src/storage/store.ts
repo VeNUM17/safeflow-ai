@@ -77,6 +77,7 @@ import {
   checkHazopReadiness,
   evaluateNodeSpecifications,
   attachStreamContextToNode,
+  attachMultiDocumentContextToNode,
 } from '../services/phaService';
 import { validateDigitalDrawing } from '../services/drawingValidationService';
 
@@ -2280,7 +2281,14 @@ export class PsiDataStore {
     const streams = this.listStreams(projectId);
     const lines = this.listLines(projectId);
     const eq = this.listEquipment(projectId);
-    return nodes.map((n) => attachStreamContextToNode(n, streams, eq, lines));
+    const matrix = this.listEngineeringMatrix(projectId);
+    const rules = this.listPhilosophyRules(projectId);
+    const discrepancies = this.listDiscrepancies(projectId);
+    const chems = this.listChemicals(projectId);
+    return nodes.map((n) => {
+      const withStreams = attachStreamContextToNode(n, streams, eq, lines);
+      return attachMultiDocumentContextToNode(withStreams, matrix, rules, discrepancies, chems);
+    });
   }
 
   public generatePhaNodes(
@@ -2290,8 +2298,14 @@ export class PsiDataStore {
     const eq = this.listEquipment(projectId);
     const lines = this.listLines(projectId);
     const streams = this.listStreams(projectId);
+    const matrix = this.listEngineeringMatrix(projectId);
+    const rules = this.listPhilosophyRules(projectId);
+    const discrepancies = this.listDiscrepancies(projectId);
+    const chems = this.listChemicals(projectId);
 
-    const candidates = generateCandidatePhaNodes(projectId, eq, lines, streams);
+    const candidates = generateCandidatePhaNodes(projectId, eq, lines, streams).map((c) =>
+      attachMultiDocumentContextToNode(c, matrix, rules, discrepancies, chems)
+    );
 
     // Replace existing candidate nodes or merge
     this.data.pha_nodes = [
@@ -2304,7 +2318,7 @@ export class PsiDataStore {
       entity_type: 'pha_node',
       entity_id: projectId,
       action: 'create',
-      change_reason: `Auto-segmented ${candidates.length} candidate PHA study nodes from process graph`,
+      change_reason: `Auto-segmented ${candidates.length} candidate PHA study nodes with multi-document engineering context`,
       reviewer,
       revised_value: candidates.map((c) => ({ node_id: c.node_id, name: c.name })),
     });
@@ -2428,8 +2442,61 @@ export class PsiDataStore {
     const nodes = this.listPhaNodes(projectId);
     const streams = this.listStreams(projectId);
     const approval = this.getGraphApproval(projectId);
+    const matrix = this.listEngineeringMatrix(projectId);
+    const rules = this.listPhilosophyRules(projectId);
+    const discrepancies = this.listDiscrepancies(projectId);
 
-    return checkHazopReadiness(eq, lines, chems, nodes, approval.approved, streams);
+    return checkHazopReadiness(
+      eq,
+      lines,
+      chems,
+      nodes,
+      approval.approved,
+      streams,
+      matrix,
+      rules,
+      discrepancies
+    );
+  }
+
+  public reassessPhaNodesOnSpecChange(
+    projectId: string,
+    changedEntityTag: string,
+    changedField: string,
+    reviewer = 'System'
+  ): PhaStudyNode[] {
+    const tagUpper = changedEntityTag.toUpperCase();
+    const affectedNodes = this.data.pha_nodes.filter(
+      (n) =>
+        n.project_id === projectId &&
+        (n.equipment_tags.some((t) => t.toUpperCase() === tagUpper) ||
+          n.line_numbers.some((l) => l.toUpperCase() === tagUpper))
+    );
+
+    for (const node of affectedNodes) {
+      node.requires_reassessment = true;
+      if (!node.reassessment_reasons) node.reassessment_reasons = [];
+      const reason = `Specification '${changedField}' on '${changedEntityTag}' updated across engineering documents.`;
+      if (!node.reassessment_reasons.includes(reason)) {
+        node.reassessment_reasons.push(reason);
+      }
+      node.updated_at = new Date().toISOString();
+    }
+
+    if (affectedNodes.length > 0) {
+      this.logAudit({
+        project_id: projectId,
+        entity_type: 'pha_node',
+        entity_id: projectId,
+        action: 'update',
+        change_reason: `Flagged ${affectedNodes.length} PHA study node(s) for reassessment following ${changedField} update on ${changedEntityTag}`,
+        reviewer,
+        revised_value: affectedNodes.map((n) => n.node_id),
+      });
+      this.saveDatabase();
+    }
+
+    return affectedNodes;
   }
 
   // --- DIGITAL P&ID DRAWINGS ---

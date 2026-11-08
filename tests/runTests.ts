@@ -13,6 +13,8 @@ import {
   evaluateNodeSpecifications,
   generateFlowDeviationsForNode,
   attachStreamContextToNode,
+  attachMultiDocumentContextToNode,
+  generateComprehensiveHazopDeviations,
 } from '../server/src/services/phaService';
 import { validateDigitalDrawing } from '../server/src/services/drawingValidationService';
 import { exportDrawingToJson, exportDrawingToSvg } from '../server/src/services/drawingExportService';
@@ -8177,6 +8179,551 @@ test('Scenario 6: Discrepancy Resolution Lifecycle, Reviewer Attribution & Audit
   assert.strictEqual(updated.resolved_by, 'Shlok (Lead Process Safety Engineer)');
   assert.ok(updated.resolution_notes?.includes('design margin'));
   assert.ok(updated.resolved_at !== null);
+});
+
+// TEST GROUP 27: PHA / HAZOP INTEGRATION (PHASE 9)
+console.log('\n--- Test Group 27: PHA / HAZOP Integration (Phase 9) ---');
+
+test('Scenario 1: Multi-Document Context Propagation into PHA Study Nodes', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('PHA Multi-Doc Test Project', 'Testing matrix propagation to nodes');
+  const docId = `doc-pid-${Date.now()}`;
+
+  // Add equipment
+  const eq = {
+    id: `eq-pg1001-${Date.now()}`,
+    project_id: proj.id,
+    document_id: docId,
+    tag: 'PG-1001',
+    description: 'Inlet Slug Catcher / Pig Receiver',
+    equipment_type: 'vessel' as any,
+    assigned_chemical_id: null,
+    confidence: 0.98,
+    status: 'confirmed' as any,
+    source: { document: 'PID.pdf', page: 1, snippet: 'PG-1001' },
+    created_at: new Date().toISOString(),
+  };
+  store.addEquipment([eq], 'P&ID', 'Setup');
+
+  const line = {
+    id: `line-101-${Date.now()}`,
+    project_id: proj.id,
+    document_id: docId,
+    line_number: '10"-PG-00101-A1A',
+    from_equipment: 'Battery Limit',
+    to_equipment: 'PG-1001',
+    size: '10"',
+    spec: 'A1A',
+    stream_label: 'Wet Sour Gas',
+    material: 'CS NACE',
+    flow_direction: 'forward' as any,
+    status: 'confirmed' as any,
+    alerts: [],
+    source: { document: 'PID.pdf', page: 1, snippet: '10"-PG-00101-A1A' },
+    created_at: new Date().toISOString(),
+  };
+  store.addLines([line], 'P&ID', 'Setup');
+
+  // Add datasheet extraction for PG-1001
+  store.saveDatasheetExtraction({
+    id: `ds-ext-${Date.now()}`,
+    project_id: proj.id,
+    document_id: `doc-ds-${Date.now()}`,
+    document_name: 'DS-PG-1001.pdf',
+    datasheets: [
+      {
+        id: 'ds-rec-1',
+        project_id: proj.id,
+        document_id: `doc-ds-${Date.now()}`,
+        equipment_tag: 'PG-1001',
+        equipment_name: 'Slug Catcher',
+        equipment_type: 'vessel',
+        design_pressure: {
+          id: 'dp-1',
+          original_value: 90.0,
+          normalized_value: 90.0,
+          original_unit: 'barg',
+          normalized_unit: 'barg',
+          source_document_id: 'doc-ds-1',
+          source_document_name: 'DS-PG-1001.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.98,
+          verification_status: 'engineer_verified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        design_temperature: {
+          id: 'dt-1',
+          original_value: 120.0,
+          normalized_value: 120.0,
+          original_unit: '°C',
+          normalized_unit: '°C',
+          source_document_id: 'doc-ds-1',
+          source_document_name: 'DS-PG-1001.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.98,
+          verification_status: 'engineer_verified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        material_of_construction: {
+          id: 'moc-1',
+          original_value: 'CS NACE MR0175',
+          normalized_value: 'CS NACE MR0175',
+          source_document_id: 'doc-ds-1',
+          source_document_name: 'DS-PG-1001.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.98,
+          verification_status: 'engineer_verified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        relief_valve_set_pressure: {
+          id: 'rv-1',
+          original_value: 95.0,
+          normalized_value: 95.0,
+          original_unit: 'barg',
+          normalized_unit: 'barg',
+          source_document_id: 'doc-ds-1',
+          source_document_name: 'DS-PG-1001.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.98,
+          verification_status: 'engineer_verified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        nozzles: [],
+        confidence: 0.98,
+        extracted_at: new Date().toISOString(),
+      },
+    ],
+    total_equipment_found: 1,
+    extraction_warnings: [],
+    extracted_at: new Date().toISOString(),
+  });
+
+  // Add philosophy rule
+  store.addPhilosophyRule({
+    id: `rule-1-${Date.now()}`,
+    project_id: proj.id,
+    source_document_id: `doc-phil-${Date.now()}`,
+    source_document_name: 'Shutdown_Philosophy.pdf',
+    source_category: 'shutdown_philosophy',
+    rule_type: 'interlock',
+    equipment_tag: 'PG-1001',
+    loop_tag: 'PT-1002',
+    condition: 'Pressure on PT-1002 >= 95.0 barg',
+    action: 'Initiate ESD-1 emergency blowdown via BDV-1001 to flare',
+    fail_safe_position: 'fail_open',
+    sil_rating: 'SIL 2',
+    is_confirmed_setpoint: true,
+    verification_status: 'engineer_verified',
+  });
+
+  // Rebuild matrix
+  buildUnifiedEngineeringMatrix(proj.id, store);
+
+  // Generate PHA candidate nodes
+  const nodes = store.generatePhaNodes(proj.id, 'Shlok');
+  assert.ok(nodes.length > 0, 'Candidate PHA study nodes must be generated');
+
+  const node = nodes[0];
+  assert.ok(node.multi_document_context, 'Node must have multi_document_context attached');
+  assert.strictEqual(node.multi_document_context.limit_comparison_status, 'fully_verified');
+  assert.strictEqual(node.has_critical_gaps, false);
+  assert.ok(node.multi_document_context.matrix_entries.length > 0);
+  assert.ok(node.multi_document_context.philosophy_rules.length > 0);
+  assert.strictEqual(node.operating_limits.pressure_safe_upper, 90.0);
+  assert.strictEqual(node.operating_limits.temperature_safe_upper, 120.0);
+});
+
+test('Scenario 2: Explicit Missing Information Gap Identification (MISSING_DESIGN_PRESSURE, etc.)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Missing Spec Gap Test', 'Testing explicit gap identification');
+  const docId = `doc-pid-${Date.now()}`;
+
+  // Vessel V-5001 without documented design pressure and metallurgy
+  const eq = {
+    id: `eq-v5001-${Date.now()}`,
+    project_id: proj.id,
+    document_id: docId,
+    tag: 'V-5001',
+    description: 'Ammonia Flash Drum',
+    equipment_type: 'vessel' as any,
+    assigned_chemical_id: null,
+    confidence: 0.90,
+    status: 'confirmed' as any,
+    source: { document: 'PID.pdf', page: 1, snippet: 'V-5001' },
+    created_at: new Date().toISOString(),
+  };
+  store.addEquipment([eq], 'P&ID', 'Setup');
+
+  const line = {
+    id: `line-501-${Date.now()}`,
+    project_id: proj.id,
+    document_id: docId,
+    line_number: '6"-NH3-05001-CS',
+    from_equipment: 'V-5001',
+    to_equipment: 'Flare',
+    size: '6"',
+    spec: 'CS',
+    stream_label: 'Vapor Ammonia',
+    material: 'CS',
+    flow_direction: 'forward' as any,
+    status: 'confirmed' as any,
+    alerts: [],
+    source: { document: 'PID.pdf', page: 1, snippet: '6"-NH3-05001-CS' },
+    created_at: new Date().toISOString(),
+  };
+  store.addLines([line], 'P&ID', 'Setup');
+
+  // Build matrix with zero datasheet entries for V-5001
+  buildUnifiedEngineeringMatrix(proj.id, store);
+
+  const nodes = store.generatePhaNodes(proj.id, 'Lead Safety Facilitator');
+  assert.ok(nodes.length > 0);
+
+  const node = nodes[0];
+  assert.ok(node.multi_document_context);
+  assert.strictEqual(node.multi_document_context.limit_comparison_status, 'unverified_or_blocked');
+  assert.strictEqual(node.has_critical_gaps, true);
+
+  const missingPress = node.multi_document_context.missing_design_specifications.find(
+    (s) => s.property === 'design_pressure'
+  );
+  assert.ok(missingPress, 'Must flag missing design pressure alert');
+  assert.strictEqual(missingPress.criticality, 'critical');
+
+  const missingTemp = node.multi_document_context.missing_design_specifications.find(
+    (s) => s.property === 'design_temperature'
+  );
+  assert.ok(missingTemp, 'Must flag missing design temperature alert');
+
+  // Must populate critical_information_gaps array
+  assert.ok(node.critical_information_gaps && node.critical_information_gaps.length >= 2);
+  assert.ok(node.critical_information_gaps.some((g) => g.includes('[MISSING_DESIGN_PRESSURE]')));
+  assert.ok(node.missing_process_information?.some((g) => g.includes('[MISSING_DESIGN_PRESSURE]')));
+});
+
+test('Scenario 3: Strict Non-Fabrication Rule: Blocking Claimed Verified Limit Comparisons When Critical Limits are Absent', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Strict Limit Comparison Gate Project', 'Testing non-fabrication gate');
+  const docId = `doc-pid-${Date.now()}`;
+
+  const eq = {
+    id: `eq-t6001-${Date.now()}`,
+    project_id: proj.id,
+    document_id: docId,
+    tag: 'TK-6001',
+    description: 'Bulk Sulfuric Acid Tank',
+    equipment_type: 'tank' as any,
+    assigned_chemical_id: null,
+    confidence: 0.95,
+    status: 'confirmed' as any,
+    source: { document: 'PID.pdf', page: 1, snippet: 'TK-6001' },
+    created_at: new Date().toISOString(),
+  };
+  store.addEquipment([eq], 'P&ID', 'Setup');
+
+  const line = {
+    id: `line-601-${Date.now()}`,
+    project_id: proj.id,
+    document_id: docId,
+    line_number: '2"-AC-6001-A1A',
+    from_equipment: 'TK-6001',
+    to_equipment: 'Neutralization',
+    size: '2"',
+    spec: 'A1A',
+    stream_label: 'Sulfuric Acid',
+    material: 'Alloy 20',
+    flow_direction: 'forward' as any,
+    status: 'confirmed' as any,
+    alerts: [],
+    source: { document: 'PID.pdf', page: 1, snippet: '2"-AC-6001-A1A' },
+    created_at: new Date().toISOString(),
+  };
+  store.addLines([line], 'P&ID', 'Setup');
+
+  // Approve graph so graph gate passes
+  store.approveGraph(proj.id, 'Senior Process Engineer', 'Graph validated', true);
+
+  // Generate nodes without datasheet specifications
+  buildUnifiedEngineeringMatrix(proj.id, store);
+  const nodes = store.generatePhaNodes(proj.id, 'Engineer');
+  const node = nodes[0];
+
+  // Try to approve node even though critical limits are missing
+  store.approvePhaNode(node.id, 'Lead HAZOP Chair');
+
+  // Check HAZOP readiness
+  const readiness = store.getHazopReadiness(proj.id);
+  assert.strictEqual(readiness.ready, false, 'Readiness must remain blocked when critical limits are missing');
+  assert.ok(
+    readiness.blocking_reasons.some((r) =>
+      r.includes('cannot claim verified limit comparisons because critical design limits are absent or unverified')
+    ),
+    'Must explicitly block claiming verified limit comparison when design limits are absent'
+  );
+  assert.ok((readiness.nodes_with_critical_gaps_count ?? 0) > 0);
+});
+
+test('Scenario 4: Grounded Multi-Document HAZOP Deviation Generation', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('HAZOP Deviation Grounding Project', 'Testing evidence citations in deviations');
+
+  const dummyNode: PhaStudyNode = {
+    id: 'n-test-101',
+    project_id: proj.id,
+    node_id: 'N-001',
+    name: 'Inlet Separation',
+    design_intent: 'Separate multiphase reservoir fluid at 90 barg and 60 C.',
+    equipment_tags: ['PG-1001'],
+    line_numbers: ['10"-PG-00101-A1A'],
+    inlet_boundaries: ['Inlet'],
+    outlet_boundaries: ['Outlet'],
+    basis_for_grouping: 'Unit boundary',
+    status: 'candidate_not_authoritative',
+    unresolved_questions: [],
+    operating_limits: {
+      temperature_safe_upper: null,
+      temperature_safe_lower: null,
+      pressure_safe_upper: null,
+      pressure_safe_lower: null,
+      flow_safe_upper: null,
+      flow_safe_lower: null,
+      units: { temperature: '°C', pressure: 'bar(g)', flow: 'm3/h' },
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  const matrixEntry: UnifiedEngineeringMatrixEntry = {
+    id: 'mat-pg1001',
+    project_id: proj.id,
+    entity_type: 'equipment',
+    entity_tag: 'PG-1001',
+    sources_found: ['equipment_datasheet', 'pid'],
+    design_specifications: {
+      design_pressure: {
+        id: 'p-1',
+        original_value: 90.0,
+        normalized_value: 90.0,
+        original_unit: 'barg',
+        normalized_unit: 'barg',
+        source_document_id: 'ds-1',
+        source_document_name: 'DS-PG-1001.pdf',
+        source_category: 'equipment_datasheet',
+        page_or_drawing_location: 'Page 1',
+        extraction_confidence: 0.99,
+        verification_status: 'engineer_verified',
+        extraction_timestamp: new Date().toISOString(),
+      },
+      relief_valve_set_pressure: {
+        id: 'rv-1',
+        original_value: 95.0,
+        normalized_value: 95.0,
+        original_unit: 'barg',
+        normalized_unit: 'barg',
+        source_document_id: 'ds-1',
+        source_document_name: 'DS-PG-1001.pdf',
+        source_category: 'equipment_datasheet',
+        page_or_drawing_location: 'Page 1',
+        extraction_confidence: 0.99,
+        verification_status: 'engineer_verified',
+        extraction_timestamp: new Date().toISOString(),
+      },
+    },
+    has_conflicts: false,
+    conflict_ids: [],
+    last_updated: new Date().toISOString(),
+  };
+
+  const rule: EngineeringPhilosophyRule = {
+    id: 'rule-bdv',
+    project_id: proj.id,
+    source_document_id: 'phil-1',
+    source_document_name: 'Shutdown_Philosophy.pdf',
+    source_category: 'shutdown_philosophy',
+    rule_type: 'esd_action',
+    equipment_tag: 'PG-1001',
+    loop_tag: 'BDV-1001',
+    condition: 'ESD-1 Emergency Depressurization signal active',
+    action: 'Open BDV-1001 to blow down vessel to sour flare header',
+    fail_safe_position: 'fail_open',
+    sil_rating: 'SIL 2',
+    is_confirmed_setpoint: true,
+    verification_status: 'engineer_verified',
+  };
+
+  const devs = generateComprehensiveHazopDeviations(
+    dummyNode,
+    null,
+    [],
+    [],
+    [matrixEntry],
+    [rule],
+    []
+  );
+
+  const morePressure = devs.find((d) => d.deviation === 'MORE PRESSURE / OVERPRESSURE');
+  assert.ok(morePressure, 'MORE PRESSURE deviation must be generated');
+  assert.ok(morePressure.consequences[0].includes('90 barg'), 'Consequence must cite 90 barg design pressure');
+  assert.ok(
+    morePressure.existing_safeguards.some((s) => s.includes('95 barg') && s.includes('PSV-1001')),
+    'Safeguards must cite 95 barg PSV setpoint'
+  );
+  assert.ok(
+    morePressure.existing_safeguards.some((s) => s.includes('BDV-1001') && s.includes('ESD-1')),
+    'Safeguards must ground ESD-1 blowdown action from Shutdown Philosophy'
+  );
+});
+
+test('Scenario 5: Multi-Document HAZOP Readiness Evaluation with Open Critical Discrepancies', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Discrepancy Readiness Gate Project', 'Testing blocking on critical discrepancies');
+
+  const eq = {
+    id: `eq-v7001-${Date.now()}`,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    tag: 'V-7001',
+    description: 'Stabilizer Feed Drum',
+    equipment_type: 'vessel' as any,
+    assigned_chemical_id: null,
+    confidence: 0.95,
+    status: 'confirmed' as any,
+    source: { document: 'PID.pdf', page: 1, snippet: 'V-7001' },
+    created_at: new Date().toISOString(),
+  };
+  store.addEquipment([eq], 'P&ID', 'Setup');
+
+  const line = {
+    id: `line-701-${Date.now()}`,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    line_number: '4"-ST-7001-A1A',
+    from_equipment: 'V-7001',
+    to_equipment: 'Tower',
+    size: '4"',
+    spec: 'A1A',
+    stream_label: 'Feed',
+    material: 'CS',
+    flow_direction: 'forward' as any,
+    status: 'confirmed' as any,
+    alerts: [],
+    source: { document: 'PID.pdf', page: 1, snippet: '4"-ST-7001-A1A' },
+    created_at: new Date().toISOString(),
+  };
+  store.addLines([line], 'P&ID', 'Setup');
+
+  store.approveGraph(proj.id, 'Process Engineer', 'Topology valid', true);
+
+  // Add critical discrepancy: relief_vs_mawp
+  store.addDiscrepancy({
+    id: `disc-crit-${Date.now()}`,
+    project_id: proj.id,
+    entity_type: 'equipment',
+    entity_tag: 'V-7001',
+    property_name: 'relief_valve_set_pressure',
+    discrepancy_type: 'relief_vs_mawp',
+    status: 'open',
+    severity: 'critical',
+    message: 'Relief valve set pressure (105 barg) exceeds design pressure (100 barg) on V-7001',
+    evidence_records: [],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+
+  const readiness = store.getHazopReadiness(proj.id);
+  assert.strictEqual(readiness.ready, false, 'Readiness must be blocked by critical discrepancy');
+  assert.ok(
+    readiness.blocking_reasons.some((r) => r.includes('Unresolved critical discrepancy') && r.includes('V-7001')),
+    'Must list unresolved critical discrepancy in blocking reasons'
+  );
+  assert.strictEqual(readiness.unresolved_discrepancies_count, 1);
+});
+
+test('Scenario 6: Reassessment Flagging Upon Multi-Document Specification Updates', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Reassessment Flow Project', 'Testing reassessment propagation');
+
+  const eq = {
+    id: `eq-pg9001-${Date.now()}`,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    tag: 'PG-9001',
+    description: 'Gas Compressor Suction Scrubber',
+    equipment_type: 'separator' as any,
+    assigned_chemical_id: null,
+    confidence: 0.95,
+    status: 'confirmed' as any,
+    source: { document: 'PID.pdf', page: 1, snippet: 'PG-9001' },
+    created_at: new Date().toISOString(),
+  };
+  store.addEquipment([eq], 'P&ID', 'Setup');
+
+  const line = {
+    id: `line-901-${Date.now()}`,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    line_number: '12"-GS-9001-A1A',
+    from_equipment: 'Manifold',
+    to_equipment: 'PG-9001',
+    size: '12"',
+    spec: 'A1A',
+    stream_label: 'Natural Gas',
+    material: 'CS',
+    flow_direction: 'forward' as any,
+    status: 'confirmed' as any,
+    alerts: [],
+    source: { document: 'PID.pdf', page: 1, snippet: '12"-GS-9001-A1A' },
+    created_at: new Date().toISOString(),
+  };
+  store.addLines([line], 'P&ID', 'Setup');
+
+  const node = store.createPhaNode({
+    project_id: proj.id,
+    node_id: 'N-901',
+    name: 'Compression Suction Scrubbing',
+    design_intent: 'Scrub condensed liquids from gas prior to compression.',
+    equipment_tags: ['PG-9001'],
+    line_numbers: ['12"-GS-9001-A1A'],
+    inlet_boundaries: ['Battery Limit'],
+    outlet_boundaries: ['Compressor K-9001 Suction'],
+    basis_for_grouping: 'Liquid separation boundary',
+    status: 'approved',
+    unresolved_questions: [],
+    operating_limits: {
+      temperature_safe_upper: 80,
+      temperature_safe_lower: 10,
+      pressure_safe_upper: 60,
+      pressure_safe_lower: 15,
+      flow_safe_upper: 1000,
+      flow_safe_lower: 200,
+      units: { temperature: '°C', pressure: 'bar(g)', flow: 'm3/h' },
+    },
+    requires_reassessment: false,
+    reassessment_reasons: [],
+  });
+
+  assert.strictEqual(node.requires_reassessment, false);
+
+  // Trigger specification update reassessment
+  const affected = store.reassessPhaNodesOnSpecChange(
+    proj.id,
+    'PG-9001',
+    'design_pressure',
+    'Shlok (Master Process Architect)'
+  );
+
+  assert.strictEqual(affected.length, 1);
+  assert.strictEqual(affected[0].node_id, 'N-901');
+
+  // Verify updated state in store
+  const reloaded = store.listPhaNodes(proj.id).find((n) => n.id === node.id);
+  assert.ok(reloaded);
+  assert.strictEqual(reloaded.requires_reassessment, true);
+  assert.ok(reloaded.reassessment_reasons?.some((r) => r.includes('design_pressure') && r.includes('PG-9001')));
 });
 
 console.log(`\n========================================`);

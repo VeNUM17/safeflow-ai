@@ -2023,8 +2023,31 @@ router.get('/projects/:id/pha-chemical-context/:nodeId', (req: Request, res: Res
     node.equipment_tags.some((t) => t.toUpperCase() === m.target_tag.toUpperCase())
   ) || null;
 
-  const enrichedNode = attachChemicalContextToPhaNode(node, matchingMapping, equipment, lines);
+  const matrix = store.listEngineeringMatrix(projectId);
+  const rules = store.listPhilosophyRules(projectId);
+  const discrepancies = store.listDiscrepancies(projectId);
+
+  const enrichedNode = attachChemicalContextToPhaNode(
+    node,
+    matchingMapping,
+    equipment,
+    lines,
+    matrix,
+    rules,
+    discrepancies
+  );
   res.json({ success: true, data: enrichedNode });
+});
+
+// --- PHA Multi-Document Reassessment ---
+router.post('/projects/:id/pha/nodes/reassess', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const entityTag = req.body?.entity_tag || '';
+  const property = req.body?.property || 'specification';
+  const reviewer = req.body?.reviewer || 'Process Safety Engineer';
+
+  const affected = store.reassessPhaNodesOnSpecChange(projectId, entityTag, property, reviewer);
+  res.json({ success: true, count: affected.length, data: affected });
 });
 
 // --- HEALTH CHECK ---
