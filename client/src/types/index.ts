@@ -508,6 +508,9 @@ export interface EquipmentSpecifications {
   // Optional fields by equipment type
   design_code?: SpecProperty<string>; // e.g. ASME Section VIII Div 1, API 650
   corrosion_allowance?: SpecProperty<number>;
+  mawp?: SpecProperty<number>;
+  test_pressure?: SpecProperty<number>;
+  min_design_metal_temperature?: SpecProperty<number>;
   pump_head?: SpecProperty<number>;
   pump_power?: SpecProperty<number>;
   heat_exchange_duty?: SpecProperty<number>;
@@ -574,6 +577,7 @@ export interface EquipmentTag {
   specifications: EquipmentSpecifications;
   specifications_revision?: string | number;
   specifications_updated_at?: string;
+  nozzle_schedule?: NozzleScheduleItem[];
   drawing_id?: string | null;
   drawing_revision?: string | null;
   drawing_element_id?: string | null;
@@ -763,6 +767,52 @@ export interface StreamTableExtractionResult {
   table_orientation: 'streams_as_columns' | 'streams_as_rows' | 'hybrid';
   streams: ExtractedStreamRecord[];
   total_streams_found: number;
+  extraction_warnings: string[];
+  extracted_at: string;
+}
+
+// --- EQUIPMENT DATASHEET EXTRACTION DATA MODELS ---
+
+export interface NozzleScheduleItem {
+  nozzle_tag: string; // e.g. "N1", "N2", "N3", "N4", "N5"
+  service: string; // e.g. "Inlet", "Gas Outlet", "Liquid Outlet", "PSV", "Drain", "Vent"
+  nominal_size: string; // e.g. "10\"", "4\"", "2\""
+  flange_rating?: string | null; // e.g. "600# RF", "300# RTJ"
+  flange_facing?: string | null; // e.g. "RF", "RTJ", "FF"
+}
+
+export interface ExtractedDatasheetRecord {
+  id: string;
+  project_id: string;
+  document_id: string;
+  equipment_tag: string;
+  equipment_name: string;
+  equipment_type: EquipmentType;
+  material_of_construction: UnifiedProvenanceValue<string>;
+  design_pressure: UnifiedProvenanceValue<number>;
+  design_temperature: UnifiedProvenanceValue<number>;
+  min_design_metal_temp?: UnifiedProvenanceValue<number>;
+  operating_pressure: UnifiedProvenanceValue<number>;
+  operating_temperature: UnifiedProvenanceValue<number>;
+  mawp?: UnifiedProvenanceValue<number>;
+  test_pressure?: UnifiedProvenanceValue<number>;
+  design_code?: UnifiedProvenanceValue<string>;
+  corrosion_allowance?: UnifiedProvenanceValue<number>;
+  capacity_or_volume?: UnifiedProvenanceValue<number>;
+  relief_valve_set_pressure?: UnifiedProvenanceValue<number>;
+  nozzles: NozzleScheduleItem[];
+  equipment_specific_params?: Record<string, UnifiedProvenanceValue<any>>;
+  confidence: number;
+  extracted_at: string;
+}
+
+export interface DatasheetExtractionResult {
+  id: string;
+  project_id: string;
+  document_id: string;
+  document_name: string;
+  datasheets: ExtractedDatasheetRecord[];
+  total_equipment_found: number;
   extraction_warnings: string[];
   extracted_at: string;
 }

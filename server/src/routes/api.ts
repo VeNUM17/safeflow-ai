@@ -22,6 +22,7 @@ import { validateProjectPsiCompleteness } from '../services/psiValidationService
 import { attachChemicalContextToPhaNode } from '../services/phaService';
 import { parsePfdOrBfdDocument } from '../services/pfdParser';
 import { parseStreamTableDocument } from '../services/streamTableParser';
+import { parseDatasheetDocument } from '../services/datasheetParser';
 
 const router = Router();
 
@@ -215,6 +216,21 @@ router.get('/documents/:id/stream-table-extraction', (req: Request, res: Respons
   const extraction = store.getStreamTableExtraction(id);
   if (!extraction) {
     return res.status(404).json({ success: false, error: 'Stream table extraction not found for this document' });
+  }
+  res.json({ success: true, data: extraction });
+});
+
+router.get('/projects/:id/datasheet-extractions', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const extractions = store.listDatasheetExtractions(id);
+  res.json({ success: true, data: extractions });
+});
+
+router.get('/documents/:id/datasheet-extraction', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const extraction = store.getDatasheetExtraction(id);
+  if (!extraction) {
+    return res.status(404).json({ success: false, error: 'Datasheet extraction not found for this document' });
   }
   res.json({ success: true, data: extraction });
 });
@@ -453,6 +469,31 @@ router.post(
           }
         } catch (stErr: any) {
           console.error('Auto Stream Table extraction error:', stErr.message);
+        }
+      }
+
+      // If document is Equipment Datasheet, run dedicated datasheet extraction processor
+      if (determinedCategory === 'equipment_datasheet' && extracted.isReadable) {
+        try {
+          const existingEquipment = store.listEquipment(projectId);
+          const dsResult = parseDatasheetDocument(
+            extracted,
+            docId,
+            file.originalname,
+            projectId,
+            existingEquipment
+          );
+          store.saveDatasheetExtraction(dsResult.extraction);
+          if (dsResult.equipment.length > 0) {
+            store.addEquipment(
+              dsResult.equipment,
+              'Datasheet Parser',
+              `Extracted mechanical design specifications from ${file.originalname}`
+            );
+            newEquipment.push(...dsResult.equipment);
+          }
+        } catch (dsErr: any) {
+          console.error('Auto Datasheet extraction error:', dsErr.message);
         }
       }
     }

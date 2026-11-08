@@ -64,6 +64,9 @@ import {
   StreamTableExtractionResult,
   ExtractedStreamRecord,
   StreamTableComponentFraction,
+  DatasheetExtractionResult,
+  ExtractedDatasheetRecord,
+  NozzleScheduleItem,
 } from '../types';
 import { detectConflictsForProject } from '../services/conflictDetector';
 import { validateProcessGraph } from '../services/graphValidationService';
@@ -101,6 +104,7 @@ interface DatabaseSchema {
   philosophy_rules: EngineeringPhilosophyRule[];
   pfd_extractions: PfdExtractionResult[];
   stream_table_extractions: StreamTableExtractionResult[];
+  datasheet_extractions: DatasheetExtractionResult[];
 }
 
 const DATA_DIR = path.resolve(__dirname, '../../data');
@@ -133,6 +137,7 @@ export class PsiDataStore {
     philosophy_rules: [],
     pfd_extractions: [],
     stream_table_extractions: [],
+    datasheet_extractions: [],
   };
 
   constructor() {
@@ -182,6 +187,7 @@ export class PsiDataStore {
           philosophy_rules: parsed.philosophy_rules || [],
           pfd_extractions: parsed.pfd_extractions || [],
           stream_table_extractions: parsed.stream_table_extractions || [],
+          datasheet_extractions: parsed.datasheet_extractions || [],
         };
 
         // Non-destructive migration for DocumentRecord category and metadata
@@ -550,6 +556,28 @@ export class PsiDataStore {
       this.data.stream_table_extractions[idx] = result;
     } else {
       this.data.stream_table_extractions.push(result);
+    }
+    this.saveDatabase();
+  }
+
+  // --- EQUIPMENT DATASHEET EXTRACTION RESULTS ---
+  public listDatasheetExtractions(projectId: string): DatasheetExtractionResult[] {
+    return (this.data.datasheet_extractions || []).filter((d) => d.project_id === projectId);
+  }
+
+  public getDatasheetExtraction(documentId: string): DatasheetExtractionResult | undefined {
+    return (this.data.datasheet_extractions || []).find((d) => d.document_id === documentId);
+  }
+
+  public saveDatasheetExtraction(result: DatasheetExtractionResult): void {
+    if (!this.data.datasheet_extractions) this.data.datasheet_extractions = [];
+    const idx = this.data.datasheet_extractions.findIndex(
+      (d) => d.document_id === result.document_id || d.id === result.id
+    );
+    if (idx >= 0) {
+      this.data.datasheet_extractions[idx] = result;
+    } else {
+      this.data.datasheet_extractions.push(result);
     }
     this.saveDatabase();
   }
@@ -1388,13 +1416,13 @@ export class PsiDataStore {
       updatedProp.verified_at = new Date().toISOString();
     }
 
-    eq.specifications[propertyKey] = updatedProp;
+    (eq.specifications as any)[propertyKey] = updatedProp;
     eq.specifications_revision = (Number(eq.specifications_revision) || 1) + 1;
     eq.specifications_updated_at = new Date().toISOString();
     eq.updated_at = new Date().toISOString();
 
     // Invalidate graph approval
-    this.invalidateGraphApproval(eq.project_id, `Equipment ${eq.tag} specification '${propertyKey}' modified`);
+    this.invalidateGraphApproval(eq.project_id, `Equipment ${eq.tag} specification '${String(propertyKey)}' modified`);
 
     // Synchronize to digital drawing element if linked
     if (eq.drawing_id && eq.drawing_element_id) {
@@ -1403,7 +1431,7 @@ export class PsiDataStore {
         const elem = drawing.elements.find((el) => el.id === eq.drawing_element_id);
         if (elem) {
           if (!elem.specifications) elem.specifications = createDefaultSpecifications(elem.type as any);
-          elem.specifications[propertyKey] = updatedProp;
+          (elem.specifications as any)[propertyKey] = updatedProp;
         }
       }
     }
@@ -1522,7 +1550,7 @@ export class PsiDataStore {
     };
     prop.conflicting_records.push(newConflict);
 
-    eq.specifications[propertyKey] = prop;
+    (eq.specifications as any)[propertyKey] = prop;
     eq.specifications_revision = (Number(eq.specifications_revision) || 1) + 1;
     eq.specifications_updated_at = new Date().toISOString();
 

@@ -51,9 +51,11 @@ import {
   ProjectPsiDashboardValidation,
   PfdExtractionResult,
   StreamTableExtractionResult,
+  DatasheetExtractionResult,
 } from '../server/src/types';
 import { parsePfdOrBfdDocument } from '../server/src/services/pfdParser';
 import { parseStreamTableDocument } from '../server/src/services/streamTableParser';
+import { parseDatasheetDocument } from '../server/src/services/datasheetParser';
 import { classifyDocument, classifyEngineeringCategory } from '../server/src/services/documentClassifier';
 import { extractTextFromDocument } from '../server/src/services/pdfExtractor';
 import { extractVectorGeometry } from '../server/src/services/vectorPdfService';
@@ -6353,6 +6355,373 @@ test('Scenario 6: Store persistence, query & retrieval of Stream Table extractio
   // List by project ID
   const list = store.listStreamTableExtractions(testProjectId);
   assert.strictEqual(list.length, 1, 'Must list 1 stream table extraction for project');
+});
+
+// ============================================================================
+// TEST GROUP 23: EQUIPMENT DATASHEET EXTRACTION PROCESSOR (PHASE 5)
+// ============================================================================
+
+console.log('\n--- Test Group 23: Equipment Datasheet Extraction Processor (Phase 5) ---');
+
+test('Scenario 1: Extraction of Mechanical Design Parameters from Pressure Vessel Datasheet (PG-1001)', () => {
+  const datasheetText = `
+    EQUIPMENT DATASHEET: PRESSURE VESSEL
+    INTELLIGENT ENGINEERING SOLUTIONS (IES)
+    PROJECT: ONSHORE GAS PROCESSING FACILITY
+
+    TAG NUMBER: PG-1001
+    SERVICE: PIG RECEIVER & SLUG CATCHER
+    EQUIPMENT TYPE: HORIZONTAL THREE-PHASE SEPARATOR / SLUG CATCHER
+
+    MECHANICAL DESIGN CONDITIONS:
+    Design Pressure: 95.0 barg
+    Design Temperature: 130.0 °C
+    Min Design Metal Temp (MDMT): -29.0 °C
+    Operating Pressure: 90.0 barg
+    Operating Temperature: 120.0 °C
+    MAWP: 98.0 barg
+    Hydrostatic Test Pressure: 143.0 barg
+    Material of Construction: Carbon Steel NACE MR0175 (SA-516 Gr. 70)
+    Corrosion Allowance: 3.0 mm
+    Design Code: ASME Section VIII Div 1
+    Capacity: 50.0 m3 (1200 ID x 8000 LG)
+    Relief Valve Set Pressure: 95.0 barg
+  `.trim();
+
+  const dummyContent = {
+    text: datasheetText,
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+    textElements: [],
+  };
+
+  const { extraction, equipment } = parseDatasheetDocument(
+    dummyContent,
+    'doc-ds-01',
+    'DS-PG-1001_Slug_Catcher_Datasheet.pdf',
+    'proj-ds-test'
+  );
+
+  assert.strictEqual(extraction.total_equipment_found, 1);
+  assert.strictEqual(equipment.length, 1);
+
+  const ds = extraction.datasheets[0];
+  assert.strictEqual(ds.equipment_tag, 'PG-1001');
+  assert.strictEqual(ds.equipment_type, 'vessel');
+  assert.strictEqual(ds.design_pressure.normalized_value, 95.0);
+  assert.strictEqual(ds.design_pressure.normalized_unit, 'barg');
+  assert.strictEqual(ds.design_temperature.normalized_value, 130.0);
+  assert.strictEqual(ds.design_temperature.normalized_unit, '°C');
+  assert.strictEqual(ds.operating_pressure.normalized_value, 90.0);
+  assert.strictEqual(ds.operating_temperature.normalized_value, 120.0);
+  assert.strictEqual(ds.mawp?.normalized_value, 98.0);
+  assert.strictEqual(ds.test_pressure?.normalized_value, 143.0);
+  assert.strictEqual(ds.corrosion_allowance?.normalized_value, 3.0);
+  assert.strictEqual(ds.corrosion_allowance?.normalized_unit, 'mm');
+  assert.ok(ds.material_of_construction.normalized_value?.includes('Carbon Steel'), 'MOC must contain Carbon Steel');
+  assert.ok(ds.design_code?.normalized_value?.includes('ASME Section VIII'), 'Design code must contain ASME');
+
+  // Verify SafeFlow EquipmentTag specs
+  const eq = equipment[0];
+  assert.strictEqual(eq.tag, 'PG-1001');
+  assert.strictEqual(eq.specifications.design_pressure.value, 95.0);
+  assert.strictEqual(eq.specifications.design_temperature.value, 130.0);
+  assert.strictEqual(eq.specifications.operating_pressure?.value, 90.0);
+  assert.strictEqual(eq.specifications.operating_temperature?.value, 120.0);
+  assert.strictEqual(eq.specifications.corrosion_allowance?.value, 3.0);
+  assert.strictEqual(eq.specifications.mawp?.value, 98.0);
+  assert.strictEqual(eq.specifications.test_pressure?.value, 143.0);
+});
+
+test('Scenario 2: Extraction of Nozzle Schedule from Equipment Datasheet', () => {
+  const nozzleText = `
+    EQUIPMENT DATASHEET: SLUG CATCHER PG-1001
+    Design Pressure: 95 barg
+    Design Temperature: 130 °C
+
+    NOZZLE SCHEDULE:
+    N1: 10" Inlet (600# RF)
+    N2: 10" Gas Outlet (600# RF)
+    N3: 4" Liquid Outlet (600# RF)
+    N4: 4" PSV Connection (600# RF)
+    N5: 2" Closed Drain (600# RF)
+    N6: 2" Flare Vent (600# RF)
+  `.trim();
+
+  const dummyContent = {
+    text: nozzleText,
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+    textElements: [],
+  };
+
+  const { extraction, equipment } = parseDatasheetDocument(
+    dummyContent,
+    'doc-ds-nozzle',
+    'DS-PG-1001_Nozzles.pdf',
+    'proj-ds-nozzle'
+  );
+
+  const ds = extraction.datasheets[0];
+  assert.ok(ds.nozzles.length >= 6, `Must extract at least 6 nozzles, found: ${ds.nozzles.length}`);
+
+  const n1 = ds.nozzles.find((n) => n.nozzle_tag === 'N1');
+  assert.ok(n1, 'N1 nozzle must exist');
+  assert.strictEqual(n1.nominal_size, '10"');
+  assert.ok(n1.service.toLowerCase().includes('inlet'));
+  assert.ok(n1.flange_rating?.includes('600#'));
+
+  const n4 = ds.nozzles.find((n) => n.nozzle_tag === 'N4');
+  assert.ok(n4, 'N4 nozzle must exist');
+  assert.strictEqual(n4.nominal_size, '4"');
+  assert.ok(n4.service.toLowerCase().includes('psv'));
+
+  // Verify attached to equipment record
+  const eq = equipment[0];
+  assert.ok(eq.nozzle_schedule, 'Nozzle schedule must be populated on equipment record');
+  assert.strictEqual(eq.nozzle_schedule?.length, ds.nozzles.length);
+});
+
+test('Scenario 3: Pressure Relief Valve (PSV) Datasheet extraction', () => {
+  const psvText = `
+    INSTRUMENT & SAFETY EQUIPMENT DATASHEET
+    TAG: PSV-1001
+    SERVICE: PG-1001 OVERPRESSURE PROTECTION
+    Set Pressure: 95.0 barg
+    Relief Temperature: 120.0 °C
+    Body Material: SA-351 CF8M / 316L SS
+    Design Code: API 520 / 526
+  `.trim();
+
+  const dummyContent = {
+    text: psvText,
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+    textElements: [],
+  };
+
+  const { extraction, equipment } = parseDatasheetDocument(
+    dummyContent,
+    'doc-ds-psv',
+    'DS-PSV-1001.pdf',
+    'proj-ds-psv'
+  );
+
+  assert.strictEqual(extraction.datasheets.length, 1);
+  const psv = extraction.datasheets[0];
+  assert.strictEqual(psv.equipment_tag, 'PSV-1001');
+  assert.strictEqual(psv.design_pressure.normalized_value, 95.0);
+  assert.ok(psv.material_of_construction.normalized_value?.includes('316L'));
+
+  const eq = equipment[0];
+  assert.strictEqual(eq.tag, 'PSV-1001');
+  assert.strictEqual(eq.specifications.design_pressure.value, 95.0);
+});
+
+test('Scenario 4: Deep-merge into existing equipment specifications without destroying prior data', () => {
+  const store = new PsiDataStore();
+  const testProjId = `proj-merge-test-${Date.now()}`;
+
+  // Pre-existing equipment item from P&ID extraction
+  const existingEq: EquipmentTag = {
+    id: 'eq-pg1001-existing',
+    project_id: testProjId,
+    document_id: 'doc-pid-orig',
+    tag: 'PG-1001',
+    description: 'Pig Receiver & Slug Catcher',
+    equipment_type: 'vessel',
+    assigned_chemical_id: null,
+    confidence: 0.90,
+    status: 'machine_extracted',
+    source: { document: 'P&ID-01.pdf', page: 1, snippet: 'PG-1001 Slug Catcher' },
+    specifications: createDefaultSpecifications('vessel'),
+    created_at: new Date().toISOString(),
+  };
+
+  const dsContent = {
+    text: `
+      EQUIPMENT DATASHEET: PG-1001
+      Material: Carbon Steel NACE MR0175
+      Design Pressure: 95.0 barg
+      Design Temperature: 130.0 °C
+      Corrosion Allowance: 3.0 mm
+    `.trim(),
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+    textElements: [],
+  };
+
+  const { equipment } = parseDatasheetDocument(
+    dsContent,
+    'doc-ds-merge',
+    'DS-PG-1001.pdf',
+    testProjId,
+    [existingEq]
+  );
+
+  assert.strictEqual(equipment.length, 1);
+  const merged = equipment[0];
+  // Stable ID preserved
+  assert.strictEqual(merged.id, 'eq-pg1001-existing', 'Must preserve stable ID of existing equipment');
+  // Specifications upgraded
+  assert.strictEqual(merged.specifications.design_pressure.value, 95.0);
+  assert.strictEqual(merged.specifications.design_pressure.status, 'extracted');
+  assert.strictEqual(merged.specifications.design_pressure.source_document_name, 'DS-PG-1001.pdf');
+  assert.strictEqual(merged.specifications.design_temperature.value, 130.0);
+  assert.strictEqual(merged.specifications.corrosion_allowance?.value, 3.0);
+  assert.ok(merged.specifications_updated_at, 'specifications_updated_at must be populated');
+});
+
+test('Scenario 5: Strict Non-Fabrication Rule (unstated mechanical specs remain null, never zero)', () => {
+  const sparseDsText = `
+    EQUIPMENT DATASHEET: V-3001
+    Material: SA-516 Gr. 70
+    Design Pressure: 50.0 barg
+  `.trim();
+
+  const dummyContent = {
+    text: sparseDsText,
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+    textElements: [],
+  };
+
+  const { extraction, equipment } = parseDatasheetDocument(
+    dummyContent,
+    'doc-ds-sparse',
+    'Sparse_Datasheet.pdf',
+    'proj-ds-sparse'
+  );
+
+  const ds = extraction.datasheets[0];
+  assert.strictEqual(ds.equipment_tag, 'V-3001');
+  assert.strictEqual(ds.design_pressure.normalized_value, 50.0);
+
+  // CRITICAL AUDIT: Design temperature was NOT provided in the datasheet.
+  // It MUST NOT be fabricated or defaulted to 0!
+  assert.strictEqual(ds.design_temperature.normalized_value, null, 'Unstated design temperature must remain null');
+  assert.strictEqual(ds.design_temperature.extraction_confidence, 0.0);
+
+  const eq = equipment[0];
+  assert.strictEqual(eq.specifications.design_temperature.value, null);
+  assert.strictEqual(eq.specifications.design_temperature.status, 'not_provided');
+});
+
+test('Scenario 6: Store persistence, query & retrieval of Datasheet extraction results', () => {
+  const store = new PsiDataStore();
+  const testDocId = `doc-ds-store-${Date.now()}`;
+  const testProjectId = `proj-ds-store-${Date.now()}`;
+
+  const mockExtraction: DatasheetExtractionResult = {
+    id: `ds-ext-${Date.now()}`,
+    project_id: testProjectId,
+    document_id: testDocId,
+    document_name: 'DS-E-1001_Inlet_Cooler.pdf',
+    datasheets: [
+      {
+        id: 'ds-rec-1',
+        project_id: testProjectId,
+        document_id: testDocId,
+        equipment_tag: 'E-1001',
+        equipment_name: 'Inlet Gas Cooler (E-1001)',
+        equipment_type: 'heat_exchanger',
+        material_of_construction: {
+          id: 'prov-moc',
+          original_value: '316L SS',
+          normalized_value: '316L SS',
+          source_document_id: testDocId,
+          source_document_name: 'DS-E-1001_Inlet_Cooler.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        design_pressure: {
+          id: 'prov-dp',
+          original_value: '95 barg',
+          normalized_value: 95,
+          original_unit: 'barg',
+          normalized_unit: 'barg',
+          source_document_id: testDocId,
+          source_document_name: 'DS-E-1001_Inlet_Cooler.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        design_temperature: {
+          id: 'prov-dt',
+          original_value: '85 °C',
+          normalized_value: 85,
+          original_unit: '°C',
+          normalized_unit: '°C',
+          source_document_id: testDocId,
+          source_document_name: 'DS-E-1001_Inlet_Cooler.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        operating_pressure: {
+          id: 'prov-op',
+          original_value: '85 barg',
+          normalized_value: 85,
+          original_unit: 'barg',
+          normalized_unit: 'barg',
+          source_document_id: testDocId,
+          source_document_name: 'DS-E-1001_Inlet_Cooler.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.92,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        operating_temperature: {
+          id: 'prov-ot',
+          original_value: '38 °C',
+          normalized_value: 38,
+          original_unit: '°C',
+          normalized_unit: '°C',
+          source_document_id: testDocId,
+          source_document_name: 'DS-E-1001_Inlet_Cooler.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.92,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        nozzles: [
+          { nozzle_tag: 'N1', service: 'Gas Inlet', nominal_size: '10"', flange_rating: '600# RF', flange_facing: 'RF' },
+        ],
+        confidence: 0.95,
+        extracted_at: new Date().toISOString(),
+      },
+    ],
+    total_equipment_found: 1,
+    extraction_warnings: [],
+    extracted_at: new Date().toISOString(),
+  };
+
+  store.saveDatasheetExtraction(mockExtraction);
+
+  // Retrieve by document ID
+  const retrieved = store.getDatasheetExtraction(testDocId);
+  assert.ok(retrieved, 'Must retrieve datasheet extraction by document ID');
+  assert.strictEqual(retrieved.document_name, 'DS-E-1001_Inlet_Cooler.pdf');
+  assert.strictEqual(retrieved.datasheets[0].equipment_tag, 'E-1001');
+  assert.strictEqual(retrieved.datasheets[0].nozzles.length, 1);
+
+  // List by project ID
+  const list = store.listDatasheetExtractions(testProjectId);
+  assert.strictEqual(list.length, 1, 'Must list 1 datasheet extraction for project');
 });
 
 console.log(`\n========================================`);
