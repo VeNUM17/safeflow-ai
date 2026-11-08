@@ -491,6 +491,19 @@ export class PsiDataStore {
     return (this.data.engineering_matrix || []).filter((m) => m.project_id === projectId);
   }
 
+  public getEngineeringMatrixEntry(
+    projectId: string,
+    entityType: string,
+    entityTag: string
+  ): UnifiedEngineeringMatrixEntry | undefined {
+    return (this.data.engineering_matrix || []).find(
+      (m) =>
+        m.project_id === projectId &&
+        m.entity_type === entityType &&
+        m.entity_tag.toLowerCase() === entityTag.toLowerCase()
+    );
+  }
+
   public upsertEngineeringMatrixEntry(entry: UnifiedEngineeringMatrixEntry): void {
     if (!this.data.engineering_matrix) this.data.engineering_matrix = [];
     const idx = this.data.engineering_matrix.findIndex(
@@ -500,6 +513,24 @@ export class PsiDataStore {
       this.data.engineering_matrix[idx] = entry;
     } else {
       this.data.engineering_matrix.push(entry);
+    }
+    this.saveDatabase();
+  }
+
+  public upsertEngineeringMatrixEntries(entries: UnifiedEngineeringMatrixEntry[]): void {
+    if (!this.data.engineering_matrix) this.data.engineering_matrix = [];
+    for (const entry of entries) {
+      const idx = this.data.engineering_matrix.findIndex(
+        (m) =>
+          m.project_id === entry.project_id &&
+          m.entity_type === entry.entity_type &&
+          m.entity_tag.toLowerCase() === entry.entity_tag.toLowerCase()
+      );
+      if (idx >= 0) {
+        this.data.engineering_matrix[idx] = entry;
+      } else {
+        this.data.engineering_matrix.push(entry);
+      }
     }
     this.saveDatabase();
   }

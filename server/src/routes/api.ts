@@ -24,6 +24,10 @@ import { parsePfdOrBfdDocument } from '../services/pfdParser';
 import { parseStreamTableDocument } from '../services/streamTableParser';
 import { parseDatasheetDocument } from '../services/datasheetParser';
 import { parsePhilosophyDocument } from '../services/philosophyParser';
+import {
+  buildUnifiedEngineeringMatrix,
+  getUnifiedEquipmentContext,
+} from '../services/unifiedEngineeringService';
 
 const router = Router();
 
@@ -181,8 +185,48 @@ router.post('/discrepancies/:id/resolve', (req: Request, res: Response) => {
 
 router.get('/projects/:id/engineering-matrix', (req: Request, res: Response) => {
   const id = getParam(req.params.id);
-  const matrix = store.listEngineeringMatrix(id);
+  let matrix = store.listEngineeringMatrix(id);
+  if (matrix.length === 0) {
+    matrix = buildUnifiedEngineeringMatrix(id, store);
+  }
   res.json({ success: true, data: matrix });
+});
+
+router.post('/projects/:id/engineering-matrix/synchronize', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const matrix = buildUnifiedEngineeringMatrix(id, store);
+  res.json({
+    success: true,
+    data: matrix,
+    message: `Synchronized ${matrix.length} entities in Unified Engineering Matrix`,
+  });
+});
+
+router.get('/projects/:id/engineering-matrix/:entityType/:entityTag', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const entityType = getParam(req.params.entityType);
+  const entityTag = getParam(req.params.entityTag);
+
+  let entry = store.getEngineeringMatrixEntry(id, entityType, entityTag);
+  if (!entry) {
+    buildUnifiedEngineeringMatrix(id, store);
+    entry = store.getEngineeringMatrixEntry(id, entityType, entityTag);
+  }
+
+  if (!entry) {
+    return res.status(404).json({ success: false, error: 'Entity not found in Unified Engineering Matrix' });
+  }
+  res.json({ success: true, data: entry });
+});
+
+router.get('/projects/:id/equipment/:tag/unified', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const tag = getParam(req.params.tag);
+  const context = getUnifiedEquipmentContext(id, tag, store);
+  if (!context) {
+    return res.status(404).json({ success: false, error: `Unified context for equipment ${tag} not found` });
+  }
+  res.json({ success: true, data: context });
 });
 
 router.get('/projects/:id/philosophy-rules', (req: Request, res: Response) => {
@@ -541,6 +585,13 @@ router.post(
           console.error('Auto Philosophy extraction error:', philErr.message);
         }
       }
+    }
+
+    // Refresh Unified Engineering Matrix across all project entities and documents
+    try {
+      buildUnifiedEngineeringMatrix(projectId, store);
+    } catch (matrixErr: any) {
+      console.error('Unified Engineering Matrix auto-sync error:', matrixErr.message);
     }
 
     const summary = store.getDashboardSummary(projectId);

@@ -377,6 +377,30 @@ export interface UnifiedEngineeringMatrixEntry {
   entity_tag: string;
   description?: string;
   sources_found: DocumentCategory[];
+  source_document_ids?: string[];
+  source_document_names?: string[];
+  connected_lines?: string[];
+  connected_streams?: string[];
+  connected_equipment?: string[];
+  assigned_chemicals?: string[];
+  instruments?: string[];
+  safeguards?: string[];
+  rules?: EngineeringPhilosophyRule[];
+  operating_conditions?: {
+    pressure?: UnifiedProvenanceValue<number>;
+    temperature?: UnifiedProvenanceValue<number>;
+    flow_rate?: UnifiedProvenanceValue<number>;
+    phase?: UnifiedProvenanceValue<string>;
+  };
+  design_specifications?: {
+    design_pressure?: UnifiedProvenanceValue<number>;
+    design_temperature?: UnifiedProvenanceValue<number>;
+    material_of_construction?: UnifiedProvenanceValue<string>;
+    capacity_or_volume?: UnifiedProvenanceValue<number>;
+    design_code?: UnifiedProvenanceValue<string>;
+    corrosion_allowance?: UnifiedProvenanceValue<number>;
+    relief_valve_set_pressure?: UnifiedProvenanceValue<number>;
+  };
   p_and_id_data?: Record<string, any>;
   datasheet_data?: Record<string, any>;
   stream_table_data?: Record<string, any>;

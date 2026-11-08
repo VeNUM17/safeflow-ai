@@ -59,11 +59,16 @@ import {
   ShutdownHierarchyLevel,
   SafeOperatingLimitRule,
   EnvironmentalDesignLimits,
+  UnifiedEngineeringMatrixEntry,
 } from '../server/src/types';
 import { parsePfdOrBfdDocument } from '../server/src/services/pfdParser';
 import { parseStreamTableDocument } from '../server/src/services/streamTableParser';
 import { parseDatasheetDocument } from '../server/src/services/datasheetParser';
 import { parsePhilosophyDocument } from '../server/src/services/philosophyParser';
+import {
+  buildUnifiedEngineeringMatrix,
+  getUnifiedEquipmentContext,
+} from '../server/src/services/unifiedEngineeringService';
 import { classifyDocument, classifyEngineeringCategory } from '../server/src/services/documentClassifier';
 import { extractTextFromDocument } from '../server/src/services/pdfExtractor';
 import { extractVectorGeometry } from '../server/src/services/vectorPdfService';
@@ -7062,6 +7067,606 @@ test('Scenario 6: Store persistence, query & retrieval of Philosophy Extraction 
   // List extractions by project ID
   const projectExtractions = store.listPhilosophyExtractions(testProjectId);
   assert.strictEqual(projectExtractions.length, 1, 'Must list 1 philosophy extraction for project');
+});
+
+// ============================================================================
+// TEST GROUP 25: UNIFIED ENGINEERING DATABASE (PHASE 7)
+// ============================================================================
+
+console.log('\n--- Test Group 25: Unified Engineering Database (Phase 7) ---');
+
+test('Scenario 1: Cross-Document Entity Linkage for Equipment (PG-1001)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Unified Offshore Platform', 'Phase 7 Integration');
+  const pidDocId = `doc-pid-${Date.now()}`;
+  const dsDocId = `doc-ds-${Date.now()}`;
+  const pfdDocId = `doc-pfd-${Date.now()}`;
+  const philDocId = `doc-phil-${Date.now()}`;
+
+  // 1. Add P&ID document & equipment
+  store.addDocument({
+    id: pidDocId,
+    project_id: proj.id,
+    name: 'IES-PID-001_RevC.pdf',
+    original_filename: 'IES-PID-001_RevC.pdf',
+    file_path: '/uploads/pid.pdf',
+    mime_type: 'application/pdf',
+    size_bytes: 120000,
+    doc_type: 'pid',
+    category: 'pid',
+    revision: 'C',
+    source_organization: 'Intelligent Engineering Solutions',
+    upload_date: new Date().toISOString(),
+    pages_count: 1,
+    is_readable: true,
+    chemical_ids: [],
+    extraction_status: 'completed',
+    verification_status: 'engineer_verified',
+  });
+
+  const eqPG1001: EquipmentTag = {
+    id: `eq-pg-1001-${Date.now()}`,
+    project_id: proj.id,
+    document_id: pidDocId,
+    tag: 'PG-1001',
+    description: 'Production Gas Separator',
+    equipment_type: 'separator',
+    assigned_chemical_id: null,
+    confidence: 0.95,
+    status: 'confirmed',
+    source: { document: 'IES-PID-001_RevC.pdf', page: 1, snippet: 'PG-1001 Separator' },
+    created_at: new Date().toISOString(),
+    specifications: createDefaultSpecifications(proj.id, 'eq-pg-1001'),
+  };
+  eqPG1001.specifications.design_pressure = {
+    value: 95.0,
+    unit: 'barg',
+    status: 'extracted',
+    source_document: 'IES-PID-001_RevC.pdf',
+    source_page: 1,
+    confidence: 0.95,
+  };
+  store.addEquipment([eqPG1001], 'P&ID Parser', 'Setup');
+
+  // 2. Add connected piping line
+  const line1: PipingLine = {
+    id: `line-101-${Date.now()}`,
+    project_id: proj.id,
+    document_id: pidDocId,
+    line_number: '10"-PG-00101-A1A',
+    from_equipment: 'PG-1001',
+    to_equipment: 'K-1001',
+    size: '10"',
+    material: 'Carbon Steel (NACE MR0175)',
+    stream_label: 'Overhead Gas',
+    functional_type: 'piping_line',
+    flow_direction: 'forward',
+    assigned_chemical_id: null,
+    confidence: 0.95,
+    status: 'confirmed',
+    source: { document: 'IES-PID-001_RevC.pdf', page: 1, snippet: '10"-PG-00101-A1A' },
+    alerts: [],
+    created_at: new Date().toISOString(),
+  };
+  store.addLines([line1], 'P&ID Parser', 'Setup');
+
+  // 3. Add Datasheet Extraction
+  store.saveDatasheetExtraction({
+    id: `ds-ext-${Date.now()}`,
+    project_id: proj.id,
+    document_id: dsDocId,
+    document_name: 'DS-PG-1001_Datasheet.pdf',
+    datasheets: [
+      {
+        id: 'ds-rec-pg1001',
+        project_id: proj.id,
+        document_id: dsDocId,
+        equipment_tag: 'PG-1001',
+        equipment_name: 'Production Gas Separator (PG-1001)',
+        equipment_type: 'separator',
+        material_of_construction: {
+          id: 'moc-1',
+          original_value: 'CS with 3mm Inconel Cladding',
+          normalized_value: 'CS with 3mm Inconel Cladding',
+          source_document_id: dsDocId,
+          source_document_name: 'DS-PG-1001_Datasheet.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.96,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        design_pressure: {
+          id: 'dp-1',
+          original_value: '100.0 barg',
+          normalized_value: 100.0,
+          original_unit: 'barg',
+          normalized_unit: 'barg',
+          source_document_id: dsDocId,
+          source_document_name: 'DS-PG-1001_Datasheet.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.98,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        design_temperature: {
+          id: 'dt-1',
+          original_value: '95.0 °C',
+          normalized_value: 95.0,
+          original_unit: '°C',
+          normalized_unit: '°C',
+          source_document_id: dsDocId,
+          source_document_name: 'DS-PG-1001_Datasheet.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.98,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        operating_pressure: {
+          id: 'op-1',
+          original_value: '68.0 barg',
+          normalized_value: 68.0,
+          original_unit: 'barg',
+          normalized_unit: 'barg',
+          source_document_id: dsDocId,
+          source_document_name: 'DS-PG-1001_Datasheet.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        operating_temperature: {
+          id: 'ot-1',
+          original_value: '42.0 °C',
+          normalized_value: 42.0,
+          original_unit: '°C',
+          normalized_unit: '°C',
+          source_document_id: dsDocId,
+          source_document_name: 'DS-PG-1001_Datasheet.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        design_code: {
+          id: 'dc-1',
+          original_value: 'ASME Section VIII Div 1',
+          normalized_value: 'ASME Section VIII Div 1',
+          source_document_id: dsDocId,
+          source_document_name: 'DS-PG-1001_Datasheet.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        corrosion_allowance: {
+          id: 'ca-1',
+          original_value: '3.0 mm',
+          normalized_value: 3.0,
+          original_unit: 'mm',
+          normalized_unit: 'mm',
+          source_document_id: dsDocId,
+          source_document_name: 'DS-PG-1001_Datasheet.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        relief_valve_set_pressure: {
+          id: 'rv-1',
+          original_value: '100.0 barg',
+          normalized_value: 100.0,
+          original_unit: 'barg',
+          normalized_unit: 'barg',
+          source_document_id: dsDocId,
+          source_document_name: 'DS-PG-1001_Datasheet.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        nozzles: [
+          { nozzle_tag: 'N1', service: 'Feed Inlet', nominal_size: '12"', flange_rating: '600# RF', flange_facing: 'RF' },
+          { nozzle_tag: 'N2', service: 'Gas Outlet', nominal_size: '10"', flange_rating: '600# RF', flange_facing: 'RF' },
+        ],
+        confidence: 0.96,
+        extracted_at: new Date().toISOString(),
+      },
+    ],
+    total_equipment_found: 1,
+    extraction_warnings: [],
+    extracted_at: new Date().toISOString(),
+  });
+
+  // 4. Add Shutdown Philosophy Rules
+  store.addPhilosophyRule({
+    id: `rule-esd-1-${Date.now()}`,
+    project_id: proj.id,
+    source_document_id: philDocId,
+    source_document_name: 'ESD_Philosophy.pdf',
+    source_category: 'shutdown_philosophy',
+    rule_type: 'esd_action',
+    equipment_tag: 'PG-1001',
+    loop_tag: 'BDV-1001',
+    condition: 'Pressure on PSHH-1002 exceeds 90.0 barg',
+    action: 'Close XV-1001, open BDV-1001 to sour flare',
+    fail_safe_position: 'fail_open',
+    sil_rating: 'SIL 2',
+    is_confirmed_setpoint: true,
+    verification_status: 'unverified',
+  });
+
+  // Build Unified Engineering Matrix
+  const matrix = buildUnifiedEngineeringMatrix(proj.id, store);
+  assert.ok(matrix.length >= 2, `Expected at least 2 matrix entries (1 eq, 1 line), got ${matrix.length}`);
+
+  const unifiedPG1001 = matrix.find((m) => m.entity_tag === 'PG-1001' && m.entity_type === 'equipment');
+  assert.ok(unifiedPG1001, 'Must find unified matrix entry for PG-1001');
+
+  // Verify multi-source discovery
+  assert.ok(unifiedPG1001.sources_found.includes('pid'), 'Must include P&ID source');
+  assert.ok(unifiedPG1001.sources_found.includes('equipment_datasheet'), 'Must include Equipment Datasheet source');
+  assert.ok(unifiedPG1001.sources_found.includes('shutdown_philosophy'), 'Must include Shutdown Philosophy source');
+
+  // Verify connected entities
+  assert.ok(unifiedPG1001.connected_lines?.includes('10"-PG-00101-A1A'), 'Must link connected piping line');
+  assert.ok(unifiedPG1001.connected_equipment?.includes('K-1001'), 'Must link downstream compressor K-1001');
+
+  // Verify design specifications
+  assert.strictEqual(unifiedPG1001.design_specifications?.design_pressure?.normalized_value, 100.0);
+  assert.strictEqual(unifiedPG1001.design_specifications?.design_temperature?.normalized_value, 95.0);
+  assert.strictEqual(unifiedPG1001.design_specifications?.material_of_construction?.normalized_value, 'CS with 3mm Inconel Cladding');
+  assert.strictEqual(unifiedPG1001.design_specifications?.corrosion_allowance?.normalized_value, 3.0);
+  assert.strictEqual(unifiedPG1001.design_specifications?.relief_valve_set_pressure?.normalized_value, 100.0);
+
+  // Verify operating conditions
+  assert.strictEqual(unifiedPG1001.operating_conditions?.pressure?.normalized_value, 68.0);
+  assert.strictEqual(unifiedPG1001.operating_conditions?.temperature?.normalized_value, 42.0);
+
+  // Verify safeguards
+  assert.ok(unifiedPG1001.safeguards?.some((s) => s.includes('BDV-1001') || s.includes('ESD_ACTION')));
+});
+
+test('Scenario 2: Process Line & Stream Correlation in Unified Matrix', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Stream Correlation Project', 'Testing Line & Stream Linking');
+
+  // Add process stream
+  store.createStream({
+    project_id: proj.id,
+    stream_number: 'STR-101',
+    source_equipment_tag: 'PG-1001',
+    destination_equipment_tag: 'K-1001',
+    line_number: '10"-PG-00101-A1A',
+    material_description: 'Separator Overhead Gas',
+    phase: 'gas',
+    flow_rates: { normal: 45000, min: 20000, max: 55000, design: 60000, actual: null, unit: 'kg/h', basis: 'mass' },
+    operating_pressure: { value: 68.0, unit: 'barg', status: 'extracted' },
+    operating_temperature: { value: 42.0, unit: '°C', status: 'extracted' },
+  });
+
+  // Add stream table extraction
+  store.saveStreamTableExtraction({
+    id: `st-ext-${Date.now()}`,
+    project_id: proj.id,
+    document_id: 'doc-st-01',
+    document_name: 'HMB_Stream_Table.xlsx',
+    streams: [
+      {
+        id: 'st-rec-101',
+        project_id: proj.id,
+        document_id: 'doc-st-01',
+        stream_number: 'STR-101',
+        phase: 'gas',
+        vapor_fraction: {
+          id: 'vf-1',
+          original_value: 1.0,
+          normalized_value: 1.0,
+          source_document_id: 'doc-st-01',
+          source_document_name: 'HMB_Stream_Table.xlsx',
+          source_category: 'stream_table',
+          page_or_drawing_location: 'Sheet 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        operating_pressure: {
+          id: 'sp-1',
+          original_value: 68.0,
+          normalized_value: 68.0,
+          original_unit: 'barg',
+          normalized_unit: 'barg',
+          source_document_id: 'doc-st-01',
+          source_document_name: 'HMB_Stream_Table.xlsx',
+          source_category: 'stream_table',
+          page_or_drawing_location: 'Sheet 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        operating_temperature: {
+          id: 'st-1',
+          original_value: 42.0,
+          normalized_value: 42.0,
+          original_unit: '°C',
+          normalized_unit: '°C',
+          source_document_id: 'doc-st-01',
+          source_document_name: 'HMB_Stream_Table.xlsx',
+          source_category: 'stream_table',
+          page_or_drawing_location: 'Sheet 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        mass_flow_rate: {
+          id: 'smf-1',
+          original_value: 45000,
+          normalized_value: 45000,
+          original_unit: 'kg/h',
+          normalized_unit: 'kg/h',
+          source_document_id: 'doc-st-01',
+          source_document_name: 'HMB_Stream_Table.xlsx',
+          source_category: 'stream_table',
+          page_or_drawing_location: 'Sheet 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        volumetric_flow_rate: {
+          id: 'svf-1',
+          original_value: null,
+          normalized_value: null,
+          source_document_id: 'doc-st-01',
+          source_document_name: 'HMB_Stream_Table.xlsx',
+          source_category: 'stream_table',
+          page_or_drawing_location: 'Sheet 1',
+          extraction_confidence: 0.0,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        molar_flow_rate: {
+          id: 'smol-1',
+          original_value: null,
+          normalized_value: null,
+          source_document_id: 'doc-st-01',
+          source_document_name: 'HMB_Stream_Table.xlsx',
+          source_category: 'stream_table',
+          page_or_drawing_location: 'Sheet 1',
+          extraction_confidence: 0.0,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        molecular_weight: {
+          id: 'smw-1',
+          original_value: 19.5,
+          normalized_value: 19.5,
+          source_document_id: 'doc-st-01',
+          source_document_name: 'HMB_Stream_Table.xlsx',
+          source_category: 'stream_table',
+          page_or_drawing_location: 'Sheet 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        density: {
+          id: 'sd-1',
+          original_value: 54.2,
+          normalized_value: 54.2,
+          source_document_id: 'doc-st-01',
+          source_document_name: 'HMB_Stream_Table.xlsx',
+          source_category: 'stream_table',
+          page_or_drawing_location: 'Sheet 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        components: [
+          { component_name: 'Methane', fraction_value: 88.5, unit: 'mol%', is_hazardous: true },
+          { component_name: 'Hydrogen Sulfide', fraction_value: 1.5, unit: 'mol%', is_hazardous: true },
+        ],
+        source_location: 'Sheet 1',
+        confidence: 0.95,
+      },
+    ],
+    total_streams_found: 1,
+    extraction_warnings: [],
+    extracted_at: new Date().toISOString(),
+  });
+
+  const matrix = buildUnifiedEngineeringMatrix(proj.id, store);
+  const streamEntry = matrix.find((m) => m.entity_tag === 'STR-101' && m.entity_type === 'stream');
+
+  assert.ok(streamEntry, 'Must find unified matrix entry for STR-101');
+  assert.strictEqual(streamEntry.operating_conditions?.pressure?.normalized_value, 68.0);
+  assert.strictEqual(streamEntry.operating_conditions?.flow_rate?.normalized_value, 45000);
+  assert.strictEqual(streamEntry.operating_conditions?.phase?.normalized_value, 'gas');
+  assert.ok(streamEntry.assigned_chemicals?.includes('Hydrogen Sulfide'));
+  assert.ok(streamEntry.assigned_chemicals?.includes('Methane'));
+  assert.ok(streamEntry.connected_lines?.includes('10"-PG-00101-A1A'));
+  assert.ok(streamEntry.connected_equipment?.includes('PG-1001'));
+  assert.ok(streamEntry.connected_equipment?.includes('K-1001'));
+});
+
+test('Scenario 3: Chemical Inventory & Stream Component Traceability', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Chemical Provenance Project', 'Tracing chemicals into matrix');
+
+  const chemId = `chem-h2s-${Date.now()}`;
+  const chem: ChemicalRecord = {
+    id: chemId,
+    project_id: proj.id,
+    sds_document_id: 'doc-sds-h2s',
+    origin: 'sds_extracted',
+    chemical_name: { value: 'Hydrogen Sulfide', status: 'verified', source_document: 'H2S_SDS.pdf' },
+    cas_number: { value: '7783-06-4', status: 'verified', source_document: 'H2S_SDS.pdf' },
+    sds_revision_date: { value: '2024-01-15', status: 'verified', source_document: 'H2S_SDS.pdf' },
+    manufacturer: { value: 'Specialty Gas Corp', status: 'verified', source_document: 'H2S_SDS.pdf' },
+    psi_parameters: createEmptyPsiParameters(),
+  };
+  store.addChemical(chem);
+
+  const eq = {
+    id: `eq-v-1001-${Date.now()}`,
+    project_id: proj.id,
+    document_id: 'doc-pid-01',
+    tag: 'V-1001',
+    description: 'Sour Gas Knock-Out Drum',
+    equipment_type: 'separator' as any,
+    assigned_chemical_id: chem.id,
+    confidence: 0.95,
+    status: 'confirmed' as any,
+    source: { document: 'PID.pdf', page: 1, snippet: 'V-1001' },
+    created_at: new Date().toISOString(),
+  };
+  store.addEquipment([eq], 'P&ID', 'Setup');
+
+  store.saveChemicalAssignment({
+    project_id: proj.id,
+    equipment_id: eq.id,
+    chemical_id: chem.id,
+    chemical_name: 'Hydrogen Sulfide',
+    equipment_tag: 'V-1001',
+    confidence: 1.0,
+    assignment_basis: 'process_evidence',
+    verified_by: 'Lead Chemical Engineer',
+    verified_at: new Date().toISOString(),
+  });
+
+  const matrix = buildUnifiedEngineeringMatrix(proj.id, store);
+  const v1001Entry = matrix.find((m) => m.entity_tag === 'V-1001');
+
+  assert.ok(v1001Entry, 'Must find V-1001 entry in matrix');
+  assert.ok(v1001Entry.assigned_chemicals?.includes('Hydrogen Sulfide'), 'Must list Hydrogen Sulfide in assigned chemicals');
+});
+
+test('Scenario 4: Multi-Source Provenance Vector Preservation', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Provenance Integrity Project', 'Testing provenance fields');
+
+  const eq = {
+    id: `eq-k-1001-${Date.now()}`,
+    project_id: proj.id,
+    document_id: 'doc-pid-k',
+    tag: 'K-1001',
+    description: 'Booster Compressor',
+    equipment_type: 'compressor' as any,
+    assigned_chemical_id: null,
+    confidence: 0.92,
+    status: 'confirmed' as any,
+    source: { document: 'PID_Compressor.pdf', page: 2, snippet: 'K-1001' },
+    created_at: new Date().toISOString(),
+    specifications: createDefaultSpecifications(proj.id, 'eq-k-1001'),
+  };
+  eq.specifications.design_pressure = {
+    value: 85.0,
+    unit: 'barg',
+    status: 'verified',
+    source_document: 'PID_Compressor.pdf',
+    source_page: 2,
+    confidence: 0.92,
+  };
+  store.addEquipment([eq], 'P&ID', 'Setup');
+
+  const matrix = buildUnifiedEngineeringMatrix(proj.id, store);
+  const k1001 = matrix.find((m) => m.entity_tag === 'K-1001');
+
+  assert.ok(k1001, 'Must find K-1001 in matrix');
+  assert.ok(k1001.design_specifications?.design_pressure, 'Must have design pressure provenance');
+
+  const prov = k1001.design_specifications!.design_pressure!;
+  assert.strictEqual(prov.normalized_value, 85.0);
+  assert.strictEqual(prov.original_unit, 'barg');
+  assert.strictEqual(prov.normalized_unit, 'barg');
+  assert.strictEqual(prov.source_category, 'pid');
+  assert.strictEqual(prov.verification_status, 'engineer_verified');
+  assert.ok(prov.extraction_confidence > 0.8);
+});
+
+test('Scenario 5: Missing Data & Conflict Integrity (Zero Fabrication)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Missing Spec Project', 'Integrity testing');
+
+  // Vessel created with missing design temperature and volume
+  const eq = {
+    id: `eq-v-2001-${Date.now()}`,
+    project_id: proj.id,
+    document_id: 'doc-pid-v2',
+    tag: 'V-2001',
+    description: 'Flash Drum',
+    equipment_type: 'vessel' as any,
+    assigned_chemical_id: null,
+    confidence: 0.9,
+    status: 'confirmed' as any,
+    source: { document: 'PID_V2001.pdf', page: 1, snippet: 'V-2001' },
+    created_at: new Date().toISOString(),
+    specifications: createDefaultSpecifications(proj.id, 'eq-v-2001'),
+  };
+  store.addEquipment([eq], 'P&ID', 'Setup');
+
+  // Register a cross-document discrepancy on V-2001 design pressure
+  store.addDiscrepancy({
+    project_id: proj.id,
+    entity_type: 'equipment',
+    entity_tag: 'V-2001',
+    property_name: 'design_pressure',
+    discrepancy_type: 'numerical_mismatch',
+    status: 'open',
+    severity: 'warning',
+    message: 'Design pressure discrepancy between P&ID (50 barg) and Datasheet (60 barg)',
+    evidence_records: [],
+  });
+
+  const matrix = buildUnifiedEngineeringMatrix(proj.id, store);
+  const v2001 = matrix.find((m) => m.entity_tag === 'V-2001');
+
+  assert.ok(v2001, 'Must find V-2001');
+
+  // STRICT AUDIT: Unprovided specifications must remain undefined/null, never defaulted to zero!
+  assert.strictEqual(v2001.design_specifications?.design_temperature, undefined, 'Missing design temperature must NOT be fabricated');
+  assert.strictEqual(v2001.design_specifications?.capacity_or_volume, undefined, 'Missing volume must NOT be fabricated');
+
+  // Conflict integrity
+  assert.strictEqual(v2001.has_conflicts, true, 'Must flag conflict when discrepancy exists');
+  assert.strictEqual(v2001.conflict_ids.length, 1);
+});
+
+test('Scenario 6: Matrix Query & Equipment Context Resolution', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Context Resolution Project', 'API testing');
+
+  const eq = {
+    id: `eq-e-1001-${Date.now()}`,
+    project_id: proj.id,
+    document_id: 'doc-pid-e',
+    tag: 'E-1001',
+    description: 'Inlet Gas Cooler',
+    equipment_type: 'heat_exchanger' as any,
+    assigned_chemical_id: null,
+    confidence: 0.95,
+    status: 'confirmed' as any,
+    source: { document: 'PID.pdf', page: 1, snippet: 'E-1001' },
+    created_at: new Date().toISOString(),
+    specifications: createDefaultSpecifications(proj.id, 'eq-e-1001'),
+  };
+  store.addEquipment([eq], 'P&ID', 'Setup');
+
+  // Query context via getUnifiedEquipmentContext
+  const context = getUnifiedEquipmentContext(proj.id, 'E-1001', store);
+  assert.ok(context, 'Must resolve unified context for E-1001');
+  assert.strictEqual(context.entity_tag, 'E-1001');
+  assert.strictEqual(context.entity_type, 'equipment');
+
+  // Retrieve by store direct query
+  const stored = store.getEngineeringMatrixEntry(proj.id, 'equipment', 'E-1001');
+  assert.ok(stored, 'Must retrieve from store by (projId, entityType, tag)');
+  assert.strictEqual(stored.entity_tag, 'E-1001');
 });
 
 console.log(`\n========================================`);
