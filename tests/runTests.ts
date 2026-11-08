@@ -5174,6 +5174,260 @@ test('Scenario 6: PHA Engine Integration — 8 parameter categories with unverif
   assert.ok(lowLevel.consequences.some((c) => c.toLowerCase().includes('blowby') || c.toLowerCase().includes('drain')), 'Low level must warn of high-pressure gas blowby into closed drain drum');
 });
 
+// ============================================================================
+// TEST GROUP 19: MULTI-DOCUMENT DATABASE SCHEMA & MIGRATION STRATEGY (PHASE 1)
+// ============================================================================
+
+console.log('\n--- Test Group 19: Multi-Document Database Schema & Migration Strategy (Phase 1) ---');
+
+test('Scenario 1: All 11 Document Categories are supported in DocumentRecord', () => {
+  const categories: DocumentCategory[] = [
+    'sds',
+    'pid',
+    'pfd',
+    'bfd',
+    'stream_table',
+    'equipment_datasheet',
+    'basis_of_design',
+    'process_design_philosophy',
+    'operating_philosophy',
+    'control_philosophy',
+    'shutdown_philosophy',
+  ];
+
+  assert.strictEqual(categories.length, 11, 'Must support exactly 11 document categories');
+
+  categories.forEach((cat, idx) => {
+    const dummyDoc: DocumentRecord = {
+      id: `doc-cat-${idx}`,
+      project_id: 'proj-cat-test',
+      name: `Document ${cat.toUpperCase()}`,
+      original_filename: `${cat}.pdf`,
+      file_path: `/uploads/${cat}.pdf`,
+      mime_type: 'application/pdf',
+      size_bytes: 1024,
+      doc_type: cat,
+      category: cat,
+      revision: 'A',
+      source_organization: 'Intelligent Engineering Solutions',
+      upload_timestamp: new Date().toISOString(),
+      pages_count: 1,
+      is_readable: true,
+      chemical_ids: [],
+      extraction_status: 'completed',
+      verification_status: 'unverified',
+    };
+
+    assert.strictEqual(dummyDoc.category, cat);
+    assert.strictEqual(dummyDoc.doc_type, cat, 'doc_type must maintain backwards compatibility');
+    assert.strictEqual(dummyDoc.revision, 'A');
+    assert.strictEqual(dummyDoc.extraction_status, 'completed');
+    assert.strictEqual(dummyDoc.verification_status, 'unverified');
+  });
+});
+
+test('Scenario 2: Non-destructive migration preserves existing documents and defaults new metadata', () => {
+  const store = new PsiDataStore();
+  const testDocId = `doc-mig-test-${Date.now()}`;
+
+  // Add document with legacy schema
+  store.addDocument({
+    id: testDocId,
+    project_id: 'proj-mig-test',
+    name: 'Legacy P&ID.pdf',
+    original_filename: 'Legacy P&ID.pdf',
+    file_path: '/uploads/legacy.pdf',
+    mime_type: 'application/pdf',
+    size_bytes: 2048,
+    doc_type: 'pid',
+    category: 'pid',
+    revision: 'A',
+    upload_timestamp: new Date().toISOString(),
+    pages_count: 1,
+    is_readable: true,
+    chemical_ids: [],
+    extraction_status: 'completed',
+    verification_status: 'unverified',
+  });
+
+  const retrieved = store.getDocument(testDocId);
+  assert.ok(retrieved, 'Retrieved document must exist');
+  assert.strictEqual(retrieved.category, 'pid');
+  assert.strictEqual(retrieved.revision, 'A');
+
+  // Test updating metadata
+  const updated = store.updateDocumentMetadata(testDocId, {
+    category: 'pfd',
+    revision: 'B',
+    source_organization: 'IES Global',
+    verification_status: 'engineer_verified',
+    verified_by: 'Shlok (Lead Architect)',
+  });
+
+  assert.ok(updated, 'Document must be updated');
+  assert.strictEqual(updated.category, 'pfd');
+  assert.strictEqual(updated.doc_type, 'pfd');
+  assert.strictEqual(updated.revision, 'B');
+  assert.strictEqual(updated.source_organization, 'IES Global');
+  assert.strictEqual(updated.verification_status, 'engineer_verified');
+  assert.strictEqual(updated.verified_by, 'Shlok (Lead Architect)');
+
+  // Clean up
+  store.deleteDocument(testDocId);
+});
+
+test('Scenario 3: Cross-document discrepancy model preserves multiple source evidence values without overwrite', () => {
+  const store = new PsiDataStore();
+  const discId = `disc-${Date.now()}`;
+
+  const pidEvidence: UnifiedProvenanceValue = {
+    id: 'ev-pid-1',
+    original_value: '90 barg',
+    normalized_value: 90,
+    original_unit: 'barg',
+    normalized_unit: 'barg',
+    source_document_id: 'doc-pid-1',
+    source_document_name: 'P&ID-GPF-001-02',
+    source_category: 'pid',
+    source_revision: 'A',
+    page_or_drawing_location: 'Drawing Sheet 1 (Tag PG-1001)',
+    extraction_confidence: 0.98,
+    verification_status: 'unverified',
+    extraction_timestamp: new Date().toISOString(),
+  };
+
+  const datasheetEvidence: UnifiedProvenanceValue = {
+    id: 'ev-ds-1',
+    original_value: '95 barg',
+    normalized_value: 95,
+    original_unit: 'barg',
+    normalized_unit: 'barg',
+    source_document_id: 'doc-ds-1',
+    source_document_name: 'DS-PG-1001-REV-0',
+    source_category: 'equipment_datasheet',
+    source_revision: '0',
+    page_or_drawing_location: 'Page 2 Section 4.1',
+    extraction_confidence: 0.99,
+    verification_status: 'engineer_verified',
+    verified_by: 'Chief Mechanical Engineer',
+    extraction_timestamp: new Date().toISOString(),
+  };
+
+  const discrepancy: CrossDocumentDiscrepancy = {
+    id: discId,
+    project_id: 'proj-disc-test',
+    entity_type: 'equipment',
+    entity_tag: 'PG-1001',
+    property_name: 'design_pressure',
+    discrepancy_type: 'conflict',
+    status: 'open',
+    severity: 'critical',
+    message: 'Design pressure conflict: P&ID specifies 90 barg while Equipment Datasheet specifies 95 barg',
+    evidence_records: [pidEvidence, datasheetEvidence],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  store.addDiscrepancy(discrepancy);
+
+  const list = store.listDiscrepancies('proj-disc-test');
+  assert.ok(list.length >= 1, 'Must list stored discrepancies');
+  const found = list.find((d) => d.id === discId);
+  assert.ok(found, 'Must find created discrepancy');
+  assert.strictEqual(found.evidence_records.length, 2, 'Both conflicting source records must be preserved');
+  assert.strictEqual(found.evidence_records[0].normalized_value, 90);
+  assert.strictEqual(found.evidence_records[1].normalized_value, 95);
+
+  // Scenario 4: Resolve discrepancy
+  const resolved = store.resolveDiscrepancy(discId, {
+    status: 'resolved',
+    resolution_notes: 'Datasheet Rev 0 (95 barg) is authoritative per API 520 sizing note 2',
+    resolved_by: 'Shlok (PE)',
+  });
+
+  assert.strictEqual(resolved, true, 'Discrepancy resolution must succeed');
+  const afterResolution = store.listDiscrepancies('proj-disc-test').find((d) => d.id === discId);
+  assert.strictEqual(afterResolution?.status, 'resolved');
+  assert.strictEqual(afterResolution?.resolved_by, 'Shlok (PE)');
+  assert.ok(afterResolution?.resolved_at, 'Resolution timestamp must be set');
+});
+
+test('Scenario 5: Unified engineering matrix entries track cross-document sources without duplication', () => {
+  const store = new PsiDataStore();
+  const entryId = `matrix-pg1001-${Date.now()}`;
+
+  const matrixEntry: UnifiedEngineeringMatrixEntry = {
+    id: entryId,
+    project_id: 'proj-matrix-test',
+    entity_type: 'equipment',
+    entity_tag: 'PG-1001',
+    description: 'PIG RECEIVER / SLUG CATCHER',
+    sources_found: ['pid', 'equipment_datasheet', 'operating_philosophy'],
+    p_and_id_data: {
+      tag: 'PG-1001',
+      design_pressure: '90 BARG',
+      design_temperature: '120 °C',
+      dimensions: '1200 ID x 8000 LG',
+    },
+    datasheet_data: {
+      tag: 'PG-1001',
+      design_pressure_barg: 95,
+      material: 'NACE MR0175 / ISO 15156 Class A1A',
+    },
+    philosophy_data: {
+      interlock: 'Interlock closure logic confirmed zero pressure on PI-1001 before quick-opening',
+    },
+    has_conflicts: true,
+    conflict_ids: ['disc-1'],
+    last_updated: new Date().toISOString(),
+  };
+
+  store.upsertEngineeringMatrixEntry(matrixEntry);
+
+  const matrix = store.listEngineeringMatrix('proj-matrix-test');
+  assert.ok(matrix.length >= 1, 'Engineering matrix must contain entries');
+  const found = matrix.find((m) => m.entity_tag === 'PG-1001');
+  assert.ok(found, 'Must find PG-1001 matrix entry');
+  assert.strictEqual(found.sources_found.length, 3);
+  assert.ok(found.sources_found.includes('pid'));
+  assert.ok(found.sources_found.includes('equipment_datasheet'));
+  assert.ok(found.sources_found.includes('operating_philosophy'));
+});
+
+test('Scenario 6: Engineering philosophy rules capture interlocks, fail-safe positions, and setpoint confirmation', () => {
+  const store = new PsiDataStore();
+  const ruleId = `rule-esd-${Date.now()}`;
+
+  const esdRule: EngineeringPhilosophyRule = {
+    id: ruleId,
+    project_id: 'proj-philo-test',
+    source_document_id: 'doc-esd-philo',
+    source_document_name: 'Shutdown and ESD Philosophy Rev A',
+    source_category: 'shutdown_philosophy',
+    rule_type: 'interlock',
+    equipment_tag: 'PG-1001',
+    loop_tag: 'SIS LS-1001',
+    condition: 'High-High Liquid Level Trip on LT-1002 signal to SIS LS-1001',
+    action: 'Automatically close XV-1001 (Inlet ESD Ball Valve) within 3 seconds',
+    fail_safe_position: 'fail_closed',
+    sil_rating: 'SIL 2',
+    is_confirmed_setpoint: true,
+    verification_status: 'engineer_verified',
+    notes: 'Meets IEC 61511 / ISA 84 safety instrumented system standards',
+  };
+
+  store.addPhilosophyRule(esdRule);
+
+  const rules = store.listPhilosophyRules('proj-philo-test');
+  assert.ok(rules.length >= 1, 'Philosophy rules must be listed');
+  const found = rules.find((r) => r.id === ruleId);
+  assert.ok(found, 'Must find stored philosophy rule');
+  assert.strictEqual(found.fail_safe_position, 'fail_closed');
+  assert.strictEqual(found.sil_rating, 'SIL 2');
+  assert.strictEqual(found.is_confirmed_setpoint, true);
+  assert.strictEqual(found.verification_status, 'engineer_verified');
+});
+
 console.log(`\n========================================`);
 console.log(`Test Results: ${passedTests} Passed, ${failedTests} Failed`);
 console.log(`========================================\n`);

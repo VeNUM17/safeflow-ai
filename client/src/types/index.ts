@@ -262,7 +262,32 @@ export function createEmptyPsiParameters(entryMethod: 'manual' | 'machine' = 'ma
   };
 }
 
-export type DocumentType = 'sds' | 'pid';
+export type DocumentCategory =
+  | 'sds'
+  | 'pid'
+  | 'pfd'
+  | 'bfd'
+  | 'stream_table'
+  | 'equipment_datasheet'
+  | 'basis_of_design'
+  | 'process_design_philosophy'
+  | 'operating_philosophy'
+  | 'control_philosophy'
+  | 'shutdown_philosophy';
+
+export type DocumentType = DocumentCategory; // Backwards compatible with existing 'sds' | 'pid' references
+
+export type ExtractionStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'completed'
+  | 'partial'
+  | 'failed';
+
+export type DocumentVerificationStatus =
+  | 'unverified'
+  | 'engineer_verified'
+  | 'rejected';
 
 export interface DocumentRecord {
   id: string;
@@ -272,7 +297,12 @@ export interface DocumentRecord {
   file_path: string;
   mime_type: string;
   size_bytes: number;
-  doc_type: DocumentType;
+  doc_type: DocumentCategory;
+  category: DocumentCategory;
+  category_confidence?: number;
+  user_overridden_category?: DocumentCategory | null;
+  revision: string;
+  source_organization?: string;
   upload_timestamp: string;
   extracted_text_preview?: string;
   pages_count: number;
@@ -280,6 +310,99 @@ export interface DocumentRecord {
   unreadable_reason?: string;
   is_scanned_ocr_attempted?: boolean;
   chemical_ids: string[];
+  extraction_status: ExtractionStatus;
+  verification_status: DocumentVerificationStatus;
+  verified_by?: string | null;
+  verified_at?: string | null;
+  notes?: string;
+  metadata?: Record<string, any>;
+}
+
+// --- UNIFIED PROVENANCE & CROSS-DOCUMENT DISCREPANCY MODELS ---
+
+export interface UnifiedProvenanceValue<T = any> {
+  id: string;
+  original_value: string | number | null;
+  normalized_value: T | null;
+  original_unit?: string | null;
+  normalized_unit?: string | null;
+  source_document_id: string;
+  source_document_name: string;
+  source_category: DocumentCategory;
+  source_revision?: string | null;
+  page_or_drawing_location: string;
+  extraction_confidence: number;
+  verification_status: 'unverified' | 'engineer_verified' | 'disputed' | 'rejected';
+  verified_by?: string | null;
+  verified_at?: string | null;
+  extraction_timestamp: string;
+  notes?: string;
+}
+
+export type DiscrepancyType =
+  | 'conflict'
+  | 'unit_difference'
+  | 'design_vs_operating'
+  | 'missing_in_source'
+  | 'compatible';
+
+export type DiscrepancyStatus =
+  | 'open'
+  | 'reviewed'
+  | 'resolved'
+  | 'accepted_as_margin';
+
+export interface CrossDocumentDiscrepancy {
+  id: string;
+  project_id: string;
+  entity_type: 'equipment' | 'stream' | 'line' | 'chemical' | 'safeguard';
+  entity_tag: string; // e.g. "PG-1001", "10\"-PG-00101-A1A", "STR-101"
+  property_name: string; // e.g. "design_pressure", "operating_temperature", "material"
+  discrepancy_type: DiscrepancyType;
+  status: DiscrepancyStatus;
+  severity: 'critical' | 'warning' | 'info';
+  message: string;
+  evidence_records: UnifiedProvenanceValue[];
+  resolution_notes?: string | null;
+  resolved_by?: string | null;
+  resolved_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UnifiedEngineeringMatrixEntry {
+  id: string;
+  project_id: string;
+  entity_type: 'equipment' | 'stream' | 'line';
+  entity_tag: string;
+  description?: string;
+  sources_found: DocumentCategory[];
+  p_and_id_data?: Record<string, any>;
+  datasheet_data?: Record<string, any>;
+  stream_table_data?: Record<string, any>;
+  pfd_data?: Record<string, any>;
+  philosophy_data?: Record<string, any>;
+  has_conflicts: boolean;
+  conflict_ids: string[];
+  last_updated: string;
+}
+
+export interface EngineeringPhilosophyRule {
+  id: string;
+  project_id: string;
+  source_document_id: string;
+  source_document_name: string;
+  source_category: DocumentCategory;
+  rule_type: 'interlock' | 'esd_action' | 'control_objective' | 'operating_limit' | 'relief_basis';
+  equipment_tag?: string;
+  loop_tag?: string; // e.g. "PIC-1001", "SIS LS-1001", "BDV-1001"
+  condition: string;
+  action: string;
+  fail_safe_position?: 'fail_closed' | 'fail_open' | 'fail_locked';
+  sil_rating?: string;
+  is_confirmed_setpoint: boolean;
+  verification_status: 'unverified' | 'engineer_verified';
+  notes?: string;
 }
 
 export type EquipmentStatus =

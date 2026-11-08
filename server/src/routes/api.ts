@@ -128,6 +128,44 @@ router.delete('/documents/:id', (req: Request, res: Response) => {
   });
 });
 
+router.patch('/documents/:id', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const updates = req.body;
+  const updated = store.updateDocumentMetadata(id, updates);
+  if (!updated) {
+    return res.status(404).json({ success: false, error: 'Document not found' });
+  }
+  res.json({ success: true, data: updated });
+});
+
+router.get('/projects/:id/discrepancies', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const discs = store.listDiscrepancies(id);
+  res.json({ success: true, data: discs });
+});
+
+router.post('/discrepancies/:id/resolve', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const { status, resolution_notes, resolved_by } = req.body;
+  const success = store.resolveDiscrepancy(id, { status, resolution_notes, resolved_by });
+  if (!success) {
+    return res.status(404).json({ success: false, error: 'Discrepancy not found' });
+  }
+  res.json({ success: true, message: 'Discrepancy updated successfully' });
+});
+
+router.get('/projects/:id/engineering-matrix', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const matrix = store.listEngineeringMatrix(id);
+  res.json({ success: true, data: matrix });
+});
+
+router.get('/projects/:id/philosophy-rules', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const rules = store.listPhilosophyRules(id);
+  res.json({ success: true, data: rules });
+});
+
 router.post(
   '/projects/:id/upload',
   upload.array('files', 10),

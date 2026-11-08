@@ -193,7 +193,11 @@
       "is_scanned_ocr_attempted": false,
       "chemical_ids": [
         "b83e0456-9887-4b6c-9808-6a7752d5afce"
-      ]
+      ],
+      "category": "sds",
+      "revision": "A",
+      "extraction_status": "completed",
+      "verification_status": "unverified"
     },
     {
       "id": "sds-doc-11",
@@ -208,7 +212,11 @@
       "pages_count": 1,
       "is_readable": true,
       "is_scanned_ocr_attempted": false,
-      "chemical_ids": []
+      "chemical_ids": [],
+      "category": "sds",
+      "revision": "A",
+      "extraction_status": "completed",
+      "verification_status": "unverified"
     },
     {
       "id": "sds-doc-11",
@@ -225,7 +233,11 @@
       "is_scanned_ocr_attempted": false,
       "chemical_ids": [
         "41bab483-5546-461d-bc5a-1ae4ee13a265"
-      ]
+      ],
+      "category": "sds",
+      "revision": "A",
+      "extraction_status": "completed",
+      "verification_status": "unverified"
     },
     {
       "id": "sds-doc-11",
@@ -242,7 +254,11 @@
       "is_scanned_ocr_attempted": false,
       "chemical_ids": [
         "466cf6a8-ebe2-4cb8-8a4d-4c54c776973a"
-      ]
+      ],
+      "category": "sds",
+      "revision": "A",
+      "extraction_status": "completed",
+      "verification_status": "unverified"
     },
     {
       "id": "sds-doc-11",
@@ -259,7 +275,11 @@
       "is_scanned_ocr_attempted": false,
       "chemical_ids": [
         "f627a96f-f412-46c1-9456-dd21468ae2fd"
-      ]
+      ],
+      "category": "sds",
+      "revision": "A",
+      "extraction_status": "completed",
+      "verification_status": "unverified"
     },
     {
       "id": "cd0f3c5a-c24b-4525-8367-24b813541587",
@@ -276,7 +296,11 @@
       "is_scanned_ocr_attempted": false,
       "chemical_ids": [
         "d6208c20-cb3e-4878-8e57-52173aa710bd"
-      ]
+      ],
+      "category": "sds",
+      "revision": "A",
+      "extraction_status": "completed",
+      "verification_status": "unverified"
     },
     {
       "id": "4a70eebd-b473-43d7-bb8b-babdaca3d355",
@@ -293,7 +317,11 @@
       "is_scanned_ocr_attempted": false,
       "chemical_ids": [
         "dce6939c-f134-4748-8772-e7340920c3a9"
-      ]
+      ],
+      "category": "sds",
+      "revision": "A",
+      "extraction_status": "completed",
+      "verification_status": "unverified"
     },
     {
       "id": "9e08bce4-cf92-4930-b112-9d6f4f6ceb70",
@@ -308,7 +336,11 @@
       "pages_count": 1,
       "is_readable": true,
       "is_scanned_ocr_attempted": false,
-      "chemical_ids": []
+      "chemical_ids": [],
+      "category": "pid",
+      "revision": "A",
+      "extraction_status": "completed",
+      "verification_status": "unverified"
     },
     {
       "id": "04b4a9df-d216-489e-83c3-f6f13fcdc006",
@@ -325,7 +357,11 @@
       "is_scanned_ocr_attempted": false,
       "chemical_ids": [
         "2edb4080-6da9-4194-86ad-92c6aad6c040"
-      ]
+      ],
+      "category": "sds",
+      "revision": "A",
+      "extraction_status": "completed",
+      "verification_status": "unverified"
     },
     {
       "id": "7efd8d54-caf8-4b88-a80e-f5c2aebe90ff",
@@ -342,7 +378,11 @@
       "is_scanned_ocr_attempted": false,
       "chemical_ids": [
         "6666532b-d80b-4015-9afc-e213124dcd97"
-      ]
+      ],
+      "category": "sds",
+      "revision": "A",
+      "extraction_status": "completed",
+      "verification_status": "unverified"
     },
     {
       "id": "e0704249-c029-41ee-bf09-7199ecb1e71f",
@@ -357,7 +397,11 @@
       "pages_count": 1,
       "is_readable": true,
       "is_scanned_ocr_attempted": false,
-      "chemical_ids": []
+      "chemical_ids": [],
+      "category": "pid",
+      "revision": "A",
+      "extraction_status": "completed",
+      "verification_status": "unverified"
     },
     {
       "id": "bd21a9ea-af38-4fe0-81ef-f2e47d58ad20",
@@ -372,7 +416,11 @@
       "pages_count": 1,
       "is_readable": true,
       "is_scanned_ocr_attempted": true,
-      "chemical_ids": []
+      "chemical_ids": [],
+      "category": "pid",
+      "revision": "A",
+      "extraction_status": "completed",
+      "verification_status": "unverified"
     }
   ],
   "chemicals": [
@@ -22187,6 +22235,1643 @@
     }
   ],
   "audit_log": [
+    {
+      "id": "24ad0c80-310c-4280-b625-54e654cb4aa5",
+      "timestamp": "2026-11-08T10:42:28.501Z",
+      "project_id": "proj-assign-test",
+      "entity_type": "chemical",
+      "entity_id": "ba6aad46-2b3e-4e60-af94-ce0848c50d4a",
+      "action": "verify",
+      "field_changed": "chemical_assignment_verification",
+      "original_value": "unverified",
+      "revised_value": "verified",
+      "reviewer": "Lead Process Safety Engineer (PE)",
+      "change_reason": "Assignment verification status changed to verified"
+    },
+    {
+      "id": "98648fd0-e78c-44af-9766-c8dcb1ff4018",
+      "timestamp": "2026-11-08T10:42:28.382Z",
+      "project_id": "proj-assign-test",
+      "entity_type": "chemical",
+      "entity_id": "ba6aad46-2b3e-4e60-af94-ce0848c50d4a",
+      "action": "create",
+      "field_changed": "chemical_assignment",
+      "original_value": null,
+      "revised_value": "Hydrogen Sulfide (CANDIDATE) assigned to PG-1001",
+      "reviewer": "Junior Engineer",
+      "change_reason": "Sour gas service complying with NACE MR0175"
+    },
+    {
+      "id": "54051db7-d004-4913-b6c9-17378e2ab1c3",
+      "timestamp": "2026-11-08T10:42:28.219Z",
+      "project_id": "5017cd00-fb87-4f5b-bffd-5454b878f472",
+      "entity_type": "line",
+      "entity_id": "cand-sync-1",
+      "action": "create",
+      "reviewer": "Engineer 2",
+      "change_reason": "Synchronized connection candidate TK-101 -> P-101 (corroborated)"
+    },
+    {
+      "id": "b73ba25c-4eae-4590-bdb4-34e7a3c3502e",
+      "timestamp": "2026-11-08T10:42:28.124Z",
+      "project_id": "5017cd00-fb87-4f5b-bffd-5454b878f472",
+      "entity_type": "line",
+      "entity_id": "cand-sync-1",
+      "action": "create",
+      "reviewer": "Engineer 1",
+      "change_reason": "Synchronized connection candidate TK-101 -> P-101 (corroborated)"
+    },
+    {
+      "id": "5c1fcdcd-c1d4-481b-aa71-d248cf86a6fc",
+      "timestamp": "2026-11-08T10:42:27.865Z",
+      "project_id": "86273d97-a81f-48e0-b56a-13673e830da3",
+      "entity_type": "pha_node",
+      "entity_id": "86273d97-a81f-48e0-b56a-13673e830da3",
+      "action": "create",
+      "change_reason": "Auto-segmented 3 candidate PHA study nodes from process graph",
+      "reviewer": "Safety Facilitator",
+      "revised_value": [
+        {
+          "node_id": "N-001",
+          "name": "Feed storage and transfer"
+        },
+        {
+          "node_id": "N-002",
+          "name": "Mixing and heat exchange"
+        },
+        {
+          "node_id": "N-003",
+          "name": "Product storage and outlet"
+        }
+      ]
+    },
+    {
+      "id": "12857b45-aa53-4596-8e5d-7736207455e9",
+      "timestamp": "2026-11-08T10:42:27.393Z",
+      "project_id": "f7bb4825-b2c3-4a2e-9f5b-83014009f1e0",
+      "entity_type": "stream",
+      "entity_id": "stream-y8swtf1",
+      "action": "create",
+      "change_reason": "Manual stream entry",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "stream_number": "STR-PERSIST",
+        "source": "R-101",
+        "dest": "C-101",
+        "flow_rates": {
+          "normal": 850,
+          "min": 200,
+          "max": 1100,
+          "design": 1200,
+          "actual": null,
+          "unit": "kg/h",
+          "basis": "mass"
+        }
+      }
+    },
+    {
+      "id": "93344ff4-bbae-4de3-a78a-211243af667e",
+      "timestamp": "2026-11-08T10:42:27.190Z",
+      "project_id": "916caa99-0f4d-4c53-8661-0dec9673b1bd",
+      "entity_type": "stream",
+      "entity_id": "stream-hjlm5k7",
+      "action": "verify",
+      "change_reason": "Stream STR-MANUAL-01 verified by Senior PE Carol",
+      "reviewer": "Senior PE Carol",
+      "revised_value": {
+        "verification_status": "verified",
+        "notes": "Verified against PFD Rev 3"
+      }
+    },
+    {
+      "id": "25056904-7fc8-425f-80bb-520bd42e3916",
+      "timestamp": "2026-11-08T10:42:27.105Z",
+      "project_id": "916caa99-0f4d-4c53-8661-0dec9673b1bd",
+      "entity_type": "stream",
+      "entity_id": "stream-hjlm5k7",
+      "action": "update",
+      "original_value": {
+        "id": "stream-hjlm5k7",
+        "project_id": "916caa99-0f4d-4c53-8661-0dec9673b1bd",
+        "stream_number": "STR-MANUAL-01",
+        "source_equipment_id": null,
+        "source_equipment_tag": "TK-101",
+        "destination_equipment_id": null,
+        "destination_equipment_tag": "V-101",
+        "connected_line_id": null,
+        "line_number": null,
+        "material_description": "Pure Water Feed",
+        "assigned_chemical_id": null,
+        "flow_direction": "forward",
+        "flow_rates": {
+          "normal": 10,
+          "min": null,
+          "max": null,
+          "design": null,
+          "actual": null,
+          "unit": "m3/h",
+          "basis": "volumetric"
+        },
+        "operating_pressure": {
+          "value": 3,
+          "unit": "bar(g)",
+          "status": "not_provided"
+        },
+        "operating_temperature": {
+          "value": 25,
+          "unit": "°C",
+          "status": "not_provided"
+        },
+        "phase": "liquid",
+        "pipe_nominal_diameter": "2\"",
+        "pipe_spec": "SS316",
+        "associated_instrument_tags": [
+          "FIT-201",
+          "FIC-201"
+        ],
+        "source": {
+          "document": "Manual Engineering Entry",
+          "document_id": null,
+          "page": null,
+          "snippet": null
+        },
+        "data_origin": "manual",
+        "verification_status": "unverified",
+        "verified_by": null,
+        "verified_at": null,
+        "notes": "Manually entered water feed line",
+        "created_at": "2026-11-08T10:42:27.030Z",
+        "updated_at": "2026-11-08T10:42:27.030Z"
+      },
+      "revised_value": {
+        "id": "stream-hjlm5k7",
+        "project_id": "916caa99-0f4d-4c53-8661-0dec9673b1bd",
+        "stream_number": "STR-MANUAL-01",
+        "source_equipment_id": null,
+        "source_equipment_tag": "TK-101",
+        "destination_equipment_id": null,
+        "destination_equipment_tag": "V-101",
+        "connected_line_id": null,
+        "line_number": null,
+        "material_description": "Pure Water Feed",
+        "assigned_chemical_id": null,
+        "flow_direction": "forward",
+        "flow_rates": {
+          "normal": 12.5,
+          "min": null,
+          "max": null,
+          "design": 18,
+          "actual": null,
+          "unit": "m3/h",
+          "basis": "volumetric"
+        },
+        "operating_pressure": {
+          "value": 3,
+          "unit": "bar(g)",
+          "status": "not_provided"
+        },
+        "operating_temperature": {
+          "value": 25,
+          "unit": "°C",
+          "status": "not_provided"
+        },
+        "phase": "liquid",
+        "pipe_nominal_diameter": "2\"",
+        "pipe_spec": "SS316",
+        "associated_instrument_tags": [
+          "FIT-201",
+          "FIC-201"
+        ],
+        "source": {
+          "document": "Manual Engineering Entry",
+          "document_id": null,
+          "page": null,
+          "snippet": null
+        },
+        "data_origin": "manual",
+        "verification_status": "verified",
+        "verified_by": "Senior PE Carol",
+        "verified_at": "2026-11-08T10:42:27.190Z",
+        "notes": "Revised feed capacity following pump reassessment; Verification Note: Verified against PFD Rev 3",
+        "created_at": "2026-11-08T10:42:27.030Z",
+        "updated_at": "2026-11-08T10:42:27.190Z"
+      },
+      "change_reason": "Capacity expansion adjustment",
+      "reviewer": "Process Engineer Bob"
+    },
+    {
+      "id": "2e495150-bc54-4b50-a576-61c6a0dddd8b",
+      "timestamp": "2026-11-08T10:42:27.030Z",
+      "project_id": "916caa99-0f4d-4c53-8661-0dec9673b1bd",
+      "entity_type": "stream",
+      "entity_id": "stream-hjlm5k7",
+      "action": "create",
+      "change_reason": "Manual stream entry",
+      "reviewer": "Process Engineer Alice",
+      "revised_value": {
+        "stream_number": "STR-MANUAL-01",
+        "source": "TK-101",
+        "dest": "V-101",
+        "flow_rates": {
+          "normal": 12.5,
+          "min": null,
+          "max": null,
+          "design": 18,
+          "actual": null,
+          "unit": "m3/h",
+          "basis": "volumetric"
+        }
+      }
+    },
+    {
+      "id": "3c047acf-2701-4af0-b214-a4fccb714957",
+      "timestamp": "2026-11-08T10:42:26.837Z",
+      "project_id": "67b211a0-ca52-422d-acbd-52125e6d0934",
+      "entity_type": "stream",
+      "entity_id": "stream-gsf9xbr",
+      "action": "create",
+      "change_reason": "Manual stream entry",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "stream_number": "STR-DISTINCT",
+        "source": "V-101",
+        "dest": "P-101",
+        "flow_rates": {
+          "normal": 20,
+          "min": 5,
+          "max": 28,
+          "design": 35,
+          "actual": null,
+          "unit": "m3/h",
+          "basis": "volumetric"
+        }
+      }
+    },
+    {
+      "id": "c6b66212-f668-4d5b-8b01-cf79048a7546",
+      "timestamp": "2026-11-08T10:42:26.284Z",
+      "project_id": "5d795aaa-39a4-4e29-82b8-5a80960557f8",
+      "entity_type": "stream",
+      "entity_id": "stream-sy6jo9j",
+      "action": "create",
+      "change_reason": "Manual stream entry",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "stream_number": "STR-UNK",
+        "source": "V-101",
+        "dest": "V-103",
+        "flow_rates": {
+          "normal": null,
+          "min": null,
+          "max": null,
+          "design": null,
+          "actual": null,
+          "unit": "m3/h",
+          "basis": "volumetric"
+        }
+      }
+    },
+    {
+      "id": "9180adb6-5841-4ee6-8bdc-5554ae24a502",
+      "timestamp": "2026-11-08T10:42:26.208Z",
+      "project_id": "5d795aaa-39a4-4e29-82b8-5a80960557f8",
+      "entity_type": "stream",
+      "entity_id": "stream-vrhetgo",
+      "action": "create",
+      "change_reason": "Manual stream entry",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "stream_number": "STR-BIDI",
+        "source": "V-101",
+        "dest": "V-102",
+        "flow_rates": {
+          "normal": null,
+          "min": null,
+          "max": null,
+          "design": null,
+          "actual": null,
+          "unit": "m3/h",
+          "basis": "volumetric"
+        }
+      }
+    },
+    {
+      "id": "604b442a-10d6-43f7-8269-44ce49e66112",
+      "timestamp": "2026-11-08T10:42:26.124Z",
+      "project_id": "5d795aaa-39a4-4e29-82b8-5a80960557f8",
+      "entity_type": "stream",
+      "entity_id": "stream-9ih6g9k",
+      "action": "create",
+      "change_reason": "Manual stream entry",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "stream_number": "STR-REV",
+        "source": "V-101",
+        "dest": "TK-101",
+        "flow_rates": {
+          "normal": null,
+          "min": null,
+          "max": null,
+          "design": null,
+          "actual": null,
+          "unit": "m3/h",
+          "basis": "volumetric"
+        }
+      }
+    },
+    {
+      "id": "40e0fea1-7b33-49ca-9cbd-84006e402d46",
+      "timestamp": "2026-11-08T10:42:26.047Z",
+      "project_id": "5d795aaa-39a4-4e29-82b8-5a80960557f8",
+      "entity_type": "stream",
+      "entity_id": "stream-ec2qbcs",
+      "action": "create",
+      "change_reason": "Manual stream entry",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "stream_number": "STR-FWD",
+        "source": "TK-101",
+        "dest": "P-101",
+        "flow_rates": {
+          "normal": null,
+          "min": null,
+          "max": null,
+          "design": null,
+          "actual": null,
+          "unit": "m3/h",
+          "basis": "volumetric"
+        }
+      }
+    },
+    {
+      "id": "5e575b35-c702-4ca0-804a-f94d600981a6",
+      "timestamp": "2026-11-08T10:42:25.549Z",
+      "project_id": "a82be0ee-ca3e-4992-9e86-87cfe773ba0a",
+      "entity_type": "pha_node",
+      "entity_id": "a82be0ee-ca3e-4992-9e86-87cfe773ba0a",
+      "action": "create",
+      "change_reason": "Auto-segmented 3 candidate PHA study nodes from process graph",
+      "reviewer": "Safety Facilitator",
+      "revised_value": [
+        {
+          "node_id": "N-001",
+          "name": "Feed storage and transfer"
+        },
+        {
+          "node_id": "N-002",
+          "name": "Mixing and heat exchange"
+        },
+        {
+          "node_id": "N-003",
+          "name": "Product storage and outlet"
+        }
+      ]
+    },
+    {
+      "id": "ade7f55c-be87-42f1-a273-8f5fd9b4611f",
+      "timestamp": "2026-11-08T10:42:24.583Z",
+      "project_id": "2a635fd2-9b3a-427b-9584-2bb8eddcc7ee",
+      "entity_type": "pha_node",
+      "entity_id": "2a635fd2-9b3a-427b-9584-2bb8eddcc7ee",
+      "action": "create",
+      "change_reason": "Auto-segmented 3 candidate PHA study nodes from process graph",
+      "reviewer": "Lead Facilitator",
+      "revised_value": [
+        {
+          "node_id": "N-001",
+          "name": "Feed storage and transfer"
+        },
+        {
+          "node_id": "N-002",
+          "name": "Mixing and heat exchange"
+        },
+        {
+          "node_id": "N-003",
+          "name": "Product storage and outlet"
+        }
+      ]
+    },
+    {
+      "id": "b36bb44c-2627-43ad-a4ca-288a7eaacd0c",
+      "timestamp": "2026-11-08T10:42:24.502Z",
+      "project_id": "2a635fd2-9b3a-427b-9584-2bb8eddcc7ee",
+      "entity_type": "chemical",
+      "entity_id": "chem-98e0cde7-85a8-44fc-951d-0f88180229b5",
+      "action": "create",
+      "change_reason": "Manually created chemical \"Purified Water (PW)\"",
+      "reviewer": "Process Safety Engineer",
+      "revised_value": {
+        "name": "Purified Water (PW)",
+        "cas": "7732-18-5",
+        "status": "active"
+      }
+    },
+    {
+      "id": "274fc3d0-f0e1-4bd9-9af4-3e6ba8ca7d90",
+      "timestamp": "2026-11-08T10:42:24.191Z",
+      "project_id": "ef5993b5-c5b1-4492-aad8-cfdacda5c45b",
+      "entity_type": "pha_node",
+      "entity_id": "deaea17a-813f-4375-a597-2cf93768cc7a",
+      "action": "create",
+      "change_reason": "Created custom PHA study node N-201",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "node_id": "N-201",
+        "name": "Solvent Handling Node"
+      }
+    },
+    {
+      "id": "465111d5-9d02-4a18-a6a5-4d8236be3dda",
+      "timestamp": "2026-11-08T10:42:24.108Z",
+      "project_id": "ef5993b5-c5b1-4492-aad8-cfdacda5c45b",
+      "entity_type": "line",
+      "entity_id": "line-l-201",
+      "action": "create",
+      "change_reason": "Added piping line connection",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "line_number": "L-201"
+      }
+    },
+    {
+      "id": "467db61f-b694-4348-bb7f-d8104c20eda2",
+      "timestamp": "2026-11-08T10:42:24.033Z",
+      "project_id": "ef5993b5-c5b1-4492-aad8-cfdacda5c45b",
+      "entity_type": "equipment",
+      "entity_id": "eq-v-201",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "V-201",
+        "type": "vessel",
+        "description": "Solvent Mixing Vessel"
+      }
+    },
+    {
+      "id": "eff304a0-236d-4a30-8644-d2d07146eb91",
+      "timestamp": "2026-11-08T10:42:23.958Z",
+      "project_id": "ef5993b5-c5b1-4492-aad8-cfdacda5c45b",
+      "entity_type": "chemical",
+      "entity_id": "chem-b1de16fe-e496-4b69-bb57-50455b191af6",
+      "action": "create",
+      "change_reason": "Manually created chemical \"Novel Solvent X-1\"",
+      "reviewer": "Process Safety Engineer",
+      "revised_value": {
+        "name": "Novel Solvent X-1",
+        "cas": null,
+        "status": "active"
+      }
+    },
+    {
+      "id": "d861a081-e271-4ce1-ab3c-35f2cc9feb41",
+      "timestamp": "2026-11-08T10:42:23.604Z",
+      "project_id": "a7e72735-40f5-4fc1-a5ed-1f46dc8a372c",
+      "entity_type": "chemical",
+      "entity_id": "chem-5d3ca764-8929-484e-81ef-5cf7e86f6c0e",
+      "action": "create",
+      "change_reason": "Manually created chemical \"Anhydrous Ammonia\"",
+      "reviewer": "Process Safety Engineer",
+      "revised_value": {
+        "name": "Anhydrous Ammonia",
+        "cas": "7664-41-7",
+        "status": "active"
+      }
+    },
+    {
+      "id": "851453cb-ba89-4d3f-9358-c0cac64ee5df",
+      "timestamp": "2026-11-08T10:42:23.249Z",
+      "project_id": "ce2d46d5-fb40-4bd3-a50b-2edee2e5b827",
+      "entity_type": "chemical",
+      "entity_id": "chem-0e7b7ed2-0afc-45b8-ae02-431d33475994",
+      "action": "create",
+      "change_reason": "Manually created chemical \"Anhydrous Ammonia\"",
+      "reviewer": "Process Safety Engineer",
+      "revised_value": {
+        "name": "Anhydrous Ammonia",
+        "cas": "7664-41-7",
+        "status": "active"
+      }
+    },
+    {
+      "id": "074cc27d-9ccd-4722-bd43-c4a84e48d37e",
+      "timestamp": "2026-11-08T10:42:22.986Z",
+      "project_id": "8813896e-0001-4b13-85fb-a94b0775addc",
+      "entity_type": "chemical",
+      "entity_id": "chem-e7d112cf-fcd7-4bcc-9409-ad0e849474ec",
+      "action": "create",
+      "change_reason": "Manually created chemical \"Toluene\"",
+      "reviewer": "PSM Compliance Specialist",
+      "revised_value": {
+        "name": "Toluene",
+        "cas": "108-88-3",
+        "status": "active"
+      }
+    },
+    {
+      "id": "de5b9c1b-8be1-4644-812c-6731471e8d12",
+      "timestamp": "2026-11-08T10:42:22.633Z",
+      "project_id": "dfdeec36-132d-4d96-a331-0a8eb9239210",
+      "entity_type": "chemical",
+      "entity_id": "chem-303986a1-b423-4b72-87f5-7a16f8cb485b",
+      "action": "create",
+      "change_reason": "Manually created chemical \"Ammonia Aqueous Solution\"",
+      "reviewer": "Process Safety Engineer",
+      "revised_value": {
+        "name": "Ammonia Aqueous Solution",
+        "cas": "7664-41-7",
+        "status": "active"
+      }
+    },
+    {
+      "id": "22228d0a-d8d6-4111-91a1-c15b34c82148",
+      "timestamp": "2026-11-08T10:42:22.512Z",
+      "project_id": "dfdeec36-132d-4d96-a331-0a8eb9239210",
+      "entity_type": "chemical",
+      "entity_id": "chem-3fb4753b-ccca-4b1c-b22a-dfa738f42b8d",
+      "action": "create",
+      "change_reason": "Manually created chemical \"Anhydrous Ammonia\"",
+      "reviewer": "Process Safety Engineer",
+      "revised_value": {
+        "name": "Anhydrous Ammonia",
+        "cas": "7664-41-7",
+        "status": "active"
+      }
+    },
+    {
+      "id": "886d0cfc-58e7-4488-ac64-59ce92b8776d",
+      "timestamp": "2026-11-08T10:42:22.281Z",
+      "project_id": "33e4b5eb-5f8c-4aa8-964f-97eca6897a69",
+      "entity_type": "chemical",
+      "entity_id": "chem-364cd4ba-c7a8-4829-9f39-434170a3c7c0",
+      "action": "create",
+      "change_reason": "Manually created chemical \"Sodium Hypochlorite 12.5%\"",
+      "reviewer": "Process Safety Engineer",
+      "revised_value": {
+        "name": "Sodium Hypochlorite 12.5%",
+        "cas": "7681-52-9",
+        "status": "active"
+      }
+    },
+    {
+      "id": "776f8e82-3140-4df0-8270-2ccf6d129b07",
+      "timestamp": "2026-11-08T10:42:22.000Z",
+      "project_id": "09392237-9e7b-4eda-82bd-d6187619894a",
+      "entity_type": "chemical",
+      "entity_id": "chem-cdb90699-bcaa-4532-9dc7-16e2dcd419cc",
+      "action": "create",
+      "change_reason": "Manually created chemical \"Sulfuric Acid 98%\"",
+      "reviewer": "Process Engineer Intern",
+      "revised_value": {
+        "name": "Sulfuric Acid 98%",
+        "cas": "7664-93-9",
+        "status": "draft"
+      }
+    },
+    {
+      "id": "eba7f744-dc4b-48d4-9108-351fa1b88bd2",
+      "timestamp": "2026-11-08T10:42:21.737Z",
+      "project_id": "1a646d7b-0840-45ad-b934-131b4745b119",
+      "entity_type": "chemical",
+      "entity_id": "chem-aab88f81-654e-4c71-8018-9e67276f01bc",
+      "action": "create",
+      "change_reason": "Manually created chemical \"Ethanol (Ethyl Alcohol)\"",
+      "reviewer": "Dr. Chemical Engineer",
+      "revised_value": {
+        "name": "Ethanol (Ethyl Alcohol)",
+        "cas": "64-17-5",
+        "status": "active"
+      }
+    },
+    {
+      "id": "ed79ff7d-fb98-4a4d-ac80-ba083fb0604d",
+      "timestamp": "2026-11-08T10:42:21.467Z",
+      "project_id": "c045e3cb-eb46-4336-861f-989766202023",
+      "entity_type": "chemical",
+      "entity_id": "chem-c7aba960-25e5-41e4-a19d-52b6c54a1974",
+      "action": "create",
+      "change_reason": "Manually created chemical \"Unknown Solvent Mixture\"",
+      "reviewer": "Process Safety Engineer",
+      "revised_value": {
+        "name": "Unknown Solvent Mixture",
+        "cas": null,
+        "status": "active"
+      }
+    },
+    {
+      "id": "bc1efef1-016c-4d77-885b-bf10f9342333",
+      "timestamp": "2026-11-08T10:42:21.221Z",
+      "project_id": "569e14e2-6b40-4c1e-865c-14d6e748b0fa",
+      "entity_type": "chemical",
+      "entity_id": "chem-12875849-560d-4a13-bafc-93a1722feb3c",
+      "action": "create",
+      "change_reason": "Manually created chemical \"Nitrogen\"",
+      "reviewer": "Process Safety Engineer",
+      "revised_value": {
+        "name": "Nitrogen",
+        "cas": null,
+        "status": "active"
+      }
+    },
+    {
+      "id": "e2380ebd-b256-4386-a7b1-b5137b285053",
+      "timestamp": "2026-11-08T10:42:20.988Z",
+      "project_id": "1345d809-46d3-4fc7-9b1c-79cea5fc7627",
+      "entity_type": "chemical",
+      "entity_id": "chem-00db7ee8-1a79-4389-8f62-af5563bc248f",
+      "action": "create",
+      "change_reason": "Manually created chemical \"Chlorine Gas\"",
+      "reviewer": "Lead Safety Engineer",
+      "revised_value": {
+        "name": "Chlorine Gas",
+        "cas": "7782-50-5",
+        "status": "active"
+      }
+    },
+    {
+      "id": "097b29c7-cafe-4b11-b0ee-0c66f6a4158b",
+      "timestamp": "2026-11-08T10:42:20.634Z",
+      "project_id": "5ea077e7-0ed9-47de-b458-b301735d0dce",
+      "entity_type": "pha_node",
+      "entity_id": "5ea077e7-0ed9-47de-b458-b301735d0dce",
+      "action": "create",
+      "change_reason": "Auto-segmented 3 candidate PHA study nodes from process graph",
+      "reviewer": "Lead PE",
+      "revised_value": [
+        {
+          "node_id": "N-001",
+          "name": "Feed storage and transfer"
+        },
+        {
+          "node_id": "N-002",
+          "name": "Mixing and heat exchange"
+        },
+        {
+          "node_id": "N-003",
+          "name": "Product storage and outlet"
+        }
+      ]
+    },
+    {
+      "id": "295257b3-7c9c-4ccc-b2bb-01ffd2c40a5a",
+      "timestamp": "2026-11-08T10:42:20.357Z",
+      "project_id": "89ac67ef-b836-46cd-8e95-75e1f7cca2f0",
+      "entity_type": "pha_node",
+      "entity_id": "7af598ab-cb4a-49b9-938b-e4bb10178662",
+      "action": "update",
+      "original_value": {
+        "requires_reassessment": true,
+        "reasons": [
+          "Specification 'design_pressure' on equipment V-101 changed from None to 275 by Plant Design Engineer (Re-rated vessel based on new engineering calculations)"
+        ]
+      },
+      "revised_value": {
+        "requires_reassessment": false
+      },
+      "change_reason": "HAZOP Reassessment Acknowledged: Reviewed 275 psig limit against overpressure safeguards",
+      "reviewer": "PHA Facilitator"
+    },
+    {
+      "id": "fb75831f-a72a-440d-801b-8bbe3c5d3073",
+      "timestamp": "2026-11-08T10:42:20.271Z",
+      "project_id": "89ac67ef-b836-46cd-8e95-75e1f7cca2f0",
+      "entity_type": "equipment",
+      "entity_id": "eq-reassess-v101",
+      "action": "update",
+      "original_value": {
+        "design_pressure": {
+          "value": null,
+          "unit": null
+        }
+      },
+      "revised_value": {
+        "design_pressure": {
+          "value": 275,
+          "unit": "psig",
+          "status": "user_entered"
+        }
+      },
+      "change_reason": "Spec 'design_pressure' updated: Re-rated vessel based on new engineering calculations. Affected PHA nodes: N-001",
+      "reviewer": "Plant Design Engineer"
+    },
+    {
+      "id": "bf7bbbc2-a5c6-4f3b-9ab9-dfc34d8c4857",
+      "timestamp": "2026-11-08T10:42:20.195Z",
+      "project_id": "89ac67ef-b836-46cd-8e95-75e1f7cca2f0",
+      "entity_type": "graph",
+      "entity_id": "89ac67ef-b836-46cd-8e95-75e1f7cca2f0",
+      "action": "reject",
+      "change_reason": "Approval invalidated: Equipment V-101 specification 'design_pressure' modified",
+      "reviewer": "System"
+    },
+    {
+      "id": "7ccad002-3c07-4bdc-a36c-5cf58d136dea",
+      "timestamp": "2026-11-08T10:42:20.113Z",
+      "project_id": "89ac67ef-b836-46cd-8e95-75e1f7cca2f0",
+      "entity_type": "graph",
+      "entity_id": "89ac67ef-b836-46cd-8e95-75e1f7cca2f0",
+      "action": "approve",
+      "revised_value": {
+        "approved": true,
+        "approved_by": "Lead PE",
+        "approved_at": "2026-11-08T10:42:20.113Z",
+        "notes": "Baseline graph approved",
+        "validation_snapshot": {
+          "is_valid": true,
+          "can_approve": true,
+          "errors_count": 0,
+          "warnings_count": 0,
+          "issues": [],
+          "checked_at": "2026-11-08T10:42:20.113Z"
+        }
+      },
+      "change_reason": "Baseline graph approved",
+      "reviewer": "Lead PE"
+    },
+    {
+      "id": "63e8a1f0-e208-4626-a9b8-fcb96fc7b692",
+      "timestamp": "2026-11-08T10:42:20.038Z",
+      "project_id": "89ac67ef-b836-46cd-8e95-75e1f7cca2f0",
+      "entity_type": "pha_node",
+      "entity_id": "7af598ab-cb4a-49b9-938b-e4bb10178662",
+      "action": "create",
+      "change_reason": "Created custom PHA study node N-001",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "node_id": "N-001",
+        "name": "High Pressure Loop"
+      }
+    },
+    {
+      "id": "c62b740f-ad44-4e2f-89a0-46aa2fdaae93",
+      "timestamp": "2026-11-08T10:42:19.965Z",
+      "project_id": "89ac67ef-b836-46cd-8e95-75e1f7cca2f0",
+      "entity_type": "line",
+      "entity_id": "line-reassess-1",
+      "action": "create",
+      "change_reason": "Added piping line connection",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "line_number": "L-101",
+        "from": "V-101",
+        "to": "P-101",
+        "functional_type": "piping_line"
+      }
+    },
+    {
+      "id": "4aca8d21-adb1-473e-a92d-0d7c004d5034",
+      "timestamp": "2026-11-08T10:42:19.880Z",
+      "project_id": "89ac67ef-b836-46cd-8e95-75e1f7cca2f0",
+      "entity_type": "equipment",
+      "entity_id": "eq-reassess-p101",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "P-101",
+        "type": "pump",
+        "description": "Ammonia Transfer Pump"
+      }
+    },
+    {
+      "id": "7ffdd81c-33b2-464f-9dbc-41aa28bb2296",
+      "timestamp": "2026-11-08T10:42:19.843Z",
+      "project_id": "89ac67ef-b836-46cd-8e95-75e1f7cca2f0",
+      "entity_type": "equipment",
+      "entity_id": "eq-reassess-v101",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "V-101",
+        "type": "vessel",
+        "description": "Vessel"
+      }
+    },
+    {
+      "id": "8f9bb7cb-da19-48e9-87a8-715c435b9c87",
+      "timestamp": "2026-11-08T10:42:19.530Z",
+      "project_id": "6a19e24d-634b-4fc2-87ac-51b4d951d173",
+      "entity_type": "equipment",
+      "entity_id": "eq-pha-v101",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "V-101",
+        "type": "vessel",
+        "description": "Ammonia Receiver Drum"
+      }
+    },
+    {
+      "id": "4e2c23a1-3546-426d-a05a-77f8d16d744d",
+      "timestamp": "2026-11-08T10:42:19.338Z",
+      "project_id": "d97aa1b1-e784-4c37-9234-c305bbf6f336",
+      "entity_type": "equipment",
+      "entity_id": "eq-v101-stable-uuid-1234",
+      "action": "update",
+      "original_value": {
+        "tag": "V-101",
+        "description": "Pressure Vessel",
+        "equipment_type": "vessel",
+        "assigned_chemical_id": null,
+        "status": "confirmed"
+      },
+      "revised_value": {
+        "tag": "V-101A"
+      },
+      "change_reason": "Renamed tag to V-101A",
+      "reviewer": "Lead Engineer"
+    },
+    {
+      "id": "15bc1b00-122a-478b-a21f-0909ad589147",
+      "timestamp": "2026-11-08T10:42:19.262Z",
+      "project_id": "d97aa1b1-e784-4c37-9234-c305bbf6f336",
+      "entity_type": "equipment",
+      "entity_id": "eq-v101-stable-uuid-1234",
+      "action": "update",
+      "original_value": {
+        "design_pressure": {
+          "value": null,
+          "unit": null
+        }
+      },
+      "revised_value": {
+        "design_pressure": {
+          "value": 250,
+          "unit": "psig",
+          "status": "user_entered"
+        }
+      },
+      "change_reason": "Spec 'design_pressure' updated: Specification update. Affected PHA nodes: none",
+      "reviewer": "Process Safety Engineer"
+    },
+    {
+      "id": "f7e92f0b-a48e-4e95-a343-006910525af2",
+      "timestamp": "2026-11-08T10:42:19.188Z",
+      "project_id": "d97aa1b1-e784-4c37-9234-c305bbf6f336",
+      "entity_type": "equipment",
+      "entity_id": "eq-v101-stable-uuid-1234",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "V-101",
+        "type": "vessel",
+        "description": "Pressure Vessel"
+      }
+    },
+    {
+      "id": "e9bcc2c2-221d-4a84-8c22-7e4bcc58c7cc",
+      "timestamp": "2026-11-08T10:42:18.994Z",
+      "project_id": "b3a16e48-5fa8-4be5-96fd-6fcefd854ca0",
+      "entity_type": "equipment",
+      "entity_id": "eq-conf-v101",
+      "action": "update",
+      "original_value": {
+        "design_pressure": {
+          "value": 250,
+          "status": "conflict"
+        }
+      },
+      "revised_value": {
+        "design_pressure": {
+          "value": 300,
+          "unit": "psig",
+          "status": "verified"
+        }
+      },
+      "change_reason": "Resolved specification conflict on 'design_pressure': Adopted fabricator MAWP 300 psig from as-built certified U-1A report",
+      "reviewer": "Chief Pressure Vessel Engineer"
+    },
+    {
+      "id": "88c58dfd-aab7-476e-9a8b-fdb3e78c570f",
+      "timestamp": "2026-11-08T10:42:18.900Z",
+      "project_id": "b3a16e48-5fa8-4be5-96fd-6fcefd854ca0",
+      "entity_type": "equipment",
+      "entity_id": "eq-conf-v101",
+      "action": "update",
+      "original_value": {
+        "design_pressure": 250
+      },
+      "revised_value": {
+        "design_pressure": {
+          "conflict": {
+            "id": "9c7ea195-9227-4182-9f17-3023d26d4cea",
+            "reported_at": "2026-11-08T10:42:18.900Z",
+            "source_document_name": "FABRICATION-DWG-V101-REV-2.pdf",
+            "source_page": 1,
+            "value": 300,
+            "unit": "psig",
+            "original_extracted_text": "MAX ALLOWABLE WORKING PRESSURE (MAWP): 300 PSIG",
+            "notes": "Discrepancy between early process datasheet and final vessel fabricator drawing"
+          }
+        }
+      },
+      "change_reason": "Recorded specification conflict on 'design_pressure': source FABRICATION-DWG-V101-REV-2.pdf reports 300 psig",
+      "reviewer": "Process Safety Engineer"
+    },
+    {
+      "id": "ecbbf788-ba15-4f0c-b901-2d2aa5941d93",
+      "timestamp": "2026-11-08T10:42:18.824Z",
+      "project_id": "b3a16e48-5fa8-4be5-96fd-6fcefd854ca0",
+      "entity_type": "equipment",
+      "entity_id": "eq-conf-v101",
+      "action": "update",
+      "original_value": {
+        "design_pressure": {
+          "value": null,
+          "unit": null
+        }
+      },
+      "revised_value": {
+        "design_pressure": {
+          "value": 250,
+          "unit": "psig",
+          "status": "user_entered"
+        }
+      },
+      "change_reason": "Spec 'design_pressure' updated: Specification update. Affected PHA nodes: none",
+      "reviewer": "Process Safety Engineer"
+    },
+    {
+      "id": "b8e221b2-e98b-4832-8811-9cf4189964ad",
+      "timestamp": "2026-11-08T10:42:18.744Z",
+      "project_id": "b3a16e48-5fa8-4be5-96fd-6fcefd854ca0",
+      "entity_type": "equipment",
+      "entity_id": "eq-conf-v101",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "V-101",
+        "type": "vessel",
+        "description": "Pressure Vessel"
+      }
+    },
+    {
+      "id": "55575833-842d-4ce1-b265-8eafbbba06ab",
+      "timestamp": "2026-11-08T10:42:18.553Z",
+      "project_id": "869efdef-2672-47be-9701-cf13d285d128",
+      "entity_type": "equipment",
+      "entity_id": "eq-verify-v101",
+      "action": "update",
+      "original_value": {
+        "design_pressure": {
+          "verification_status": "unverified"
+        }
+      },
+      "revised_value": {
+        "design_pressure": {
+          "verification_status": "verified",
+          "verified_by": "Lead Mechanical Engineer (PE)"
+        }
+      },
+      "change_reason": "Verified specification 'design_pressure': Verified against manufacturer U-1A ASME data report form",
+      "reviewer": "Lead Mechanical Engineer (PE)"
+    },
+    {
+      "id": "f3cea169-a173-4e98-91c5-6caf2ae74952",
+      "timestamp": "2026-11-08T10:42:18.480Z",
+      "project_id": "869efdef-2672-47be-9701-cf13d285d128",
+      "entity_type": "equipment",
+      "entity_id": "eq-verify-v101",
+      "action": "update",
+      "original_value": {
+        "design_pressure": {
+          "value": null,
+          "unit": null
+        }
+      },
+      "revised_value": {
+        "design_pressure": {
+          "value": 250,
+          "unit": "psig",
+          "status": "user_entered"
+        }
+      },
+      "change_reason": "Spec 'design_pressure' updated: Recorded draft design pressure from notes. Affected PHA nodes: none",
+      "reviewer": "Junior Process Tech"
+    },
+    {
+      "id": "08db1bd9-c0dd-432a-90c3-6828ecd69c98",
+      "timestamp": "2026-11-08T10:42:18.404Z",
+      "project_id": "869efdef-2672-47be-9701-cf13d285d128",
+      "entity_type": "equipment",
+      "entity_id": "eq-verify-v101",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "V-101",
+        "type": "vessel",
+        "description": "Pressure Vessel"
+      }
+    },
+    {
+      "id": "fe4ff03f-9cf9-4908-a7f1-e7e36b50aba3",
+      "timestamp": "2026-11-08T10:42:18.214Z",
+      "project_id": "a2bbb118-b268-4187-aa96-1c55210e40bb",
+      "entity_type": "equipment",
+      "entity_id": "eq-cap-v101",
+      "action": "update",
+      "original_value": {
+        "capacity": {
+          "value": 10000,
+          "unit": "gallons"
+        }
+      },
+      "revised_value": {
+        "capacity": {
+          "value": 250,
+          "unit": "gpm",
+          "status": "user_entered"
+        }
+      },
+      "change_reason": "Spec 'capacity' updated: Specification update. Affected PHA nodes: none",
+      "reviewer": "Process Safety Engineer"
+    },
+    {
+      "id": "413e7092-2af1-461e-9ecf-8ca8fb1d890f",
+      "timestamp": "2026-11-08T10:42:18.128Z",
+      "project_id": "a2bbb118-b268-4187-aa96-1c55210e40bb",
+      "entity_type": "equipment",
+      "entity_id": "eq-cap-v101",
+      "action": "update",
+      "original_value": {
+        "capacity": {
+          "value": 12000,
+          "unit": "gallons"
+        }
+      },
+      "revised_value": {
+        "capacity": {
+          "value": 10000,
+          "unit": "gallons",
+          "status": "user_entered"
+        }
+      },
+      "change_reason": "Spec 'capacity' updated: Specification update. Affected PHA nodes: none",
+      "reviewer": "Process Safety Engineer"
+    },
+    {
+      "id": "d8e00ca0-25cc-420c-9717-a6acaab2dbab",
+      "timestamp": "2026-11-08T10:42:18.052Z",
+      "project_id": "a2bbb118-b268-4187-aa96-1c55210e40bb",
+      "entity_type": "equipment",
+      "entity_id": "eq-cap-v101",
+      "action": "update",
+      "original_value": {
+        "capacity": {
+          "value": null,
+          "unit": null
+        }
+      },
+      "revised_value": {
+        "capacity": {
+          "value": 12000,
+          "unit": "gallons",
+          "status": "user_entered"
+        }
+      },
+      "change_reason": "Spec 'capacity' updated: Specification update. Affected PHA nodes: none",
+      "reviewer": "Process Safety Engineer"
+    },
+    {
+      "id": "f6c6f593-0b2c-41cb-8f4b-69d732ff2c39",
+      "timestamp": "2026-11-08T10:42:17.977Z",
+      "project_id": "a2bbb118-b268-4187-aa96-1c55210e40bb",
+      "entity_type": "equipment",
+      "entity_id": "eq-cap-v101",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "V-101",
+        "type": "vessel",
+        "description": "Storage Vessel"
+      }
+    },
+    {
+      "id": "c3a6bde7-bd11-4710-a44c-5a3aa35d6f10",
+      "timestamp": "2026-11-08T10:42:17.767Z",
+      "project_id": "2f74708e-c58d-43bf-bcaf-1c4caa1f1767",
+      "entity_type": "equipment",
+      "entity_id": "eq-units-v101",
+      "action": "update",
+      "original_value": {
+        "capacity": {
+          "value": null,
+          "unit": null
+        }
+      },
+      "revised_value": {
+        "capacity": {
+          "value": 12000,
+          "unit": "gallons",
+          "status": "user_entered"
+        }
+      },
+      "change_reason": "Spec 'capacity' updated: Specification update. Affected PHA nodes: none",
+      "reviewer": "Process Safety Engineer"
+    },
+    {
+      "id": "29b4658e-18e8-4c23-9f3d-3d29f60df1d6",
+      "timestamp": "2026-11-08T10:42:17.689Z",
+      "project_id": "2f74708e-c58d-43bf-bcaf-1c4caa1f1767",
+      "entity_type": "equipment",
+      "entity_id": "eq-units-v101",
+      "action": "update",
+      "original_value": {
+        "design_temperature": {
+          "value": null,
+          "unit": null
+        }
+      },
+      "revised_value": {
+        "design_temperature": {
+          "value": 150,
+          "unit": "°F",
+          "status": "user_entered"
+        }
+      },
+      "change_reason": "Spec 'design_temperature' updated: Specification update. Affected PHA nodes: none",
+      "reviewer": "Process Safety Engineer"
+    },
+    {
+      "id": "e2af88fc-b808-4ef7-89a8-2940ab6937fe",
+      "timestamp": "2026-11-08T10:42:17.602Z",
+      "project_id": "2f74708e-c58d-43bf-bcaf-1c4caa1f1767",
+      "entity_type": "equipment",
+      "entity_id": "eq-units-v101",
+      "action": "update",
+      "original_value": {
+        "design_pressure": {
+          "value": null,
+          "unit": null
+        }
+      },
+      "revised_value": {
+        "design_pressure": {
+          "value": 250,
+          "unit": "psig",
+          "status": "user_entered"
+        }
+      },
+      "change_reason": "Spec 'design_pressure' updated: Specification update. Affected PHA nodes: none",
+      "reviewer": "Process Safety Engineer"
+    },
+    {
+      "id": "efe48ea1-2367-4461-b481-83649570d65e",
+      "timestamp": "2026-11-08T10:42:17.526Z",
+      "project_id": "2f74708e-c58d-43bf-bcaf-1c4caa1f1767",
+      "entity_type": "equipment",
+      "entity_id": "eq-units-v101",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "V-101",
+        "type": "vessel",
+        "description": "Pressure Vessel"
+      }
+    },
+    {
+      "id": "6c01022e-68c7-4383-bdca-66d6f301c206",
+      "timestamp": "2026-11-08T10:42:17.329Z",
+      "project_id": "51080b64-9b6c-4b7b-a49b-f5a38c782c35",
+      "entity_type": "equipment",
+      "entity_id": "eq-null-v101",
+      "action": "update",
+      "original_value": {
+        "material_of_construction": {
+          "value": null,
+          "unit": null
+        }
+      },
+      "revised_value": {
+        "material_of_construction": {
+          "value": "Carbon Steel SA-516 Grade 70",
+          "unit": null,
+          "status": "user_entered"
+        }
+      },
+      "change_reason": "Spec 'material_of_construction' updated: Specification update. Affected PHA nodes: none",
+      "reviewer": "Process Safety Engineer"
+    },
+    {
+      "id": "d192b8ce-bfb2-4d67-ac28-ea85a9ea8cd4",
+      "timestamp": "2026-11-08T10:42:17.255Z",
+      "project_id": "51080b64-9b6c-4b7b-a49b-f5a38c782c35",
+      "entity_type": "equipment",
+      "entity_id": "eq-null-v101",
+      "action": "create",
+      "change_reason": "Added equipment item",
+      "reviewer": "Process Engineer",
+      "revised_value": {
+        "tag": "V-101",
+        "type": "vessel",
+        "description": "Pressure Vessel V-101"
+      }
+    },
+    {
+      "id": "eadda81b-f084-4f0f-bf06-8469c3e86761",
+      "timestamp": "2026-11-08T10:42:17.054Z",
+      "project_id": "d7482875-5246-44c0-a466-aff0b87b8ffe",
+      "entity_type": "equipment",
+      "entity_id": "eq-test-v101",
+      "action": "create",
+      "change_reason": "Added illustrative V-101 vessel",
+      "reviewer": "Field Engineer",
+      "revised_value": {
+        "tag": "V-101",
+        "type": "vessel",
+        "description": "Illustrative Ammonia Receiver Drum (Pressure Vessel)"
+      }
+    },
+    {
+      "id": "7e17496d-95f4-4177-8b1d-6b98f60694a1",
+      "timestamp": "2026-11-08T10:42:16.646Z",
+      "project_id": "b7a9f9df-7657-48af-b056-5496ff63b79c",
+      "entity_type": "equipment",
+      "entity_id": "draw-rev-1794134536297",
+      "action": "update",
+      "reviewer": "Process Safety Engineer",
+      "change_reason": "Drawing updated",
+      "revised_value": {
+        "elements": 2,
+        "connectors": 1,
+        "revision": "REV 1 (DRAFT)"
+      }
+    },
+    {
+      "id": "bf75d48c-8e8b-493c-9bfb-c545f9aa44f4",
+      "timestamp": "2026-11-08T10:42:16.565Z",
+      "project_id": "b7a9f9df-7657-48af-b056-5496ff63b79c",
+      "entity_type": "graph",
+      "entity_id": "b7a9f9df-7657-48af-b056-5496ff63b79c",
+      "action": "reject",
+      "change_reason": "Approval invalidated: Digital drawing DWG-REV-01 revised to REV 1 (DRAFT) by Process Safety Engineer",
+      "reviewer": "System"
+    },
+    {
+      "id": "10e66afa-472b-477d-aa3e-0c005412aaba",
+      "timestamp": "2026-11-08T10:42:16.489Z",
+      "project_id": "b7a9f9df-7657-48af-b056-5496ff63b79c",
+      "entity_type": "equipment",
+      "entity_id": "draw-rev-1794134536297",
+      "action": "approve",
+      "reviewer": "Lead PE",
+      "change_reason": "Sign off",
+      "revised_value": {
+        "status": "approved",
+        "revision": "REV 0"
+      }
+    },
+    {
+      "id": "7edbdd01-e508-4c45-8f57-94940d01fc2a",
+      "timestamp": "2026-11-08T10:42:16.409Z",
+      "project_id": "b7a9f9df-7657-48af-b056-5496ff63b79c",
+      "entity_type": "graph",
+      "entity_id": "b7a9f9df-7657-48af-b056-5496ff63b79c",
+      "action": "approve",
+      "revised_value": {
+        "approved": true,
+        "approved_by": "Lead PE",
+        "approved_at": "2026-11-08T10:42:16.409Z",
+        "notes": "Approved via Digital P&ID Drawing DWG-REV-01 (REV 0)",
+        "validation_snapshot": {
+          "is_valid": true,
+          "can_approve": true,
+          "errors_count": 0,
+          "warnings_count": 0,
+          "issues": [],
+          "checked_at": "2026-11-08T10:42:16.409Z"
+        }
+      },
+      "change_reason": "Approved via Digital P&ID Drawing DWG-REV-01 (REV 0)",
+      "reviewer": "Lead PE"
+    },
+    {
+      "id": "3c5ff83b-bde3-4b34-a92e-4d63cf825b31",
+      "timestamp": "2026-11-08T10:42:16.298Z",
+      "project_id": "b7a9f9df-7657-48af-b056-5496ff63b79c",
+      "entity_type": "equipment",
+      "entity_id": "draw-rev-1794134536297",
+      "action": "create",
+      "reviewer": "Process Safety Engineer",
+      "change_reason": "Drawing updated",
+      "revised_value": {
+        "title": "Initial Drawing",
+        "revision": "REV 0"
+      }
+    },
+    {
+      "id": "fa050f72-d5ba-4e76-95f3-0377fce225d1",
+      "timestamp": "2026-11-08T10:42:16.105Z",
+      "project_id": "3c358cea-1df0-46f5-8ceb-78af1e715e65",
+      "entity_type": "equipment",
+      "entity_id": "draw-invalid-1794134536105",
+      "action": "create",
+      "reviewer": "Process Safety Engineer",
+      "change_reason": "Drawing updated",
+      "revised_value": {
+        "title": "Invalid Dangling Drawing",
+        "revision": "REV 0"
+      }
+    },
+    {
+      "id": "13745fb8-8ebe-46f7-92bb-0cefa64900f0",
+      "timestamp": "2026-11-08T10:42:15.900Z",
+      "project_id": "2cad437b-e44b-490c-ba66-d89a76b86f15",
+      "entity_type": "equipment",
+      "entity_id": "draw-overlay-1794134535810",
+      "action": "update",
+      "reviewer": "Process Safety Engineer",
+      "change_reason": "Drawing updated",
+      "revised_value": {
+        "elements": 0,
+        "connectors": 0,
+        "revision": "REV 0"
+      }
+    },
+    {
+      "id": "6c73fdb2-004e-4fa7-a840-4eb7695fb656",
+      "timestamp": "2026-11-08T10:42:15.811Z",
+      "project_id": "2cad437b-e44b-490c-ba66-d89a76b86f15",
+      "entity_type": "equipment",
+      "entity_id": "draw-overlay-1794134535810",
+      "action": "create",
+      "reviewer": "Process Safety Engineer",
+      "change_reason": "Drawing updated",
+      "revised_value": {
+        "title": "Overlay Over Source",
+        "revision": "REV 0"
+      }
+    },
+    {
+      "id": "c6d2ab61-11ab-429a-add7-fefaf0bc8149",
+      "timestamp": "2026-11-08T10:42:15.519Z",
+      "project_id": "4797b87a-d27f-4e13-a57f-d1ef18cddb13",
+      "entity_type": "equipment",
+      "entity_id": "draw-persist-1794134535519",
+      "action": "create",
+      "reviewer": "Process Safety Engineer",
+      "change_reason": "Drawing updated",
+      "revised_value": {
+        "title": "Persistent P&ID Drawing",
+        "revision": "REV 0"
+      }
+    },
+    {
+      "id": "87e5dbe8-dc08-42f5-beae-d9aa90b6cced",
+      "timestamp": "2026-11-08T10:42:15.325Z",
+      "project_id": "097a36c5-395f-4f89-a969-1b85eaf1e99f",
+      "entity_type": "equipment",
+      "entity_id": "draw-1794134535149-2",
+      "action": "update",
+      "reviewer": "Process Safety Engineer",
+      "change_reason": "Drawing updated",
+      "revised_value": {
+        "elements": 0,
+        "connectors": 0,
+        "revision": "REV 0"
+      }
+    },
+    {
+      "id": "a54f259a-9c9e-4b36-b130-682d508ca5e8",
+      "timestamp": "2026-11-08T10:42:15.245Z",
+      "project_id": "097a36c5-395f-4f89-a969-1b85eaf1e99f",
+      "entity_type": "equipment",
+      "entity_id": "draw-1794134535149-2",
+      "action": "update",
+      "reviewer": "Process Safety Engineer",
+      "change_reason": "Drawing updated",
+      "revised_value": {
+        "elements": 1,
+        "connectors": 0,
+        "revision": "REV 0"
+      }
+    },
+    {
+      "id": "5c875d4a-438e-4283-83ca-f5f240259417",
+      "timestamp": "2026-11-08T10:42:15.149Z",
+      "project_id": "097a36c5-395f-4f89-a969-1b85eaf1e99f",
+      "entity_type": "equipment",
+      "entity_id": "draw-1794134535149-2",
+      "action": "create",
+      "reviewer": "Process Safety Engineer",
+      "change_reason": "Drawing updated",
+      "revised_value": {
+        "title": "CRUD P&ID",
+        "revision": "REV 0"
+      }
+    },
+    {
+      "id": "8e8bdb55-31d1-41b0-8468-38a7db023784",
+      "timestamp": "2026-11-08T10:42:14.946Z",
+      "project_id": "8e82ad7d-1cf7-4322-815a-fd6c54bf0234",
+      "entity_type": "equipment",
+      "entity_id": "draw-1794134534945-1",
+      "action": "create",
+      "reviewer": "Process Safety Engineer",
+      "change_reason": "Drawing updated",
+      "revised_value": {
+        "title": "Benzene Hydrogenation Digital P&ID",
+        "revision": "REV 0"
+      }
+    },
+    {
+      "id": "7c08ea55-1106-4f99-bb14-2d837d448c53",
+      "timestamp": "2026-11-08T10:42:14.705Z",
+      "project_id": "72618e35-8538-4a7a-b199-d50513e04f94",
+      "entity_type": "graph",
+      "entity_id": "72618e35-8538-4a7a-b199-d50513e04f94",
+      "action": "approve",
+      "revised_value": {
+        "approved": true,
+        "approved_by": "Lead PE",
+        "approved_at": "2026-11-08T10:42:14.705Z",
+        "notes": "P&ID Verified",
+        "validation_snapshot": {
+          "is_valid": true,
+          "can_approve": true,
+          "errors_count": 0,
+          "warnings_count": 0,
+          "issues": [],
+          "checked_at": "2026-11-08T10:42:14.705Z"
+        }
+      },
+      "change_reason": "P&ID Verified",
+      "reviewer": "Lead PE"
+    },
+    {
+      "id": "55570b4f-6e5f-412d-bf97-31d1ed4ec24a",
+      "timestamp": "2026-11-08T10:42:14.608Z",
+      "project_id": "72618e35-8538-4a7a-b199-d50513e04f94",
+      "entity_type": "line",
+      "entity_id": "ln-1",
+      "action": "create",
+      "change_reason": "Setup",
+      "reviewer": "PE",
+      "revised_value": {
+        "line_number": "L-101",
+        "from": "TK-101",
+        "to": "MX-101",
+        "functional_type": "piping_line"
+      }
+    },
+    {
+      "id": "8c2e62ae-0e43-4d17-a813-88c02ce2694a",
+      "timestamp": "2026-11-08T10:42:14.505Z",
+      "project_id": "72618e35-8538-4a7a-b199-d50513e04f94",
+      "entity_type": "equipment",
+      "entity_id": "eq-m1",
+      "action": "create",
+      "change_reason": "Setup",
+      "reviewer": "PE",
+      "revised_value": {
+        "tag": "MX-101",
+        "type": "mixing_tank",
+        "description": "Mixing Vessel"
+      }
+    },
+    {
+      "id": "2df8229c-4ebf-459f-a6b2-07d22e536072",
+      "timestamp": "2026-11-08T10:42:14.459Z",
+      "project_id": "72618e35-8538-4a7a-b199-d50513e04f94",
+      "entity_type": "equipment",
+      "entity_id": "eq-t1",
+      "action": "create",
+      "change_reason": "Setup",
+      "reviewer": "PE",
+      "revised_value": {
+        "tag": "TK-101",
+        "type": "tank",
+        "description": "Feed Tank"
+      }
+    },
+    {
+      "id": "2ec32095-094f-4a2d-b5e9-babcb42adaae",
+      "timestamp": "2026-11-08T10:42:14.227Z",
+      "project_id": "26cf45e6-e3bd-4145-8abb-b2a6c7bc1219",
+      "entity_type": "equipment",
+      "entity_id": "eq-persist-1794134534150",
+      "action": "update",
+      "original_value": {
+        "tag": "R-301",
+        "description": "Manual Reactor",
+        "equipment_type": "reactor",
+        "assigned_chemical_id": null,
+        "status": "confirmed"
+      },
+      "revised_value": {
+        "description": "Updated Polymerizer"
+      },
+      "change_reason": "Tag clarified",
+      "reviewer": "Lead PE"
+    },
+    {
+      "id": "f52ca5ae-4255-4f89-856b-77354c727a95",
+      "timestamp": "2026-11-08T10:42:14.150Z",
+      "project_id": "26cf45e6-e3bd-4145-8abb-b2a6c7bc1219",
+      "entity_type": "equipment",
+      "entity_id": "eq-persist-1794134534150",
+      "action": "create",
+      "change_reason": "Manual addition of reactor",
+      "reviewer": "Lead PE",
+      "revised_value": {
+        "tag": "R-301",
+        "type": "reactor",
+        "description": "Manual Reactor"
+      }
+    },
+    {
+      "id": "cb09daa0-ea6d-420a-925d-bcac961c03dc",
+      "timestamp": "2026-11-08T10:42:13.905Z",
+      "project_id": "cf09fbf8-ad5f-4ec2-aca3-6ba090a975db",
+      "entity_type": "graph",
+      "entity_id": "cf09fbf8-ad5f-4ec2-aca3-6ba090a975db",
+      "action": "reject",
+      "change_reason": "Approval invalidated: Equipment TK-999-REVISED modified",
+      "reviewer": "System"
+    },
+    {
+      "id": "4ddbbf67-3617-4a14-9c57-4d523dd78a41",
+      "timestamp": "2026-11-08T10:42:13.867Z",
+      "project_id": "cf09fbf8-ad5f-4ec2-aca3-6ba090a975db",
+      "entity_type": "equipment",
+      "entity_id": "test-eq-1",
+      "action": "update",
+      "original_value": {
+        "tag": "TK-999",
+        "description": "Feed Storage Tank",
+        "equipment_type": "tank",
+        "assigned_chemical_id": null,
+        "status": "confirmed"
+      },
+      "revised_value": {
+        "tag": "TK-999-REVISED",
+        "description": "Revised tank description"
+      },
+      "change_reason": "Drawing revision C changed tag",
+      "reviewer": "Engineer Charlie"
+    },
+    {
+      "id": "f95a7e43-92b5-49fb-bede-3f59e5651b3f",
+      "timestamp": "2026-11-08T10:42:13.789Z",
+      "project_id": "cf09fbf8-ad5f-4ec2-aca3-6ba090a975db",
+      "entity_type": "graph",
+      "entity_id": "cf09fbf8-ad5f-4ec2-aca3-6ba090a975db",
+      "action": "approve",
+      "revised_value": {
+        "approved": true,
+        "approved_by": "Lead PE Bob",
+        "approved_at": "2026-11-08T10:42:13.789Z",
+        "notes": "Initial topology signoff",
+        "validation_snapshot": {
+          "is_valid": true,
+          "can_approve": true,
+          "errors_count": 0,
+          "warnings_count": 0,
+          "issues": [],
+          "checked_at": "2026-11-08T10:42:13.789Z"
+        }
+      },
+      "change_reason": "Initial topology signoff",
+      "reviewer": "Lead PE Bob"
+    },
+    {
+      "id": "89759400-970f-49d8-b10c-178471660478",
+      "timestamp": "2026-11-08T10:42:13.710Z",
+      "project_id": "cf09fbf8-ad5f-4ec2-aca3-6ba090a975db",
+      "entity_type": "line",
+      "entity_id": "test-line-1",
+      "action": "create",
+      "change_reason": "Initial connection",
+      "reviewer": "Engineer Alice",
+      "revised_value": {
+        "line_number": "L-999",
+        "from": "TK-999",
+        "to": "TK-999",
+        "functional_type": "piping_line"
+      }
+    },
+    {
+      "id": "41809cd0-d256-400e-83c1-b95abf17210e",
+      "timestamp": "2026-11-08T10:42:13.623Z",
+      "project_id": "cf09fbf8-ad5f-4ec2-aca3-6ba090a975db",
+      "entity_type": "equipment",
+      "entity_id": "test-eq-1",
+      "action": "create",
+      "change_reason": "Initial setup",
+      "reviewer": "Engineer Alice",
+      "revised_value": {
+        "tag": "TK-999",
+        "type": "tank",
+        "description": "Feed Storage Tank"
+      }
+    },
     {
       "id": "5d493352-9c52-4aa4-a75b-1b2b3679615b",
       "timestamp": "2026-11-08T10:16:52.344Z",
@@ -161048,6 +162733,2310 @@
           "revision": "REV 0"
         }
       ]
+    },
+    {
+      "id": "draw-1794134534945-1",
+      "project_id": "8e82ad7d-1cf7-4322-815a-fd6c54bf0234",
+      "source_document_id": null,
+      "source_document_page": 1,
+      "title": "Benzene Hydrogenation Digital P&ID",
+      "drawing_number": "DWG-BZ-101",
+      "revision": "REV 0",
+      "mode": "scratch",
+      "status": "draft",
+      "background_visible": false,
+      "background_opacity": 0.5,
+      "elements": [],
+      "connectors": [],
+      "created_at": "2026-11-08T10:42:14.946Z",
+      "updated_at": "2026-11-08T10:42:14.946Z",
+      "change_log": [
+        {
+          "timestamp": "2026-11-08T10:42:14.946Z",
+          "author": "Process Safety Engineer",
+          "notes": "Drawing created",
+          "revision": "REV 0"
+        }
+      ]
+    },
+    {
+      "id": "draw-1794134535149-2",
+      "project_id": "097a36c5-395f-4f89-a969-1b85eaf1e99f",
+      "source_document_id": null,
+      "source_document_page": 1,
+      "title": "CRUD P&ID",
+      "drawing_number": "DWG-CRUD-01",
+      "revision": "REV 0",
+      "mode": "scratch",
+      "status": "draft",
+      "background_visible": false,
+      "background_opacity": 0.5,
+      "elements": [],
+      "connectors": [],
+      "created_at": "2026-11-08T10:42:15.149Z",
+      "updated_at": "2026-11-08T10:42:15.325Z",
+      "change_log": [
+        {
+          "timestamp": "2026-11-08T10:42:15.149Z",
+          "author": "Process Safety Engineer",
+          "notes": "Drawing created",
+          "revision": "REV 0"
+        },
+        {
+          "timestamp": "2026-11-08T10:42:15.245Z",
+          "author": "Process Safety Engineer",
+          "notes": "Drawing updated",
+          "revision": "REV 0"
+        },
+        {
+          "timestamp": "2026-11-08T10:42:15.325Z",
+          "author": "Process Safety Engineer",
+          "notes": "Drawing updated",
+          "revision": "REV 0"
+        }
+      ]
+    },
+    {
+      "id": "draw-persist-1794134535519",
+      "project_id": "4797b87a-d27f-4e13-a57f-d1ef18cddb13",
+      "source_document_id": null,
+      "source_document_page": 1,
+      "title": "Persistent P&ID Drawing",
+      "drawing_number": "DWG-PERSIST-01",
+      "revision": "REV 0",
+      "mode": "scratch",
+      "status": "draft",
+      "background_visible": true,
+      "background_opacity": 0.6,
+      "elements": [
+        {
+          "id": "el-p1",
+          "tag": "P-201",
+          "type": "pump",
+          "description": "Feed Pump",
+          "position": {
+            "x": 220,
+            "y": 340
+          },
+          "size": {
+            "width": 90,
+            "height": 80
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "ports": []
+        }
+      ],
+      "connectors": [],
+      "created_at": "2026-11-08T10:42:15.519Z",
+      "updated_at": "2026-11-08T10:42:15.519Z",
+      "change_log": [
+        {
+          "timestamp": "2026-11-08T10:42:15.519Z",
+          "author": "Process Safety Engineer",
+          "notes": "Drawing created",
+          "revision": "REV 0"
+        }
+      ]
+    },
+    {
+      "id": "draw-overlay-1794134535810",
+      "project_id": "2cad437b-e44b-490c-ba66-d89a76b86f15",
+      "source_document_id": "doc-source-1794134535771",
+      "source_document_page": 1,
+      "title": "Modified Overlay Drawing Title",
+      "drawing_number": "DWG-OVERLAY-01",
+      "revision": "REV 0",
+      "mode": "imported_overlay",
+      "status": "draft",
+      "background_visible": true,
+      "background_opacity": 0.5,
+      "elements": [],
+      "connectors": [],
+      "created_at": "2026-11-08T10:42:15.811Z",
+      "updated_at": "2026-11-08T10:42:15.900Z",
+      "change_log": [
+        {
+          "timestamp": "2026-11-08T10:42:15.811Z",
+          "author": "Process Safety Engineer",
+          "notes": "Drawing created",
+          "revision": "REV 0"
+        },
+        {
+          "timestamp": "2026-11-08T10:42:15.900Z",
+          "author": "Process Safety Engineer",
+          "notes": "Drawing updated",
+          "revision": "REV 0"
+        }
+      ]
+    },
+    {
+      "id": "draw-invalid-1794134536105",
+      "project_id": "3c358cea-1df0-46f5-8ceb-78af1e715e65",
+      "source_document_id": null,
+      "source_document_page": 1,
+      "title": "Invalid Dangling Drawing",
+      "drawing_number": "DWG-DANGLING",
+      "revision": "REV 0",
+      "mode": "scratch",
+      "status": "draft",
+      "background_visible": false,
+      "background_opacity": 0.5,
+      "elements": [
+        {
+          "id": "el-1",
+          "tag": "TK-101",
+          "type": "tank",
+          "description": "Tank",
+          "position": {
+            "x": 100,
+            "y": 100
+          },
+          "size": {
+            "width": 80,
+            "height": 80
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "provisional",
+          "ports": [
+            {
+              "id": "p1",
+              "name": "Out",
+              "type": "outlet",
+              "position": {
+                "x": 40,
+                "y": 0
+              }
+            }
+          ]
+        }
+      ],
+      "connectors": [
+        {
+          "id": "conn-dangling",
+          "line_number": "L-GHOST",
+          "from_element_id": "el-1",
+          "from_port_id": "p1",
+          "to_element_id": "non-existent-ghost-id",
+          "to_port_id": "non-existent-port",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "assigned_chemical_id": null,
+          "status": "provisional"
+        }
+      ],
+      "created_at": "2026-11-08T10:42:16.105Z",
+      "updated_at": "2026-11-08T10:42:16.105Z",
+      "change_log": [
+        {
+          "timestamp": "2026-11-08T10:42:16.105Z",
+          "author": "Process Safety Engineer",
+          "notes": "Drawing created",
+          "revision": "REV 0"
+        }
+      ]
+    },
+    {
+      "id": "draw-rev-1794134536297",
+      "project_id": "b7a9f9df-7657-48af-b056-5496ff63b79c",
+      "source_document_id": null,
+      "source_document_page": 1,
+      "title": "Initial Drawing",
+      "drawing_number": "DWG-REV-01",
+      "revision": "REV 1 (DRAFT)",
+      "mode": "scratch",
+      "status": "draft",
+      "background_visible": false,
+      "background_opacity": 0.5,
+      "elements": [
+        {
+          "id": "el-v1",
+          "tag": "V-101B",
+          "type": "vessel",
+          "description": "Vessel",
+          "position": {
+            "x": 100,
+            "y": 100
+          },
+          "size": {
+            "width": 90,
+            "height": 110
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "confirmed",
+          "ports": [
+            {
+              "id": "p1",
+              "name": "Out",
+              "type": "outlet",
+              "position": {
+                "x": 45,
+                "y": 0
+              }
+            }
+          ]
+        },
+        {
+          "id": "el-p1",
+          "tag": "P-101",
+          "type": "pump",
+          "description": "Pump",
+          "position": {
+            "x": 300,
+            "y": 100
+          },
+          "size": {
+            "width": 80,
+            "height": 80
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "confirmed",
+          "ports": [
+            {
+              "id": "p2",
+              "name": "In",
+              "type": "inlet",
+              "position": {
+                "x": -40,
+                "y": 0
+              }
+            }
+          ]
+        }
+      ],
+      "connectors": [
+        {
+          "id": "conn-1",
+          "line_number": "L-101",
+          "from_element_id": "el-v1",
+          "from_port_id": "p1",
+          "to_element_id": "el-p1",
+          "to_port_id": "p2",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "assigned_chemical_id": null,
+          "status": "confirmed"
+        }
+      ],
+      "created_at": "2026-11-08T10:42:16.298Z",
+      "updated_at": "2026-11-08T10:42:16.565Z",
+      "change_log": [
+        {
+          "timestamp": "2026-11-08T10:42:16.298Z",
+          "author": "Process Safety Engineer",
+          "notes": "Drawing created",
+          "revision": "REV 0"
+        },
+        {
+          "timestamp": "2026-11-08T10:42:16.372Z",
+          "author": "Lead PE",
+          "notes": "Drawing formally approved: Sign off",
+          "revision": "REV 0"
+        },
+        {
+          "timestamp": "2026-11-08T10:42:16.565Z",
+          "author": "Process Safety Engineer",
+          "notes": "Drawing updated",
+          "revision": "REV 1 (DRAFT)"
+        }
+      ],
+      "approved_at": "2026-11-08T10:42:16.372Z",
+      "approved_by": "Lead PE",
+      "approval_notes": "Sign off"
+    },
+    {
+      "id": "draw-d58c569c-d6f1-44f9-9c0b-0eed622e5b8b-1",
+      "project_id": "d58c569c-d6f1-44f9-9c0b-0eed622e5b8b",
+      "source_document_id": "doc-pid-refrigeration-loop",
+      "source_document_page": 1,
+      "title": "Industrial Ammonia Refrigeration & Dosing Skid P&ID",
+      "drawing_number": "PID-104-NH3-REV-0",
+      "revision": "REV 0",
+      "mode": "imported_overlay",
+      "status": "approved",
+      "background_visible": true,
+      "background_opacity": 0.35,
+      "elements": [
+        {
+          "id": "elem-v101",
+          "tag": "V-101",
+          "type": "vessel",
+          "description": "Ammonia High-Pressure Receiver Drum (12,000 Gallons)",
+          "position": {
+            "x": 380,
+            "y": 220
+          },
+          "size": {
+            "width": 110,
+            "height": 160
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-ammonia-chemcorp",
+          "status": "confirmed",
+          "confidence": 0.95,
+          "notes": "ASME Section VIII Div 1 receiver drum for ammonia service.",
+          "specifications": {
+            "material_of_construction": {
+              "value": "Unknown",
+              "unit": null,
+              "status": "not_provided",
+              "verification_status": "unverified",
+              "source_document_name": "Not provided",
+              "conflicting_records": [],
+              "change_history": []
+            },
+            "design_pressure": {
+              "value": null,
+              "unit": "psig",
+              "status": "not_provided",
+              "verification_status": "unverified",
+              "source_document_name": "Not provided",
+              "conflicting_records": [],
+              "change_history": []
+            },
+            "design_temperature": {
+              "value": null,
+              "unit": "°F",
+              "status": "not_provided",
+              "verification_status": "unverified",
+              "source_document_name": "Not provided",
+              "conflicting_records": [],
+              "change_history": []
+            },
+            "capacity": {
+              "value": null,
+              "unit": "gallons",
+              "capacity_type": "total_volume",
+              "status": "not_provided",
+              "verification_status": "unverified",
+              "source_document_name": "Not provided",
+              "conflicting_records": [],
+              "change_history": []
+            }
+          },
+          "ports": [
+            {
+              "id": "p-top",
+              "name": "Hot Gas Inlet",
+              "type": "inlet",
+              "position": {
+                "x": 0,
+                "y": -80
+              }
+            },
+            {
+              "id": "p-bottom",
+              "name": "Liquid Suction Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 0,
+                "y": 80
+              }
+            },
+            {
+              "id": "p-left",
+              "name": "Tie-in Connection",
+              "type": "inlet",
+              "position": {
+                "x": -55,
+                "y": 0
+              }
+            },
+            {
+              "id": "p-right",
+              "name": "Relief / Vent Nozzle",
+              "type": "outlet",
+              "position": {
+                "x": 55,
+                "y": 0
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-p101a",
+          "tag": "P-101A",
+          "type": "pump",
+          "description": "Liquid Ammonia Recirculation Pump A (Hermetic Canned Motor)",
+          "position": {
+            "x": 600,
+            "y": 300
+          },
+          "size": {
+            "width": 90,
+            "height": 80
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-ammonia-apex",
+          "status": "confirmed",
+          "confidence": 0.92,
+          "notes": "Dual containment sealless canned pump.",
+          "ports": [
+            {
+              "id": "p-suction",
+              "name": "Suction Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p-discharge",
+              "name": "Discharge Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 0,
+                "y": -40
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-e101",
+          "tag": "E-101",
+          "type": "heat_exchanger",
+          "description": "Ammonia Evaporative Condenser",
+          "position": {
+            "x": 380,
+            "y": 60
+          },
+          "size": {
+            "width": 130,
+            "height": 75
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-ammonia-apex",
+          "status": "confirmed",
+          "confidence": 0.91,
+          "notes": "Hot-dip galvanized coil.",
+          "ports": [
+            {
+              "id": "p-in",
+              "name": "Vapor Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -65,
+                "y": 0
+              }
+            },
+            {
+              "id": "p-out",
+              "name": "Liquid Condensate Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 65,
+                "y": 0
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-tk201",
+          "tag": "TK-201",
+          "type": "tank",
+          "description": "Water Treatment Sodium Hypochlorite Dosing Day Tank",
+          "position": {
+            "x": 120,
+            "y": 220
+          },
+          "size": {
+            "width": 100,
+            "height": 130
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-bleach-apex",
+          "status": "confirmed",
+          "confidence": 0.88,
+          "notes": "Crosslinked Polyethylene (XLPE) bleach tank.",
+          "ports": [
+            {
+              "id": "p-fill",
+              "name": "Fill Top Connection",
+              "type": "inlet",
+              "position": {
+                "x": 0,
+                "y": -65
+              }
+            },
+            {
+              "id": "p-outlet",
+              "name": "Dosing Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 50,
+                "y": 30
+              }
+            },
+            {
+              "id": "p-drain",
+              "name": "Drain Bottom",
+              "type": "outlet",
+              "position": {
+                "x": 0,
+                "y": 65
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-hv101",
+          "tag": "HV-101",
+          "type": "manual_valve",
+          "description": "Isolation Ball Valve (PVC)",
+          "position": {
+            "x": 250,
+            "y": 250
+          },
+          "size": {
+            "width": 44,
+            "height": 32
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-bleach-apex",
+          "status": "confirmed",
+          "confidence": 0.95,
+          "notes": "Quarter-turn true union ball valve.",
+          "ports": [
+            {
+              "id": "p-in",
+              "name": "Valve Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -22,
+                "y": 0
+              }
+            },
+            {
+              "id": "p-out",
+              "name": "Valve Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 22,
+                "y": 0
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-fit101",
+          "tag": "FIT-101",
+          "type": "instrument",
+          "instrument_type": "flow",
+          "description": "Magnetic Flow Transmitter (Ammonia Recirculation)",
+          "position": {
+            "x": 600,
+            "y": 170
+          },
+          "size": {
+            "width": 50,
+            "height": 50
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "confirmed",
+          "confidence": 0.95,
+          "notes": "ISA 5.1 Tag Balloon FIT-101. 4-20mA loop.",
+          "ports": [
+            {
+              "id": "p-signal",
+              "name": "Signal Loop",
+              "type": "signal",
+              "position": {
+                "x": 0,
+                "y": 25
+              }
+            }
+          ]
+        }
+      ],
+      "connectors": [
+        {
+          "id": "conn-3nh3-101",
+          "line_number": "3\"-NH3-101-CS",
+          "from_element_id": "elem-v101",
+          "from_port_id": "p-bottom",
+          "to_element_id": "elem-p101a",
+          "to_port_id": "p-suction",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "3\"",
+          "material": "CS",
+          "stream_label": "Ammonia Suction",
+          "assigned_chemical_id": "chem-ammonia-apex",
+          "status": "confirmed",
+          "confidence": 0.95,
+          "waypoints": [
+            {
+              "x": 380,
+              "y": 300
+            },
+            {
+              "x": 555,
+              "y": 300
+            }
+          ]
+        },
+        {
+          "id": "conn-15bl-201",
+          "line_number": "1.5\"-BL-201-PVC",
+          "from_element_id": "elem-tk201",
+          "from_port_id": "p-outlet",
+          "to_element_id": "elem-v101",
+          "to_port_id": "p-left",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "1.5\"",
+          "material": "PVC",
+          "stream_label": "Bleach Dosing Tie-in",
+          "assigned_chemical_id": "chem-bleach-apex",
+          "status": "confirmed",
+          "confidence": 0.88,
+          "waypoints": [
+            {
+              "x": 200,
+              "y": 250
+            },
+            {
+              "x": 325,
+              "y": 220
+            }
+          ]
+        },
+        {
+          "id": "conn-sig-101",
+          "line_number": "SIG-101",
+          "from_element_id": "elem-fit101",
+          "from_port_id": "p-signal",
+          "to_element_id": "elem-v101",
+          "to_port_id": "p-right",
+          "functional_type": "signal_line",
+          "flow_direction": "forward",
+          "stream_label": "4-20mA Flow Signal",
+          "assigned_chemical_id": null,
+          "status": "confirmed",
+          "confidence": 0.95,
+          "waypoints": [
+            {
+              "x": 600,
+              "y": 220
+            },
+            {
+              "x": 435,
+              "y": 220
+            }
+          ]
+        }
+      ],
+      "created_at": "2026-11-08T10:42:16.850Z",
+      "updated_at": "2026-11-08T10:42:16.850Z",
+      "approved_at": "2026-03-15T08:30:00.000Z",
+      "approved_by": "Lead Process Safety Engineer (PE)",
+      "approval_notes": "Digital P&ID approved for baseline PSM review and PHA node segmentation.",
+      "change_log": [
+        {
+          "timestamp": "2026-11-08T10:42:16.850Z",
+          "author": "Lead Process Safety Engineer (PE)",
+          "notes": "Baseline approved digital P&ID representation.",
+          "revision": "REV 0"
+        }
+      ]
+    },
+    {
+      "id": "draw-5ea077e7-0ed9-47de-b458-b301735d0dce-1",
+      "project_id": "5ea077e7-0ed9-47de-b458-b301735d0dce",
+      "source_document_id": "doc-pid-refrigeration-loop",
+      "source_document_page": 1,
+      "title": "Industrial Ammonia Refrigeration & Dosing Skid P&ID",
+      "drawing_number": "PID-104-NH3-REV-0",
+      "revision": "REV 0",
+      "mode": "imported_overlay",
+      "status": "approved",
+      "background_visible": true,
+      "background_opacity": 0.35,
+      "elements": [
+        {
+          "id": "elem-v101",
+          "tag": "V-101",
+          "type": "vessel",
+          "description": "Ammonia High-Pressure Receiver Drum (12,000 Gallons)",
+          "position": {
+            "x": 380,
+            "y": 220
+          },
+          "size": {
+            "width": 110,
+            "height": 160
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-ammonia-chemcorp",
+          "status": "confirmed",
+          "confidence": 0.95,
+          "notes": "ASME Section VIII Div 1 receiver drum for ammonia service.",
+          "specifications": {
+            "material_of_construction": {
+              "value": "Unknown",
+              "unit": null,
+              "status": "not_provided",
+              "verification_status": "unverified",
+              "source_document_name": "Not provided",
+              "conflicting_records": [],
+              "change_history": []
+            },
+            "design_pressure": {
+              "value": null,
+              "unit": "psig",
+              "status": "not_provided",
+              "verification_status": "unverified",
+              "source_document_name": "Not provided",
+              "conflicting_records": [],
+              "change_history": []
+            },
+            "design_temperature": {
+              "value": null,
+              "unit": "°F",
+              "status": "not_provided",
+              "verification_status": "unverified",
+              "source_document_name": "Not provided",
+              "conflicting_records": [],
+              "change_history": []
+            },
+            "capacity": {
+              "value": null,
+              "unit": "gallons",
+              "capacity_type": "total_volume",
+              "status": "not_provided",
+              "verification_status": "unverified",
+              "source_document_name": "Not provided",
+              "conflicting_records": [],
+              "change_history": []
+            }
+          },
+          "ports": [
+            {
+              "id": "p-top",
+              "name": "Hot Gas Inlet",
+              "type": "inlet",
+              "position": {
+                "x": 0,
+                "y": -80
+              }
+            },
+            {
+              "id": "p-bottom",
+              "name": "Liquid Suction Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 0,
+                "y": 80
+              }
+            },
+            {
+              "id": "p-left",
+              "name": "Tie-in Connection",
+              "type": "inlet",
+              "position": {
+                "x": -55,
+                "y": 0
+              }
+            },
+            {
+              "id": "p-right",
+              "name": "Relief / Vent Nozzle",
+              "type": "outlet",
+              "position": {
+                "x": 55,
+                "y": 0
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-p101a",
+          "tag": "P-101A",
+          "type": "pump",
+          "description": "Liquid Ammonia Recirculation Pump A (Hermetic Canned Motor)",
+          "position": {
+            "x": 600,
+            "y": 300
+          },
+          "size": {
+            "width": 90,
+            "height": 80
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-ammonia-apex",
+          "status": "confirmed",
+          "confidence": 0.92,
+          "notes": "Dual containment sealless canned pump.",
+          "ports": [
+            {
+              "id": "p-suction",
+              "name": "Suction Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p-discharge",
+              "name": "Discharge Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 0,
+                "y": -40
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-e101",
+          "tag": "E-101",
+          "type": "heat_exchanger",
+          "description": "Ammonia Evaporative Condenser",
+          "position": {
+            "x": 380,
+            "y": 60
+          },
+          "size": {
+            "width": 130,
+            "height": 75
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-ammonia-apex",
+          "status": "confirmed",
+          "confidence": 0.91,
+          "notes": "Hot-dip galvanized coil.",
+          "ports": [
+            {
+              "id": "p-in",
+              "name": "Vapor Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -65,
+                "y": 0
+              }
+            },
+            {
+              "id": "p-out",
+              "name": "Liquid Condensate Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 65,
+                "y": 0
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-tk201",
+          "tag": "TK-201",
+          "type": "tank",
+          "description": "Water Treatment Sodium Hypochlorite Dosing Day Tank",
+          "position": {
+            "x": 120,
+            "y": 220
+          },
+          "size": {
+            "width": 100,
+            "height": 130
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-bleach-apex",
+          "status": "confirmed",
+          "confidence": 0.88,
+          "notes": "Crosslinked Polyethylene (XLPE) bleach tank.",
+          "ports": [
+            {
+              "id": "p-fill",
+              "name": "Fill Top Connection",
+              "type": "inlet",
+              "position": {
+                "x": 0,
+                "y": -65
+              }
+            },
+            {
+              "id": "p-outlet",
+              "name": "Dosing Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 50,
+                "y": 30
+              }
+            },
+            {
+              "id": "p-drain",
+              "name": "Drain Bottom",
+              "type": "outlet",
+              "position": {
+                "x": 0,
+                "y": 65
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-hv101",
+          "tag": "HV-101",
+          "type": "manual_valve",
+          "description": "Isolation Ball Valve (PVC)",
+          "position": {
+            "x": 250,
+            "y": 250
+          },
+          "size": {
+            "width": 44,
+            "height": 32
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-bleach-apex",
+          "status": "confirmed",
+          "confidence": 0.95,
+          "notes": "Quarter-turn true union ball valve.",
+          "ports": [
+            {
+              "id": "p-in",
+              "name": "Valve Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -22,
+                "y": 0
+              }
+            },
+            {
+              "id": "p-out",
+              "name": "Valve Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 22,
+                "y": 0
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-fit101",
+          "tag": "FIT-101",
+          "type": "instrument",
+          "instrument_type": "flow",
+          "description": "Magnetic Flow Transmitter (Ammonia Recirculation)",
+          "position": {
+            "x": 600,
+            "y": 170
+          },
+          "size": {
+            "width": 50,
+            "height": 50
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "confirmed",
+          "confidence": 0.95,
+          "notes": "ISA 5.1 Tag Balloon FIT-101. 4-20mA loop.",
+          "ports": [
+            {
+              "id": "p-signal",
+              "name": "Signal Loop",
+              "type": "signal",
+              "position": {
+                "x": 0,
+                "y": 25
+              }
+            }
+          ]
+        }
+      ],
+      "connectors": [
+        {
+          "id": "conn-3nh3-101",
+          "line_number": "3\"-NH3-101-CS",
+          "from_element_id": "elem-v101",
+          "from_port_id": "p-bottom",
+          "to_element_id": "elem-p101a",
+          "to_port_id": "p-suction",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "3\"",
+          "material": "CS",
+          "stream_label": "Ammonia Suction",
+          "assigned_chemical_id": "chem-ammonia-apex",
+          "status": "confirmed",
+          "confidence": 0.95,
+          "waypoints": [
+            {
+              "x": 380,
+              "y": 300
+            },
+            {
+              "x": 555,
+              "y": 300
+            }
+          ]
+        },
+        {
+          "id": "conn-15bl-201",
+          "line_number": "1.5\"-BL-201-PVC",
+          "from_element_id": "elem-tk201",
+          "from_port_id": "p-outlet",
+          "to_element_id": "elem-v101",
+          "to_port_id": "p-left",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "1.5\"",
+          "material": "PVC",
+          "stream_label": "Bleach Dosing Tie-in",
+          "assigned_chemical_id": "chem-bleach-apex",
+          "status": "confirmed",
+          "confidence": 0.88,
+          "waypoints": [
+            {
+              "x": 200,
+              "y": 250
+            },
+            {
+              "x": 325,
+              "y": 220
+            }
+          ]
+        },
+        {
+          "id": "conn-sig-101",
+          "line_number": "SIG-101",
+          "from_element_id": "elem-fit101",
+          "from_port_id": "p-signal",
+          "to_element_id": "elem-v101",
+          "to_port_id": "p-right",
+          "functional_type": "signal_line",
+          "flow_direction": "forward",
+          "stream_label": "4-20mA Flow Signal",
+          "assigned_chemical_id": null,
+          "status": "confirmed",
+          "confidence": 0.95,
+          "waypoints": [
+            {
+              "x": 600,
+              "y": 220
+            },
+            {
+              "x": 435,
+              "y": 220
+            }
+          ]
+        }
+      ],
+      "created_at": "2026-11-08T10:42:20.559Z",
+      "updated_at": "2026-11-08T10:42:20.559Z",
+      "approved_at": "2026-03-15T08:30:00.000Z",
+      "approved_by": "Lead Process Safety Engineer (PE)",
+      "approval_notes": "Digital P&ID approved for baseline PSM review and PHA node segmentation.",
+      "change_log": [
+        {
+          "timestamp": "2026-11-08T10:42:20.559Z",
+          "author": "Lead Process Safety Engineer (PE)",
+          "notes": "Baseline approved digital P&ID representation.",
+          "revision": "REV 0"
+        }
+      ]
+    },
+    {
+      "id": "draw-2a635fd2-9b3a-427b-9584-2bb8eddcc7ee-1",
+      "project_id": "2a635fd2-9b3a-427b-9584-2bb8eddcc7ee",
+      "source_document_id": "doc-pid-refrigeration-loop",
+      "source_document_page": 1,
+      "title": "Industrial Ammonia Refrigeration & Dosing Skid P&ID",
+      "drawing_number": "PID-104-NH3-REV-0",
+      "revision": "REV 0",
+      "mode": "imported_overlay",
+      "status": "approved",
+      "background_visible": true,
+      "background_opacity": 0.35,
+      "elements": [
+        {
+          "id": "elem-v101",
+          "tag": "V-101",
+          "type": "vessel",
+          "description": "Ammonia High-Pressure Receiver Drum (12,000 Gallons)",
+          "position": {
+            "x": 380,
+            "y": 220
+          },
+          "size": {
+            "width": 110,
+            "height": 160
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-ammonia-chemcorp",
+          "status": "confirmed",
+          "confidence": 0.95,
+          "notes": "ASME Section VIII Div 1 receiver drum for ammonia service.",
+          "specifications": {
+            "material_of_construction": {
+              "value": "Unknown",
+              "unit": null,
+              "status": "not_provided",
+              "verification_status": "unverified",
+              "source_document_name": "Not provided",
+              "conflicting_records": [],
+              "change_history": []
+            },
+            "design_pressure": {
+              "value": null,
+              "unit": "psig",
+              "status": "not_provided",
+              "verification_status": "unverified",
+              "source_document_name": "Not provided",
+              "conflicting_records": [],
+              "change_history": []
+            },
+            "design_temperature": {
+              "value": null,
+              "unit": "°F",
+              "status": "not_provided",
+              "verification_status": "unverified",
+              "source_document_name": "Not provided",
+              "conflicting_records": [],
+              "change_history": []
+            },
+            "capacity": {
+              "value": null,
+              "unit": "gallons",
+              "capacity_type": "total_volume",
+              "status": "not_provided",
+              "verification_status": "unverified",
+              "source_document_name": "Not provided",
+              "conflicting_records": [],
+              "change_history": []
+            }
+          },
+          "ports": [
+            {
+              "id": "p-top",
+              "name": "Hot Gas Inlet",
+              "type": "inlet",
+              "position": {
+                "x": 0,
+                "y": -80
+              }
+            },
+            {
+              "id": "p-bottom",
+              "name": "Liquid Suction Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 0,
+                "y": 80
+              }
+            },
+            {
+              "id": "p-left",
+              "name": "Tie-in Connection",
+              "type": "inlet",
+              "position": {
+                "x": -55,
+                "y": 0
+              }
+            },
+            {
+              "id": "p-right",
+              "name": "Relief / Vent Nozzle",
+              "type": "outlet",
+              "position": {
+                "x": 55,
+                "y": 0
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-p101a",
+          "tag": "P-101A",
+          "type": "pump",
+          "description": "Liquid Ammonia Recirculation Pump A (Hermetic Canned Motor)",
+          "position": {
+            "x": 600,
+            "y": 300
+          },
+          "size": {
+            "width": 90,
+            "height": 80
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-ammonia-apex",
+          "status": "confirmed",
+          "confidence": 0.92,
+          "notes": "Dual containment sealless canned pump.",
+          "ports": [
+            {
+              "id": "p-suction",
+              "name": "Suction Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p-discharge",
+              "name": "Discharge Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 0,
+                "y": -40
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-e101",
+          "tag": "E-101",
+          "type": "heat_exchanger",
+          "description": "Ammonia Evaporative Condenser",
+          "position": {
+            "x": 380,
+            "y": 60
+          },
+          "size": {
+            "width": 130,
+            "height": 75
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-ammonia-apex",
+          "status": "confirmed",
+          "confidence": 0.91,
+          "notes": "Hot-dip galvanized coil.",
+          "ports": [
+            {
+              "id": "p-in",
+              "name": "Vapor Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -65,
+                "y": 0
+              }
+            },
+            {
+              "id": "p-out",
+              "name": "Liquid Condensate Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 65,
+                "y": 0
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-tk201",
+          "tag": "TK-201",
+          "type": "tank",
+          "description": "Water Treatment Sodium Hypochlorite Dosing Day Tank",
+          "position": {
+            "x": 120,
+            "y": 220
+          },
+          "size": {
+            "width": 100,
+            "height": 130
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-bleach-apex",
+          "status": "confirmed",
+          "confidence": 0.88,
+          "notes": "Crosslinked Polyethylene (XLPE) bleach tank.",
+          "ports": [
+            {
+              "id": "p-fill",
+              "name": "Fill Top Connection",
+              "type": "inlet",
+              "position": {
+                "x": 0,
+                "y": -65
+              }
+            },
+            {
+              "id": "p-outlet",
+              "name": "Dosing Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 50,
+                "y": 30
+              }
+            },
+            {
+              "id": "p-drain",
+              "name": "Drain Bottom",
+              "type": "outlet",
+              "position": {
+                "x": 0,
+                "y": 65
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-hv101",
+          "tag": "HV-101",
+          "type": "manual_valve",
+          "description": "Isolation Ball Valve (PVC)",
+          "position": {
+            "x": 250,
+            "y": 250
+          },
+          "size": {
+            "width": 44,
+            "height": 32
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-bleach-apex",
+          "status": "confirmed",
+          "confidence": 0.95,
+          "notes": "Quarter-turn true union ball valve.",
+          "ports": [
+            {
+              "id": "p-in",
+              "name": "Valve Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -22,
+                "y": 0
+              }
+            },
+            {
+              "id": "p-out",
+              "name": "Valve Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 22,
+                "y": 0
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-fit101",
+          "tag": "FIT-101",
+          "type": "instrument",
+          "instrument_type": "flow",
+          "description": "Magnetic Flow Transmitter (Ammonia Recirculation)",
+          "position": {
+            "x": 600,
+            "y": 170
+          },
+          "size": {
+            "width": 50,
+            "height": 50
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "confirmed",
+          "confidence": 0.95,
+          "notes": "ISA 5.1 Tag Balloon FIT-101. 4-20mA loop.",
+          "ports": [
+            {
+              "id": "p-signal",
+              "name": "Signal Loop",
+              "type": "signal",
+              "position": {
+                "x": 0,
+                "y": 25
+              }
+            }
+          ]
+        }
+      ],
+      "connectors": [
+        {
+          "id": "conn-3nh3-101",
+          "line_number": "3\"-NH3-101-CS",
+          "from_element_id": "elem-v101",
+          "from_port_id": "p-bottom",
+          "to_element_id": "elem-p101a",
+          "to_port_id": "p-suction",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "3\"",
+          "material": "CS",
+          "stream_label": "Ammonia Suction",
+          "assigned_chemical_id": "chem-ammonia-apex",
+          "status": "confirmed",
+          "confidence": 0.95,
+          "waypoints": [
+            {
+              "x": 380,
+              "y": 300
+            },
+            {
+              "x": 555,
+              "y": 300
+            }
+          ]
+        },
+        {
+          "id": "conn-15bl-201",
+          "line_number": "1.5\"-BL-201-PVC",
+          "from_element_id": "elem-tk201",
+          "from_port_id": "p-outlet",
+          "to_element_id": "elem-v101",
+          "to_port_id": "p-left",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "1.5\"",
+          "material": "PVC",
+          "stream_label": "Bleach Dosing Tie-in",
+          "assigned_chemical_id": "chem-bleach-apex",
+          "status": "confirmed",
+          "confidence": 0.88,
+          "waypoints": [
+            {
+              "x": 200,
+              "y": 250
+            },
+            {
+              "x": 325,
+              "y": 220
+            }
+          ]
+        },
+        {
+          "id": "conn-sig-101",
+          "line_number": "SIG-101",
+          "from_element_id": "elem-fit101",
+          "from_port_id": "p-signal",
+          "to_element_id": "elem-v101",
+          "to_port_id": "p-right",
+          "functional_type": "signal_line",
+          "flow_direction": "forward",
+          "stream_label": "4-20mA Flow Signal",
+          "assigned_chemical_id": null,
+          "status": "confirmed",
+          "confidence": 0.95,
+          "waypoints": [
+            {
+              "x": 600,
+              "y": 220
+            },
+            {
+              "x": 435,
+              "y": 220
+            }
+          ]
+        }
+      ],
+      "created_at": "2026-11-08T10:42:24.387Z",
+      "updated_at": "2026-11-08T10:42:24.387Z",
+      "approved_at": "2026-03-15T08:30:00.000Z",
+      "approved_by": "Lead Process Safety Engineer (PE)",
+      "approval_notes": "Digital P&ID approved for baseline PSM review and PHA node segmentation.",
+      "change_log": [
+        {
+          "timestamp": "2026-11-08T10:42:24.387Z",
+          "author": "Lead Process Safety Engineer (PE)",
+          "notes": "Baseline approved digital P&ID representation.",
+          "revision": "REV 0"
+        }
+      ]
+    },
+    {
+      "id": "draw-a82be0ee-ca3e-4992-9e86-87cfe773ba0a-1",
+      "project_id": "a82be0ee-ca3e-4992-9e86-87cfe773ba0a",
+      "source_document_id": "doc-pid-refrigeration-loop",
+      "source_document_page": 1,
+      "title": "Industrial Ammonia Refrigeration & Dosing Skid P&ID",
+      "drawing_number": "PID-104-NH3-REV-0",
+      "revision": "REV 0",
+      "mode": "imported_overlay",
+      "status": "approved",
+      "background_visible": true,
+      "background_opacity": 0.35,
+      "elements": [
+        {
+          "id": "elem-v101",
+          "tag": "V-101",
+          "type": "vessel",
+          "description": "Ammonia High-Pressure Receiver Drum (12,000 Gallons)",
+          "position": {
+            "x": 380,
+            "y": 220
+          },
+          "size": {
+            "width": 110,
+            "height": 160
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-ammonia-chemcorp",
+          "status": "confirmed",
+          "confidence": 0.95,
+          "notes": "ASME Section VIII Div 1 receiver drum for ammonia service.",
+          "specifications": {
+            "material_of_construction": {
+              "value": "Unknown",
+              "unit": null,
+              "status": "not_provided",
+              "verification_status": "unverified",
+              "source_document_name": "Not provided",
+              "conflicting_records": [],
+              "change_history": []
+            },
+            "design_pressure": {
+              "value": null,
+              "unit": "psig",
+              "status": "not_provided",
+              "verification_status": "unverified",
+              "source_document_name": "Not provided",
+              "conflicting_records": [],
+              "change_history": []
+            },
+            "design_temperature": {
+              "value": null,
+              "unit": "°F",
+              "status": "not_provided",
+              "verification_status": "unverified",
+              "source_document_name": "Not provided",
+              "conflicting_records": [],
+              "change_history": []
+            },
+            "capacity": {
+              "value": null,
+              "unit": "gallons",
+              "capacity_type": "total_volume",
+              "status": "not_provided",
+              "verification_status": "unverified",
+              "source_document_name": "Not provided",
+              "conflicting_records": [],
+              "change_history": []
+            }
+          },
+          "ports": [
+            {
+              "id": "p-top",
+              "name": "Hot Gas Inlet",
+              "type": "inlet",
+              "position": {
+                "x": 0,
+                "y": -80
+              }
+            },
+            {
+              "id": "p-bottom",
+              "name": "Liquid Suction Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 0,
+                "y": 80
+              }
+            },
+            {
+              "id": "p-left",
+              "name": "Tie-in Connection",
+              "type": "inlet",
+              "position": {
+                "x": -55,
+                "y": 0
+              }
+            },
+            {
+              "id": "p-right",
+              "name": "Relief / Vent Nozzle",
+              "type": "outlet",
+              "position": {
+                "x": 55,
+                "y": 0
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-p101a",
+          "tag": "P-101A",
+          "type": "pump",
+          "description": "Liquid Ammonia Recirculation Pump A (Hermetic Canned Motor)",
+          "position": {
+            "x": 600,
+            "y": 300
+          },
+          "size": {
+            "width": 90,
+            "height": 80
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-ammonia-apex",
+          "status": "confirmed",
+          "confidence": 0.92,
+          "notes": "Dual containment sealless canned pump.",
+          "ports": [
+            {
+              "id": "p-suction",
+              "name": "Suction Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p-discharge",
+              "name": "Discharge Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 0,
+                "y": -40
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-e101",
+          "tag": "E-101",
+          "type": "heat_exchanger",
+          "description": "Ammonia Evaporative Condenser",
+          "position": {
+            "x": 380,
+            "y": 60
+          },
+          "size": {
+            "width": 130,
+            "height": 75
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-ammonia-apex",
+          "status": "confirmed",
+          "confidence": 0.91,
+          "notes": "Hot-dip galvanized coil.",
+          "ports": [
+            {
+              "id": "p-in",
+              "name": "Vapor Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -65,
+                "y": 0
+              }
+            },
+            {
+              "id": "p-out",
+              "name": "Liquid Condensate Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 65,
+                "y": 0
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-tk201",
+          "tag": "TK-201",
+          "type": "tank",
+          "description": "Water Treatment Sodium Hypochlorite Dosing Day Tank",
+          "position": {
+            "x": 120,
+            "y": 220
+          },
+          "size": {
+            "width": 100,
+            "height": 130
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-bleach-apex",
+          "status": "confirmed",
+          "confidence": 0.88,
+          "notes": "Crosslinked Polyethylene (XLPE) bleach tank.",
+          "ports": [
+            {
+              "id": "p-fill",
+              "name": "Fill Top Connection",
+              "type": "inlet",
+              "position": {
+                "x": 0,
+                "y": -65
+              }
+            },
+            {
+              "id": "p-outlet",
+              "name": "Dosing Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 50,
+                "y": 30
+              }
+            },
+            {
+              "id": "p-drain",
+              "name": "Drain Bottom",
+              "type": "outlet",
+              "position": {
+                "x": 0,
+                "y": 65
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-hv101",
+          "tag": "HV-101",
+          "type": "manual_valve",
+          "description": "Isolation Ball Valve (PVC)",
+          "position": {
+            "x": 250,
+            "y": 250
+          },
+          "size": {
+            "width": 44,
+            "height": 32
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-bleach-apex",
+          "status": "confirmed",
+          "confidence": 0.95,
+          "notes": "Quarter-turn true union ball valve.",
+          "ports": [
+            {
+              "id": "p-in",
+              "name": "Valve Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -22,
+                "y": 0
+              }
+            },
+            {
+              "id": "p-out",
+              "name": "Valve Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 22,
+                "y": 0
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-fit101",
+          "tag": "FIT-101",
+          "type": "instrument",
+          "instrument_type": "flow",
+          "description": "Magnetic Flow Transmitter (Ammonia Recirculation)",
+          "position": {
+            "x": 600,
+            "y": 170
+          },
+          "size": {
+            "width": 50,
+            "height": 50
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "confirmed",
+          "confidence": 0.95,
+          "notes": "ISA 5.1 Tag Balloon FIT-101. 4-20mA loop.",
+          "ports": [
+            {
+              "id": "p-signal",
+              "name": "Signal Loop",
+              "type": "signal",
+              "position": {
+                "x": 0,
+                "y": 25
+              }
+            }
+          ]
+        }
+      ],
+      "connectors": [
+        {
+          "id": "conn-3nh3-101",
+          "line_number": "3\"-NH3-101-CS",
+          "from_element_id": "elem-v101",
+          "from_port_id": "p-bottom",
+          "to_element_id": "elem-p101a",
+          "to_port_id": "p-suction",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "3\"",
+          "material": "CS",
+          "stream_label": "Ammonia Suction",
+          "assigned_chemical_id": "chem-ammonia-apex",
+          "status": "confirmed",
+          "confidence": 0.95,
+          "waypoints": [
+            {
+              "x": 380,
+              "y": 300
+            },
+            {
+              "x": 555,
+              "y": 300
+            }
+          ]
+        },
+        {
+          "id": "conn-15bl-201",
+          "line_number": "1.5\"-BL-201-PVC",
+          "from_element_id": "elem-tk201",
+          "from_port_id": "p-outlet",
+          "to_element_id": "elem-v101",
+          "to_port_id": "p-left",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "1.5\"",
+          "material": "PVC",
+          "stream_label": "Bleach Dosing Tie-in",
+          "assigned_chemical_id": "chem-bleach-apex",
+          "status": "confirmed",
+          "confidence": 0.88,
+          "waypoints": [
+            {
+              "x": 200,
+              "y": 250
+            },
+            {
+              "x": 325,
+              "y": 220
+            }
+          ]
+        },
+        {
+          "id": "conn-sig-101",
+          "line_number": "SIG-101",
+          "from_element_id": "elem-fit101",
+          "from_port_id": "p-signal",
+          "to_element_id": "elem-v101",
+          "to_port_id": "p-right",
+          "functional_type": "signal_line",
+          "flow_direction": "forward",
+          "stream_label": "4-20mA Flow Signal",
+          "assigned_chemical_id": null,
+          "status": "confirmed",
+          "confidence": 0.95,
+          "waypoints": [
+            {
+              "x": 600,
+              "y": 220
+            },
+            {
+              "x": 435,
+              "y": 220
+            }
+          ]
+        }
+      ],
+      "created_at": "2026-11-08T10:42:25.420Z",
+      "updated_at": "2026-11-08T10:42:25.420Z",
+      "approved_at": "2026-03-15T08:30:00.000Z",
+      "approved_by": "Lead Process Safety Engineer (PE)",
+      "approval_notes": "Digital P&ID approved for baseline PSM review and PHA node segmentation.",
+      "change_log": [
+        {
+          "timestamp": "2026-11-08T10:42:25.420Z",
+          "author": "Lead Process Safety Engineer (PE)",
+          "notes": "Baseline approved digital P&ID representation.",
+          "revision": "REV 0"
+        }
+      ]
+    },
+    {
+      "id": "draw-86273d97-a81f-48e0-b56a-13673e830da3-1",
+      "project_id": "86273d97-a81f-48e0-b56a-13673e830da3",
+      "source_document_id": "doc-pid-refrigeration-loop",
+      "source_document_page": 1,
+      "title": "Industrial Ammonia Refrigeration & Dosing Skid P&ID",
+      "drawing_number": "PID-104-NH3-REV-0",
+      "revision": "REV 0",
+      "mode": "imported_overlay",
+      "status": "approved",
+      "background_visible": true,
+      "background_opacity": 0.35,
+      "elements": [
+        {
+          "id": "elem-v101",
+          "tag": "V-101",
+          "type": "vessel",
+          "description": "Ammonia High-Pressure Receiver Drum (12,000 Gallons)",
+          "position": {
+            "x": 380,
+            "y": 220
+          },
+          "size": {
+            "width": 110,
+            "height": 160
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-ammonia-chemcorp",
+          "status": "confirmed",
+          "confidence": 0.95,
+          "notes": "ASME Section VIII Div 1 receiver drum for ammonia service.",
+          "specifications": {
+            "material_of_construction": {
+              "value": "Unknown",
+              "unit": null,
+              "status": "not_provided",
+              "verification_status": "unverified",
+              "source_document_name": "Not provided",
+              "conflicting_records": [],
+              "change_history": []
+            },
+            "design_pressure": {
+              "value": null,
+              "unit": "psig",
+              "status": "not_provided",
+              "verification_status": "unverified",
+              "source_document_name": "Not provided",
+              "conflicting_records": [],
+              "change_history": []
+            },
+            "design_temperature": {
+              "value": null,
+              "unit": "°F",
+              "status": "not_provided",
+              "verification_status": "unverified",
+              "source_document_name": "Not provided",
+              "conflicting_records": [],
+              "change_history": []
+            },
+            "capacity": {
+              "value": null,
+              "unit": "gallons",
+              "capacity_type": "total_volume",
+              "status": "not_provided",
+              "verification_status": "unverified",
+              "source_document_name": "Not provided",
+              "conflicting_records": [],
+              "change_history": []
+            }
+          },
+          "ports": [
+            {
+              "id": "p-top",
+              "name": "Hot Gas Inlet",
+              "type": "inlet",
+              "position": {
+                "x": 0,
+                "y": -80
+              }
+            },
+            {
+              "id": "p-bottom",
+              "name": "Liquid Suction Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 0,
+                "y": 80
+              }
+            },
+            {
+              "id": "p-left",
+              "name": "Tie-in Connection",
+              "type": "inlet",
+              "position": {
+                "x": -55,
+                "y": 0
+              }
+            },
+            {
+              "id": "p-right",
+              "name": "Relief / Vent Nozzle",
+              "type": "outlet",
+              "position": {
+                "x": 55,
+                "y": 0
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-p101a",
+          "tag": "P-101A",
+          "type": "pump",
+          "description": "Liquid Ammonia Recirculation Pump A (Hermetic Canned Motor)",
+          "position": {
+            "x": 600,
+            "y": 300
+          },
+          "size": {
+            "width": 90,
+            "height": 80
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-ammonia-apex",
+          "status": "confirmed",
+          "confidence": 0.92,
+          "notes": "Dual containment sealless canned pump.",
+          "ports": [
+            {
+              "id": "p-suction",
+              "name": "Suction Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -45,
+                "y": 0
+              }
+            },
+            {
+              "id": "p-discharge",
+              "name": "Discharge Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 0,
+                "y": -40
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-e101",
+          "tag": "E-101",
+          "type": "heat_exchanger",
+          "description": "Ammonia Evaporative Condenser",
+          "position": {
+            "x": 380,
+            "y": 60
+          },
+          "size": {
+            "width": 130,
+            "height": 75
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-ammonia-apex",
+          "status": "confirmed",
+          "confidence": 0.91,
+          "notes": "Hot-dip galvanized coil.",
+          "ports": [
+            {
+              "id": "p-in",
+              "name": "Vapor Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -65,
+                "y": 0
+              }
+            },
+            {
+              "id": "p-out",
+              "name": "Liquid Condensate Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 65,
+                "y": 0
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-tk201",
+          "tag": "TK-201",
+          "type": "tank",
+          "description": "Water Treatment Sodium Hypochlorite Dosing Day Tank",
+          "position": {
+            "x": 120,
+            "y": 220
+          },
+          "size": {
+            "width": 100,
+            "height": 130
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-bleach-apex",
+          "status": "confirmed",
+          "confidence": 0.88,
+          "notes": "Crosslinked Polyethylene (XLPE) bleach tank.",
+          "ports": [
+            {
+              "id": "p-fill",
+              "name": "Fill Top Connection",
+              "type": "inlet",
+              "position": {
+                "x": 0,
+                "y": -65
+              }
+            },
+            {
+              "id": "p-outlet",
+              "name": "Dosing Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 50,
+                "y": 30
+              }
+            },
+            {
+              "id": "p-drain",
+              "name": "Drain Bottom",
+              "type": "outlet",
+              "position": {
+                "x": 0,
+                "y": 65
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-hv101",
+          "tag": "HV-101",
+          "type": "manual_valve",
+          "description": "Isolation Ball Valve (PVC)",
+          "position": {
+            "x": 250,
+            "y": 250
+          },
+          "size": {
+            "width": 44,
+            "height": 32
+          },
+          "rotation": 0,
+          "assigned_chemical_id": "chem-bleach-apex",
+          "status": "confirmed",
+          "confidence": 0.95,
+          "notes": "Quarter-turn true union ball valve.",
+          "ports": [
+            {
+              "id": "p-in",
+              "name": "Valve Inlet",
+              "type": "inlet",
+              "position": {
+                "x": -22,
+                "y": 0
+              }
+            },
+            {
+              "id": "p-out",
+              "name": "Valve Outlet",
+              "type": "outlet",
+              "position": {
+                "x": 22,
+                "y": 0
+              }
+            }
+          ]
+        },
+        {
+          "id": "elem-fit101",
+          "tag": "FIT-101",
+          "type": "instrument",
+          "instrument_type": "flow",
+          "description": "Magnetic Flow Transmitter (Ammonia Recirculation)",
+          "position": {
+            "x": 600,
+            "y": 170
+          },
+          "size": {
+            "width": 50,
+            "height": 50
+          },
+          "rotation": 0,
+          "assigned_chemical_id": null,
+          "status": "confirmed",
+          "confidence": 0.95,
+          "notes": "ISA 5.1 Tag Balloon FIT-101. 4-20mA loop.",
+          "ports": [
+            {
+              "id": "p-signal",
+              "name": "Signal Loop",
+              "type": "signal",
+              "position": {
+                "x": 0,
+                "y": 25
+              }
+            }
+          ]
+        }
+      ],
+      "connectors": [
+        {
+          "id": "conn-3nh3-101",
+          "line_number": "3\"-NH3-101-CS",
+          "from_element_id": "elem-v101",
+          "from_port_id": "p-bottom",
+          "to_element_id": "elem-p101a",
+          "to_port_id": "p-suction",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "3\"",
+          "material": "CS",
+          "stream_label": "Ammonia Suction",
+          "assigned_chemical_id": "chem-ammonia-apex",
+          "status": "confirmed",
+          "confidence": 0.95,
+          "waypoints": [
+            {
+              "x": 380,
+              "y": 300
+            },
+            {
+              "x": 555,
+              "y": 300
+            }
+          ]
+        },
+        {
+          "id": "conn-15bl-201",
+          "line_number": "1.5\"-BL-201-PVC",
+          "from_element_id": "elem-tk201",
+          "from_port_id": "p-outlet",
+          "to_element_id": "elem-v101",
+          "to_port_id": "p-left",
+          "functional_type": "piping_line",
+          "flow_direction": "forward",
+          "size": "1.5\"",
+          "material": "PVC",
+          "stream_label": "Bleach Dosing Tie-in",
+          "assigned_chemical_id": "chem-bleach-apex",
+          "status": "confirmed",
+          "confidence": 0.88,
+          "waypoints": [
+            {
+              "x": 200,
+              "y": 250
+            },
+            {
+              "x": 325,
+              "y": 220
+            }
+          ]
+        },
+        {
+          "id": "conn-sig-101",
+          "line_number": "SIG-101",
+          "from_element_id": "elem-fit101",
+          "from_port_id": "p-signal",
+          "to_element_id": "elem-v101",
+          "to_port_id": "p-right",
+          "functional_type": "signal_line",
+          "flow_direction": "forward",
+          "stream_label": "4-20mA Flow Signal",
+          "assigned_chemical_id": null,
+          "status": "confirmed",
+          "confidence": 0.95,
+          "waypoints": [
+            {
+              "x": 600,
+              "y": 220
+            },
+            {
+              "x": 435,
+              "y": 220
+            }
+          ]
+        }
+      ],
+      "created_at": "2026-11-08T10:42:27.744Z",
+      "updated_at": "2026-11-08T10:42:27.744Z",
+      "approved_at": "2026-03-15T08:30:00.000Z",
+      "approved_by": "Lead Process Safety Engineer (PE)",
+      "approval_notes": "Digital P&ID approved for baseline PSM review and PHA node segmentation.",
+      "change_log": [
+        {
+          "timestamp": "2026-11-08T10:42:27.744Z",
+          "author": "Lead Process Safety Engineer (PE)",
+          "notes": "Baseline approved digital P&ID representation.",
+          "revision": "REV 0"
+        }
+      ]
     }
   ],
   "drawing_acknowledged_warnings": {
@@ -161092,7 +165081,7 @@
         "unresolved_count": 0,
         "engineer_verified_count": 1
       },
-      "processed_at": "2026-11-08T10:16:51.833Z"
+      "processed_at": "2026-11-08T10:42:28.080Z"
     },
     {
       "document_id": "9e08bce4-cf92-4930-b112-9d6f4f6ceb70",
@@ -175943,6 +179932,31 @@
       "notes": "Sour gas service complying with NACE MR0175",
       "created_at": "2026-11-08T10:16:52.190Z",
       "updated_at": "2026-11-08T10:16:52.297Z"
+    },
+    {
+      "id": "ba6aad46-2b3e-4e60-af94-ce0848c50d4a",
+      "project_id": "proj-assign-test",
+      "chemical_id": "chem-h2s-assigned",
+      "chemical_name": "Hydrogen Sulfide",
+      "cas_number": "7783-06-4",
+      "equipment_id": null,
+      "equipment_tag": "PG-1001",
+      "stream_id": null,
+      "stream_number": null,
+      "connection_endpoint": "inlet",
+      "concentration": 2.1,
+      "concentration_unit": "mol%",
+      "phase": "gas",
+      "source_document": "P&ID-GPF-001-02 Note 1",
+      "source_document_id": null,
+      "source_page_or_location": null,
+      "verification_status": "verified",
+      "identification_status": "CONFIRMED",
+      "reviewer": "Lead Process Safety Engineer (PE)",
+      "review_date": "2026-11-08T10:42:28.463Z",
+      "notes": "Sour gas service complying with NACE MR0175",
+      "created_at": "2026-11-08T10:42:28.382Z",
+      "updated_at": "2026-11-08T10:42:28.463Z"
     }
   ],
   "chemical_mappings": [
@@ -176704,6 +180718,121 @@
       "reason": "Engineer verification approved by Lead Process Safety Engineer (PE)",
       "id": "cfbcda9a-80c7-4c01-8dd6-cb8f460f8709",
       "timestamp": "2026-11-08T10:16:52.297Z"
+    },
+    {
+      "project_id": "proj-assign-test",
+      "target_type": "assignment",
+      "target_id": "ba6aad46-2b3e-4e60-af94-ce0848c50d4a",
+      "target_name": "Hydrogen Sulfide on PG-1001",
+      "previous_status": "unverified",
+      "new_status": "verified",
+      "reviewer": "Lead Process Safety Engineer (PE)",
+      "reason": "Engineer verification approved by Lead Process Safety Engineer (PE)",
+      "id": "a3886bce-6e06-4dc6-bfe3-130e689098ce",
+      "timestamp": "2026-11-08T10:42:28.463Z"
+    }
+  ],
+  "discrepancies": [
+    {
+      "id": "disc-1794134548780",
+      "project_id": "proj-disc-test",
+      "entity_type": "equipment",
+      "entity_tag": "PG-1001",
+      "property_name": "design_pressure",
+      "discrepancy_type": "conflict",
+      "status": "resolved",
+      "severity": "critical",
+      "message": "Design pressure conflict: P&ID specifies 90 barg while Equipment Datasheet specifies 95 barg",
+      "evidence_records": [
+        {
+          "id": "ev-pid-1",
+          "original_value": "90 barg",
+          "normalized_value": 90,
+          "original_unit": "barg",
+          "normalized_unit": "barg",
+          "source_document_id": "doc-pid-1",
+          "source_document_name": "P&ID-GPF-001-02",
+          "source_category": "pid",
+          "source_revision": "A",
+          "page_or_drawing_location": "Drawing Sheet 1 (Tag PG-1001)",
+          "extraction_confidence": 0.98,
+          "verification_status": "unverified",
+          "extraction_timestamp": "2026-11-08T10:42:28.780Z"
+        },
+        {
+          "id": "ev-ds-1",
+          "original_value": "95 barg",
+          "normalized_value": 95,
+          "original_unit": "barg",
+          "normalized_unit": "barg",
+          "source_document_id": "doc-ds-1",
+          "source_document_name": "DS-PG-1001-REV-0",
+          "source_category": "equipment_datasheet",
+          "source_revision": "0",
+          "page_or_drawing_location": "Page 2 Section 4.1",
+          "extraction_confidence": 0.99,
+          "verification_status": "engineer_verified",
+          "verified_by": "Chief Mechanical Engineer",
+          "extraction_timestamp": "2026-11-08T10:42:28.780Z"
+        }
+      ],
+      "created_at": "2026-11-08T10:42:28.780Z",
+      "updated_at": "2026-11-08T10:42:28.829Z",
+      "resolution_notes": "Datasheet Rev 0 (95 barg) is authoritative per API 520 sizing note 2",
+      "resolved_by": "Shlok (PE)",
+      "resolved_at": "2026-11-08T10:42:28.829Z"
+    }
+  ],
+  "engineering_matrix": [
+    {
+      "id": "matrix-pg1001-1794134548914",
+      "project_id": "proj-matrix-test",
+      "entity_type": "equipment",
+      "entity_tag": "PG-1001",
+      "description": "PIG RECEIVER / SLUG CATCHER",
+      "sources_found": [
+        "pid",
+        "equipment_datasheet",
+        "operating_philosophy"
+      ],
+      "p_and_id_data": {
+        "tag": "PG-1001",
+        "design_pressure": "90 BARG",
+        "design_temperature": "120 °C",
+        "dimensions": "1200 ID x 8000 LG"
+      },
+      "datasheet_data": {
+        "tag": "PG-1001",
+        "design_pressure_barg": 95,
+        "material": "NACE MR0175 / ISO 15156 Class A1A"
+      },
+      "philosophy_data": {
+        "interlock": "Interlock closure logic confirmed zero pressure on PI-1001 before quick-opening"
+      },
+      "has_conflicts": true,
+      "conflict_ids": [
+        "disc-1"
+      ],
+      "last_updated": "2026-11-08T10:42:28.914Z"
+    }
+  ],
+  "philosophy_rules": [
+    {
+      "id": "rule-esd-1794134548992",
+      "project_id": "proj-philo-test",
+      "source_document_id": "doc-esd-philo",
+      "source_document_name": "Shutdown and ESD Philosophy Rev A",
+      "source_category": "shutdown_philosophy",
+      "rule_type": "interlock",
+      "equipment_tag": "PG-1001",
+      "loop_tag": "SIS LS-1001",
+      "condition": "High-High Liquid Level Trip on LT-1002 signal to SIS LS-1001",
+      "action": "Automatically close XV-1001 (Inlet ESD Ball Valve) within 3 seconds",
+      "fail_safe_position": "fail_closed",
+      "sil_rating": "SIL 2",
+      "is_confirmed_setpoint": true,
+      "verification_status": "engineer_verified",
+      "notes": "Meets IEC 61511 / ISA 84 safety instrumented system standards"
     }
   ]
 }

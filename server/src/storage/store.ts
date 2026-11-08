@@ -51,6 +51,12 @@ import {
   PsiCompletenessCategoryReport,
   PsiParameterDataState,
   ComprehensiveHazopDeviation,
+  CrossDocumentDiscrepancy,
+  UnifiedEngineeringMatrixEntry,
+  EngineeringPhilosophyRule,
+  DocumentCategory,
+  DiscrepancyStatus,
+  UnifiedProvenanceValue,
 } from '../types';
 import { detectConflictsForProject } from '../services/conflictDetector';
 import { validateProcessGraph } from '../services/graphValidationService';
@@ -83,6 +89,9 @@ interface DatabaseSchema {
   chemical_mappings: ChemicalMappingResult[];
   gas_composition_reports: GasCompositionReport[];
   verification_history: VerificationHistoryEntry[];
+  discrepancies: CrossDocumentDiscrepancy[];
+  engineering_matrix: UnifiedEngineeringMatrixEntry[];
+  philosophy_rules: EngineeringPhilosophyRule[];
 }
 
 const DATA_DIR = path.resolve(__dirname, '../../data');
@@ -110,6 +119,9 @@ export class PsiDataStore {
     chemical_mappings: [],
     gas_composition_reports: [],
     verification_history: [],
+    discrepancies: [],
+    engineering_matrix: [],
+    philosophy_rules: [],
   };
 
   constructor() {
@@ -154,7 +166,27 @@ export class PsiDataStore {
           chemical_mappings: parsed.chemical_mappings || [],
           gas_composition_reports: parsed.gas_composition_reports || [],
           verification_history: parsed.verification_history || [],
+          discrepancies: parsed.discrepancies || [],
+          engineering_matrix: parsed.engineering_matrix || [],
+          philosophy_rules: parsed.philosophy_rules || [],
         };
+
+        // Non-destructive migration for DocumentRecord category and metadata
+        for (const doc of this.data.documents) {
+          if (!doc.category) {
+            doc.category = (doc.doc_type as any) || 'sds';
+          }
+          if (!doc.revision) {
+            doc.revision = 'A';
+          }
+          if (!doc.extraction_status) {
+            doc.extraction_status = doc.is_readable ? 'completed' : 'failed';
+          }
+          if (!doc.verification_status) {
+            doc.verification_status = 'unverified';
+          }
+        }
+
         // Ensure sample streams are seeded if this is the sample project and streams are empty
         if (this.data.streams.length === 0 && this.data.projects.some((p) => p.id === 'proj-sample-ammonia-demo')) {
           this.seedSampleStreams('proj-sample-ammonia-demo');
@@ -364,6 +396,105 @@ export class PsiDataStore {
 
     this.saveDatabase();
     return { success: true, projectId };
+  }
+
+  public updateDocumentMetadata(
+    id: string,
+    updates: Partial<DocumentRecord>
+  ): DocumentRecord | null {
+    const doc = this.data.documents.find((d) => d.id === id);
+    if (!doc) return null;
+
+    if (updates.category !== undefined) {
+      doc.category = updates.category;
+      doc.doc_type = updates.category;
+    }
+    if (updates.user_overridden_category !== undefined) {
+      doc.user_overridden_category = updates.user_overridden_category;
+      if (updates.user_overridden_category) {
+        doc.category = updates.user_overridden_category;
+        doc.doc_type = updates.user_overridden_category;
+      }
+    }
+    if (updates.revision !== undefined) doc.revision = updates.revision;
+    if (updates.source_organization !== undefined) doc.source_organization = updates.source_organization;
+    if (updates.extraction_status !== undefined) doc.extraction_status = updates.extraction_status;
+    if (updates.verification_status !== undefined) doc.verification_status = updates.verification_status;
+    if (updates.verified_by !== undefined) doc.verified_by = updates.verified_by;
+    if (updates.verified_at !== undefined) doc.verified_at = updates.verified_at;
+    if (updates.notes !== undefined) doc.notes = updates.notes;
+    if (updates.metadata !== undefined) doc.metadata = { ...(doc.metadata || {}), ...updates.metadata };
+
+    this.saveDatabase();
+    return doc;
+  }
+
+  // --- CROSS-DOCUMENT DISCREPANCIES ---
+  public listDiscrepancies(projectId: string): CrossDocumentDiscrepancy[] {
+    return (this.data.discrepancies || []).filter((d) => d.project_id === projectId);
+  }
+
+  public addDiscrepancy(discrepancy: CrossDocumentDiscrepancy): void {
+    if (!this.data.discrepancies) this.data.discrepancies = [];
+    const idx = this.data.discrepancies.findIndex((d) => d.id === discrepancy.id);
+    if (idx >= 0) {
+      this.data.discrepancies[idx] = discrepancy;
+    } else {
+      this.data.discrepancies.push(discrepancy);
+    }
+    this.saveDatabase();
+  }
+
+  public resolveDiscrepancy(
+    id: string,
+    resolution: { status: DiscrepancyStatus; resolution_notes?: string; resolved_by?: string }
+  ): boolean {
+    if (!this.data.discrepancies) return false;
+    const disc = this.data.discrepancies.find((d) => d.id === id);
+    if (!disc) return false;
+
+    disc.status = resolution.status;
+    if (resolution.resolution_notes !== undefined) disc.resolution_notes = resolution.resolution_notes;
+    if (resolution.resolved_by !== undefined) disc.resolved_by = resolution.resolved_by;
+    disc.resolved_at = new Date().toISOString();
+    disc.updated_at = new Date().toISOString();
+
+    this.saveDatabase();
+    return true;
+  }
+
+  // --- UNIFIED ENGINEERING MATRIX ---
+  public listEngineeringMatrix(projectId: string): UnifiedEngineeringMatrixEntry[] {
+    return (this.data.engineering_matrix || []).filter((m) => m.project_id === projectId);
+  }
+
+  public upsertEngineeringMatrixEntry(entry: UnifiedEngineeringMatrixEntry): void {
+    if (!this.data.engineering_matrix) this.data.engineering_matrix = [];
+    const idx = this.data.engineering_matrix.findIndex(
+      (m) => m.project_id === entry.project_id && m.entity_type === entry.entity_type && m.entity_tag === entry.entity_tag
+    );
+    if (idx >= 0) {
+      this.data.engineering_matrix[idx] = entry;
+    } else {
+      this.data.engineering_matrix.push(entry);
+    }
+    this.saveDatabase();
+  }
+
+  // --- ENGINEERING PHILOSOPHY RULES ---
+  public listPhilosophyRules(projectId: string): EngineeringPhilosophyRule[] {
+    return (this.data.philosophy_rules || []).filter((r) => r.project_id === projectId);
+  }
+
+  public addPhilosophyRule(rule: EngineeringPhilosophyRule): void {
+    if (!this.data.philosophy_rules) this.data.philosophy_rules = [];
+    const idx = this.data.philosophy_rules.findIndex((r) => r.id === rule.id);
+    if (idx >= 0) {
+      this.data.philosophy_rules[idx] = rule;
+    } else {
+      this.data.philosophy_rules.push(rule);
+    }
+    this.saveDatabase();
   }
 
   // --- CHEMICALS ---
