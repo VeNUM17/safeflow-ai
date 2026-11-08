@@ -61,6 +61,9 @@ import {
   ProcessBlock,
   MajorUnitOperation,
   PfdStreamLink,
+  StreamTableExtractionResult,
+  ExtractedStreamRecord,
+  StreamTableComponentFraction,
 } from '../types';
 import { detectConflictsForProject } from '../services/conflictDetector';
 import { validateProcessGraph } from '../services/graphValidationService';
@@ -97,6 +100,7 @@ interface DatabaseSchema {
   engineering_matrix: UnifiedEngineeringMatrixEntry[];
   philosophy_rules: EngineeringPhilosophyRule[];
   pfd_extractions: PfdExtractionResult[];
+  stream_table_extractions: StreamTableExtractionResult[];
 }
 
 const DATA_DIR = path.resolve(__dirname, '../../data');
@@ -128,6 +132,7 @@ export class PsiDataStore {
     engineering_matrix: [],
     philosophy_rules: [],
     pfd_extractions: [],
+    stream_table_extractions: [],
   };
 
   constructor() {
@@ -176,6 +181,7 @@ export class PsiDataStore {
           engineering_matrix: parsed.engineering_matrix || [],
           philosophy_rules: parsed.philosophy_rules || [],
           pfd_extractions: parsed.pfd_extractions || [],
+          stream_table_extractions: parsed.stream_table_extractions || [],
         };
 
         // Non-destructive migration for DocumentRecord category and metadata
@@ -522,6 +528,28 @@ export class PsiDataStore {
       this.data.pfd_extractions[idx] = result;
     } else {
       this.data.pfd_extractions.push(result);
+    }
+    this.saveDatabase();
+  }
+
+  // --- STREAM TABLE (H&MB) EXTRACTION RESULTS ---
+  public listStreamTableExtractions(projectId: string): StreamTableExtractionResult[] {
+    return (this.data.stream_table_extractions || []).filter((s) => s.project_id === projectId);
+  }
+
+  public getStreamTableExtraction(documentId: string): StreamTableExtractionResult | undefined {
+    return (this.data.stream_table_extractions || []).find((s) => s.document_id === documentId);
+  }
+
+  public saveStreamTableExtraction(result: StreamTableExtractionResult): void {
+    if (!this.data.stream_table_extractions) this.data.stream_table_extractions = [];
+    const idx = this.data.stream_table_extractions.findIndex(
+      (s) => s.document_id === result.document_id || s.id === result.id
+    );
+    if (idx >= 0) {
+      this.data.stream_table_extractions[idx] = result;
+    } else {
+      this.data.stream_table_extractions.push(result);
     }
     this.saveDatabase();
   }

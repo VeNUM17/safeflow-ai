@@ -50,8 +50,10 @@ import {
   GasCompositionReport,
   ProjectPsiDashboardValidation,
   PfdExtractionResult,
+  StreamTableExtractionResult,
 } from '../server/src/types';
 import { parsePfdOrBfdDocument } from '../server/src/services/pfdParser';
+import { parseStreamTableDocument } from '../server/src/services/streamTableParser';
 import { classifyDocument, classifyEngineeringCategory } from '../server/src/services/documentClassifier';
 import { extractTextFromDocument } from '../server/src/services/pdfExtractor';
 import { extractVectorGeometry } from '../server/src/services/vectorPdfService';
@@ -5804,15 +5806,18 @@ test('Scenario 5: Correlation of PFD primary streams with existing P&ID line num
       project_id: 'proj-corr-test',
       document_id: 'doc-pid-01',
       line_number: '10"-PG-00101-A1A',
-      size_nominal: '10"',
-      fluid_service: 'PG',
-      line_sequence: '00101',
-      piping_spec: 'A1A',
       from_equipment: 'Production Manifold MV-1001',
       to_equipment: 'PG-1001',
+      size: '10"',
+      material: 'A1A',
+      stream_label: '1',
+      functional_type: 'piping_line',
+      flow_direction: 'forward',
+      assigned_chemical_id: null,
       confidence: 0.95,
       status: 'confirmed',
       source: { document: 'P&ID-01.pdf', page: 1, snippet: '10"-PG-00101-A1A' },
+      alerts: [],
       is_manual_entry: false,
       created_at: new Date().toISOString(),
     },
@@ -5957,6 +5962,397 @@ test('Scenario 6: Store persistence, query & retrieval of PFD/BFD extraction res
   // List by project ID
   const list = store.listPfdExtractions(testProjectId);
   assert.strictEqual(list.length, 1, 'Must list exactly 1 extraction for project');
+});
+
+// ============================================================================
+// TEST GROUP 22: STREAM TABLE (H&MB) EXTRACTION PROCESSOR (PHASE 4)
+// ============================================================================
+
+console.log('\n--- Test Group 22: Stream Table (H&MB) Extraction Processor (Phase 4) ---');
+
+test('Scenario 1: Extraction of Columnar Stream Table (Streams as columns / PFD H&MB format)', () => {
+  const columnarCsv = `
+Parameter,STR-01,STR-02,STR-03
+Description,Sour Wellhead Gas,Gas to Contactor,Separated Condensate
+Phase,Multiphase,Vapor,Liquid
+Vapor Fraction,0.85,1.00,0.00
+Temperature (°C),120.0,45.0,45.0
+Pressure (barg),90.0,88.0,88.0
+Mass Flow (kg/h),55000,45000,10000
+Volumetric Flow (MMSCFD),50.0,48.0,-
+Molecular Weight (kg/kmol),21.4,18.2,65.8
+Density (kg/m3),72.5,61.2,680.0
+  `.trim();
+
+  const dummyContent = {
+    text: columnarCsv,
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+    textElements: [],
+  };
+
+  const { extraction, streams } = parseStreamTableDocument(
+    dummyContent,
+    'doc-hmb-01',
+    'HMB-GPF-001_Heat_and_Material_Balance.csv',
+    'proj-hmb-test'
+  );
+
+  assert.strictEqual(extraction.table_orientation, 'streams_as_columns');
+  assert.strictEqual(extraction.total_streams_found, 3);
+  assert.strictEqual(streams.length, 3);
+
+  const str1 = extraction.streams.find((s) => s.stream_number === 'STR-01');
+  assert.ok(str1, 'STR-01 must be extracted');
+  assert.strictEqual(str1.operating_temperature.normalized_value, 120);
+  assert.strictEqual(str1.operating_temperature.normalized_unit, '°C');
+  assert.strictEqual(str1.operating_pressure.normalized_value, 90);
+  assert.strictEqual(str1.operating_pressure.normalized_unit, 'barg');
+  assert.strictEqual(str1.mass_flow_rate.normalized_value, 55000);
+  assert.strictEqual(str1.volumetric_flow_rate.normalized_value, 50);
+  assert.strictEqual(str1.vapor_fraction.normalized_value, 0.85);
+  assert.strictEqual(str1.molecular_weight.normalized_value, 21.4);
+  assert.strictEqual(str1.phase, 'multiphase');
+
+  // Verify SafeFlow ProcessStream model
+  const ps1 = streams.find((s) => s.stream_number === 'STR-01');
+  assert.ok(ps1, 'ProcessStream STR-01 must exist');
+  assert.strictEqual(ps1.operating_temperature.value, 120);
+  assert.strictEqual(ps1.operating_pressure.value, 90);
+  assert.strictEqual(ps1.flow_rates.design, 55000);
+  assert.strictEqual(ps1.flow_rates.unit, 'kg/h');
+});
+
+test('Scenario 2: Extraction of Row-based Stream Table (Streams as rows / Excel H&MB report)', () => {
+  const rowBasedText = `
+Stream No | Description | Phase | Temperature (degC) | Pressure (barg) | Mass Flow (kg/h) | Vol Flow (MMSCFD) | Vapor Frac
+STR-101 | Raw Natural Gas Feed | Multiphase | 115.0 | 92.0 | 60000 | 52.0 | 0.82
+STR-102 | Sweetened Sales Gas | Gas | 40.0 | 85.0 | 48000 | 50.0 | 1.00
+STR-103 | Produced Water Effluent | Liquid | 45.0 | 5.0 | 5000 | - | 0.00
+  `.trim();
+
+  const dummyContent = {
+    text: rowBasedText,
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+    textElements: [],
+  };
+
+  const { extraction, streams } = parseStreamTableDocument(
+    dummyContent,
+    'doc-hmb-02',
+    'Stream_Summary_Report.xlsx',
+    'proj-hmb-rows'
+  );
+
+  assert.strictEqual(extraction.table_orientation, 'streams_as_rows');
+  assert.strictEqual(extraction.total_streams_found, 3);
+  assert.strictEqual(streams.length, 3);
+
+  const str102 = extraction.streams.find((s) => s.stream_number === 'STR-102');
+  assert.ok(str102, 'STR-102 must be extracted');
+  assert.strictEqual(str102.operating_temperature.normalized_value, 40);
+  assert.strictEqual(str102.operating_pressure.normalized_value, 85);
+  assert.strictEqual(str102.mass_flow_rate.normalized_value, 48000);
+  assert.strictEqual(str102.volumetric_flow_rate.normalized_value, 50);
+  assert.strictEqual(str102.vapor_fraction.normalized_value, 1.0);
+  assert.strictEqual(str102.phase, 'gas');
+});
+
+test('Scenario 3: Chemical component breakdown extraction & hazardous substance tagging', () => {
+  const compCsv = `
+Parameter,STR-01,STR-02
+Temperature (°C),120,45
+Pressure (barg),90,88
+Methane (mol%),78.5,84.2
+Ethane (mol%),6.2,6.8
+Propane (mol%),3.1,3.2
+H2S (mol%),2.5,2.8
+CO2 (mol%),4.8,5.2
+Water (mol%),1.2,0.0
+  `.trim();
+
+  const dummyContent = {
+    text: compCsv,
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+    textElements: [],
+  };
+
+  const { extraction } = parseStreamTableDocument(
+    dummyContent,
+    'doc-hmb-comp',
+    'Stream_Compositions.csv',
+    'proj-hmb-comp'
+  );
+
+  const str1 = extraction.streams.find((s) => s.stream_number === 'STR-01');
+  assert.ok(str1, 'STR-01 must exist');
+  assert.strictEqual(str1.components.length, 6, 'Must extract 6 chemical components');
+
+  const h2s = str1.components.find((c) => c.component_name.includes('H2S'));
+  assert.ok(h2s, 'H2S must be extracted');
+  assert.strictEqual(h2s.fraction_value, 2.5);
+  assert.strictEqual(h2s.is_hazardous, true, 'H2S must be identified as hazardous component');
+
+  const methane = str1.components.find((c) => c.component_name.includes('Methane'));
+  assert.ok(methane, 'Methane must be extracted');
+  assert.strictEqual(methane.fraction_value, 78.5);
+  assert.strictEqual(methane.is_hazardous, true, 'Methane must be identified as hazardous component');
+
+  const water = str1.components.find((c) => c.component_name.includes('Water'));
+  assert.ok(water, 'Water must be extracted');
+  assert.strictEqual(water.fraction_value, 1.2);
+  assert.strictEqual(water.is_hazardous, false, 'Water is not tagged hazardous');
+});
+
+test('Scenario 4: Strict Non-Fabrication Rule (missing flow/pressure/temperature values remain null, never zero)', () => {
+  const sparseCsv = `
+Parameter,STR-20
+Temperature (°C),50.0
+Pressure (barg),-
+Mass Flow (kg/h),-
+Volumetric Flow (MMSCFD),-
+  `.trim();
+
+  const dummyContent = {
+    text: sparseCsv,
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+    textElements: [],
+  };
+
+  const { extraction, streams } = parseStreamTableDocument(
+    dummyContent,
+    'doc-hmb-sparse',
+    'Sparse_HMB.csv',
+    'proj-hmb-sparse'
+  );
+
+  const str20 = extraction.streams.find((s) => s.stream_number === 'STR-20');
+  assert.ok(str20, 'STR-20 must exist');
+  assert.strictEqual(str20.operating_temperature.normalized_value, 50);
+
+  // CRITICAL AUDIT: Pressure and Mass flow were dashed in the source table.
+  // They MUST NOT be fabricated or defaulted to 0!
+  assert.strictEqual(str20.operating_pressure.normalized_value, null, 'Dashed pressure must remain null');
+  assert.strictEqual(str20.operating_pressure.extraction_confidence, 0.0);
+  assert.strictEqual(str20.mass_flow_rate.normalized_value, null, 'Dashed mass flow must remain null');
+
+  const ps20 = streams.find((s) => s.stream_number === 'STR-20');
+  assert.ok(ps20, 'ProcessStream STR-20 must exist');
+  assert.strictEqual(ps20.operating_pressure.value, null);
+  assert.strictEqual(ps20.operating_pressure.status, 'not_provided');
+
+  // Instrumentation non-fabrication guarantee
+  assert.deepStrictEqual(ps20.associated_instrument_tags, [], 'Must never hallucinate instrument loops');
+});
+
+test('Scenario 5: Correlation of Stream Table records with existing P&ID line numbers', () => {
+  const existingLines: PipingLine[] = [
+    {
+      id: 'line-corr-1',
+      project_id: 'proj-hmb-corr',
+      document_id: 'doc-pid-01',
+      line_number: '10"-PG-00101-A1A',
+      from_equipment: 'Production Manifold MV-1001',
+      to_equipment: 'PG-1001',
+      size: '10"',
+      material: 'A1A',
+      stream_label: 'STR-00101',
+      functional_type: 'piping_line',
+      flow_direction: 'forward',
+      assigned_chemical_id: null,
+      confidence: 0.95,
+      status: 'confirmed',
+      source: { document: 'P&ID-01.pdf', page: 1, snippet: '10"-PG-00101-A1A' },
+      alerts: [],
+      is_manual_entry: false,
+      created_at: new Date().toISOString(),
+    },
+  ];
+
+  const streamContent = {
+    text: `
+      Stream No | Description | Temperature (°C) | Pressure (barg)
+      STR-00101 | Process Gas to PG-1001 | 120.0 | 90.0
+    `.trim(),
+    pagesCount: 1,
+    isReadable: true,
+    isScanned: false,
+    textElements: [],
+  };
+
+  const { extraction } = parseStreamTableDocument(
+    streamContent,
+    'doc-hmb-corr',
+    'HMB_Lines.csv',
+    'proj-hmb-corr',
+    [],
+    existingLines
+  );
+
+  const str = extraction.streams[0];
+  assert.ok(str, 'Stream must be extracted');
+  assert.strictEqual(str.correlated_pid_line_number, '10"-PG-00101-A1A', 'Must correlate with P&ID line');
+});
+
+test('Scenario 6: Store persistence, query & retrieval of Stream Table extraction results', () => {
+  const store = new PsiDataStore();
+  const testDocId = `doc-hmb-store-${Date.now()}`;
+  const testProjectId = `proj-hmb-store-${Date.now()}`;
+
+  const mockExtraction: StreamTableExtractionResult = {
+    id: `hmb-ext-${Date.now()}`,
+    project_id: testProjectId,
+    document_id: testDocId,
+    document_name: 'Overall_Facility_HMB.xlsx',
+    table_orientation: 'streams_as_columns',
+    streams: [
+      {
+        id: 'st-str-1',
+        project_id: testProjectId,
+        document_id: testDocId,
+        stream_number: 'STR-01',
+        stream_name: 'Raw Inlet Gas',
+        phase: 'multiphase',
+        vapor_fraction: {
+          id: 'prov-v',
+          original_value: 0.85,
+          normalized_value: 0.85,
+          source_document_id: testDocId,
+          source_document_name: 'Overall_Facility_HMB.xlsx',
+          source_category: 'stream_table',
+          page_or_drawing_location: 'Column 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        operating_temperature: {
+          id: 'prov-t',
+          original_value: '120 °C',
+          normalized_value: 120,
+          original_unit: '°C',
+          normalized_unit: '°C',
+          source_document_id: testDocId,
+          source_document_name: 'Overall_Facility_HMB.xlsx',
+          source_category: 'stream_table',
+          page_or_drawing_location: 'Column 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        operating_pressure: {
+          id: 'prov-p',
+          original_value: '90 barg',
+          normalized_value: 90,
+          original_unit: 'barg',
+          normalized_unit: 'barg',
+          source_document_id: testDocId,
+          source_document_name: 'Overall_Facility_HMB.xlsx',
+          source_category: 'stream_table',
+          page_or_drawing_location: 'Column 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        mass_flow_rate: {
+          id: 'prov-m',
+          original_value: '55000 kg/h',
+          normalized_value: 55000,
+          original_unit: 'kg/h',
+          normalized_unit: 'kg/h',
+          source_document_id: testDocId,
+          source_document_name: 'Overall_Facility_HMB.xlsx',
+          source_category: 'stream_table',
+          page_or_drawing_location: 'Column 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        volumetric_flow_rate: {
+          id: 'prov-vf',
+          original_value: '50 MMSCFD',
+          normalized_value: 50,
+          original_unit: 'MMSCFD',
+          normalized_unit: 'MMSCFD',
+          source_document_id: testDocId,
+          source_document_name: 'Overall_Facility_HMB.xlsx',
+          source_category: 'stream_table',
+          page_or_drawing_location: 'Column 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        molar_flow_rate: {
+          id: 'prov-mol',
+          original_value: null,
+          normalized_value: null,
+          source_document_id: testDocId,
+          source_document_name: 'Overall_Facility_HMB.xlsx',
+          source_category: 'stream_table',
+          page_or_drawing_location: 'Column 1',
+          extraction_confidence: 0.0,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        molecular_weight: {
+          id: 'prov-mw',
+          original_value: 21.4,
+          normalized_value: 21.4,
+          original_unit: 'kg/kmol',
+          normalized_unit: 'kg/kmol',
+          source_document_id: testDocId,
+          source_document_name: 'Overall_Facility_HMB.xlsx',
+          source_category: 'stream_table',
+          page_or_drawing_location: 'Column 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        density: {
+          id: 'prov-d',
+          original_value: '72.5 kg/m3',
+          normalized_value: 72.5,
+          original_unit: 'kg/m3',
+          normalized_unit: 'kg/m3',
+          source_document_id: testDocId,
+          source_document_name: 'Overall_Facility_HMB.xlsx',
+          source_category: 'stream_table',
+          page_or_drawing_location: 'Column 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        components: [
+          { component_name: 'Methane', fraction_value: 78.5, unit: 'mol%', is_hazardous: true },
+          { component_name: 'H2S', fraction_value: 2.5, unit: 'mol%', is_hazardous: true },
+        ],
+        source_location: 'Column 1',
+        confidence: 0.95,
+      },
+    ],
+    total_streams_found: 1,
+    extraction_warnings: [],
+    extracted_at: new Date().toISOString(),
+  };
+
+  store.saveStreamTableExtraction(mockExtraction);
+
+  // Retrieve by document ID
+  const retrieved = store.getStreamTableExtraction(testDocId);
+  assert.ok(retrieved, 'Must retrieve stream table extraction by document ID');
+  assert.strictEqual(retrieved.document_name, 'Overall_Facility_HMB.xlsx');
+  assert.strictEqual(retrieved.streams[0].stream_number, 'STR-01');
+  assert.strictEqual(retrieved.streams[0].components.length, 2);
+
+  // List by project ID
+  const list = store.listStreamTableExtractions(testProjectId);
+  assert.strictEqual(list.length, 1, 'Must list 1 stream table extraction for project');
 });
 
 console.log(`\n========================================`);

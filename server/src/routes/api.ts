@@ -21,6 +21,7 @@ import { evaluateEquipmentChemicalMapping, evaluateProjectChemicalMappings } fro
 import { validateProjectPsiCompleteness } from '../services/psiValidationService';
 import { attachChemicalContextToPhaNode } from '../services/phaService';
 import { parsePfdOrBfdDocument } from '../services/pfdParser';
+import { parseStreamTableDocument } from '../services/streamTableParser';
 
 const router = Router();
 
@@ -199,6 +200,21 @@ router.get('/documents/:id/pfd-extraction', (req: Request, res: Response) => {
   const extraction = store.getPfdExtraction(id);
   if (!extraction) {
     return res.status(404).json({ success: false, error: 'PFD/BFD extraction not found for this document' });
+  }
+  res.json({ success: true, data: extraction });
+});
+
+router.get('/projects/:id/stream-table-extractions', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const extractions = store.listStreamTableExtractions(id);
+  res.json({ success: true, data: extractions });
+});
+
+router.get('/documents/:id/stream-table-extraction', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const extraction = store.getStreamTableExtraction(id);
+  if (!extraction) {
+    return res.status(404).json({ success: false, error: 'Stream table extraction not found for this document' });
   }
   res.json({ success: true, data: extraction });
 });
@@ -410,6 +426,33 @@ router.post(
           }
         } catch (pfdErr: any) {
           console.error(`Auto ${determinedCategory.toUpperCase()} extraction error:`, pfdErr.message);
+        }
+      }
+
+      // If document is Stream Table (H&MB), run dedicated stream table extraction processor
+      if (determinedCategory === 'stream_table' && extracted.isReadable) {
+        try {
+          const existingStreams = store.listStreams(projectId);
+          const existingLines = store.listLines(projectId);
+          const stResult = parseStreamTableDocument(
+            extracted,
+            docId,
+            file.originalname,
+            projectId,
+            existingStreams,
+            existingLines
+          );
+          store.saveStreamTableExtraction(stResult.extraction);
+          if (stResult.streams.length > 0) {
+            store.addStreams(
+              stResult.streams,
+              'Stream Table Parser',
+              `Extracted Heat & Material Balance streams from ${file.originalname}`
+            );
+            newStreams.push(...stResult.streams);
+          }
+        } catch (stErr: any) {
+          console.error('Auto Stream Table extraction error:', stErr.message);
         }
       }
     }

@@ -722,6 +722,51 @@ export interface PfdExtractionResult {
   extracted_at: string;
 }
 
+// --- STREAM TABLE (H&MB) EXTRACTION DATA MODELS ---
+
+export interface StreamTableComponentFraction {
+  component_name: string;
+  formula?: string | null;
+  cas_number?: string | null;
+  fraction_value: number | null;
+  unit: string; // e.g. "mol%", "wt%", "fraction", "%"
+  is_hazardous: boolean;
+}
+
+export interface ExtractedStreamRecord {
+  id: string;
+  project_id: string;
+  document_id: string;
+  stream_number: string;
+  stream_name?: string | null;
+  phase?: StreamPhase | null;
+  vapor_fraction: UnifiedProvenanceValue<number>;
+  operating_temperature: UnifiedProvenanceValue<number>;
+  operating_pressure: UnifiedProvenanceValue<number>;
+  mass_flow_rate: UnifiedProvenanceValue<number>;
+  volumetric_flow_rate: UnifiedProvenanceValue<number>;
+  molar_flow_rate: UnifiedProvenanceValue<number>;
+  molecular_weight: UnifiedProvenanceValue<number>;
+  density: UnifiedProvenanceValue<number>;
+  components: StreamTableComponentFraction[];
+  correlated_pfd_stream_id?: string | null;
+  correlated_pid_line_number?: string | null;
+  source_location: string;
+  confidence: number;
+}
+
+export interface StreamTableExtractionResult {
+  id: string;
+  project_id: string;
+  document_id: string;
+  document_name: string;
+  table_orientation: 'streams_as_columns' | 'streams_as_rows' | 'hybrid';
+  streams: ExtractedStreamRecord[];
+  total_streams_found: number;
+  extraction_warnings: string[];
+  extracted_at: string;
+}
+
 export interface CreateStreamInput {
   project_id: string;
   stream_number?: string;
