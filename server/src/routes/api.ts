@@ -28,6 +28,10 @@ import {
   buildUnifiedEngineeringMatrix,
   getUnifiedEquipmentContext,
 } from '../services/unifiedEngineeringService';
+import {
+  detectCrossDocumentDiscrepancies,
+  resolveEngineeringDiscrepancy,
+} from '../services/crossDocumentConsistencyService';
 
 const router = Router();
 
@@ -169,8 +173,21 @@ router.patch('/documents/:id', (req: Request, res: Response) => {
 
 router.get('/projects/:id/discrepancies', (req: Request, res: Response) => {
   const id = getParam(req.params.id);
-  const discs = store.listDiscrepancies(id);
+  let discs = store.listDiscrepancies(id);
+  if (discs.length === 0) {
+    discs = detectCrossDocumentDiscrepancies(id, store);
+  }
   res.json({ success: true, data: discs });
+});
+
+router.post('/projects/:id/discrepancies/detect', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const discs = detectCrossDocumentDiscrepancies(id, store);
+  res.json({
+    success: true,
+    data: discs,
+    message: `Detected ${discs.length} cross-document consistency checks`,
+  });
 });
 
 router.post('/discrepancies/:id/resolve', (req: Request, res: Response) => {
@@ -587,9 +604,10 @@ router.post(
       }
     }
 
-    // Refresh Unified Engineering Matrix across all project entities and documents
+    // Refresh Unified Engineering Matrix and run Cross-Document Consistency checks
     try {
       buildUnifiedEngineeringMatrix(projectId, store);
+      detectCrossDocumentDiscrepancies(projectId, store);
     } catch (matrixErr: any) {
       console.error('Unified Engineering Matrix auto-sync error:', matrixErr.message);
     }

@@ -69,6 +69,10 @@ import {
   buildUnifiedEngineeringMatrix,
   getUnifiedEquipmentContext,
 } from '../server/src/services/unifiedEngineeringService';
+import {
+  detectCrossDocumentDiscrepancies,
+  resolveEngineeringDiscrepancy,
+} from '../server/src/services/crossDocumentConsistencyService';
 import { classifyDocument, classifyEngineeringCategory } from '../server/src/services/documentClassifier';
 import { extractTextFromDocument } from '../server/src/services/pdfExtractor';
 import { extractVectorGeometry } from '../server/src/services/vectorPdfService';
@@ -7667,6 +7671,512 @@ test('Scenario 6: Matrix Query & Equipment Context Resolution', () => {
   const stored = store.getEngineeringMatrixEntry(proj.id, 'equipment', 'E-1001');
   assert.ok(stored, 'Must retrieve from store by (projId, entityType, tag)');
   assert.strictEqual(stored.entity_tag, 'E-1001');
+});
+
+// ============================================================================
+// TEST GROUP 26: CROSS-DOCUMENT CONSISTENCY & CONFLICT CHECKER (PHASE 8)
+// ============================================================================
+
+console.log('\n--- Test Group 26: Cross-Document Consistency & Conflict Checker (Phase 8) ---');
+
+test('Scenario 1: Operating Pressure & Temperature Exceeding Design Limits (design_vs_operating)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Operating vs Design Project', 'Testing overpressure detection');
+  const dsDocId = `doc-ds-${Date.now()}`;
+
+  // Vessel with Design Pressure 90.0 barg and Design Temp 80.0 °C
+  const eq = {
+    id: `eq-v-101-${Date.now()}`,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    tag: 'V-101',
+    description: 'Separation Drum',
+    equipment_type: 'separator' as any,
+    assigned_chemical_id: null,
+    confidence: 0.95,
+    status: 'confirmed' as any,
+    source: { document: 'PID.pdf', page: 1, snippet: 'V-101' },
+    created_at: new Date().toISOString(),
+    specifications: createDefaultSpecifications(proj.id, 'eq-v-101'),
+  };
+  eq.specifications.design_pressure = {
+    value: 90.0,
+    unit: 'barg',
+    status: 'extracted',
+    source_document: 'PID.pdf',
+    source_page: 1,
+    confidence: 0.95,
+  };
+  eq.specifications.design_temperature = {
+    value: 80.0,
+    unit: '°C',
+    status: 'extracted',
+    source_document: 'PID.pdf',
+    source_page: 1,
+    confidence: 0.95,
+  };
+  // But operating pressure extracted on datasheet is 95.0 barg (> 90.0 barg design!)
+  store.addEquipment([eq], 'P&ID', 'Setup');
+
+  store.saveDatasheetExtraction({
+    id: `ds-ext-${Date.now()}`,
+    project_id: proj.id,
+    document_id: dsDocId,
+    document_name: 'DS-V-101.pdf',
+    datasheets: [
+      {
+        id: 'ds-rec-v101',
+        project_id: proj.id,
+        document_id: dsDocId,
+        equipment_tag: 'V-101',
+        equipment_name: 'Separation Drum',
+        equipment_type: 'separator',
+        design_pressure: {
+          id: 'dp-1',
+          original_value: 90.0,
+          normalized_value: 90.0,
+          original_unit: 'barg',
+          normalized_unit: 'barg',
+          source_document_id: dsDocId,
+          source_document_name: 'DS-V-101.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        design_temperature: {
+          id: 'dt-1',
+          original_value: 80.0,
+          normalized_value: 80.0,
+          original_unit: '°C',
+          normalized_unit: '°C',
+          source_document_id: dsDocId,
+          source_document_name: 'DS-V-101.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        operating_pressure: {
+          id: 'op-1',
+          original_value: 95.0,
+          normalized_value: 95.0,
+          original_unit: 'barg',
+          normalized_unit: 'barg',
+          source_document_id: dsDocId,
+          source_document_name: 'DS-V-101.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        operating_temperature: {
+          id: 'ot-1',
+          original_value: 88.0,
+          normalized_value: 88.0,
+          original_unit: '°C',
+          normalized_unit: '°C',
+          source_document_id: dsDocId,
+          source_document_name: 'DS-V-101.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        nozzles: [],
+        confidence: 0.95,
+        extracted_at: new Date().toISOString(),
+      },
+    ],
+    total_equipment_found: 1,
+    extraction_warnings: [],
+    extracted_at: new Date().toISOString(),
+  });
+
+  const discrepancies = detectCrossDocumentDiscrepancies(proj.id, store);
+  assert.ok(discrepancies.length >= 2, `Expected at least 2 discrepancies, got ${discrepancies.length}`);
+
+  const pDiscrepancy = discrepancies.find((d) => d.property_name === 'operating_pressure' && d.entity_tag === 'V-101');
+  assert.ok(pDiscrepancy, 'Must detect operating pressure exceeding design pressure');
+  assert.strictEqual(pDiscrepancy.discrepancy_type, 'design_vs_operating');
+  assert.strictEqual(pDiscrepancy.severity, 'critical');
+  assert.ok(pDiscrepancy.message.includes('95 barg') && pDiscrepancy.message.includes('90 barg'));
+  assert.strictEqual(pDiscrepancy.evidence_records.length, 2, 'Must retain both operating and design provenance records');
+
+  const tDiscrepancy = discrepancies.find((d) => d.property_name === 'operating_temperature' && d.entity_tag === 'V-101');
+  assert.ok(tDiscrepancy, 'Must detect operating temp exceeding design temp');
+  assert.strictEqual(tDiscrepancy.severity, 'critical');
+});
+
+test('Scenario 2: Numerical Specification Mismatch Across Documents (numerical_mismatch)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Numerical Mismatch Project', 'Testing divergence retention');
+  const pidDocId = `doc-pid-${Date.now()}`;
+  const dsDocId = `doc-ds-${Date.now()}`;
+
+  // P&ID specifies Design Pressure as 95.0 barg
+  const eq = {
+    id: `eq-tk-101-${Date.now()}`,
+    project_id: proj.id,
+    document_id: pidDocId,
+    tag: 'TK-101',
+    description: 'Feed Storage Tank',
+    equipment_type: 'tank' as any,
+    assigned_chemical_id: null,
+    confidence: 0.95,
+    status: 'confirmed' as any,
+    source: { document: 'PID.pdf', page: 1, snippet: 'TK-101' },
+    created_at: new Date().toISOString(),
+    specifications: createDefaultSpecifications(proj.id, 'eq-tk-101'),
+  };
+  eq.specifications.design_pressure = {
+    value: 95.0,
+    unit: 'barg',
+    status: 'extracted',
+    source_document: 'PID.pdf',
+    source_page: 1,
+    confidence: 0.95,
+  };
+  store.addEquipment([eq], 'P&ID', 'Setup');
+
+  // Mechanical Datasheet specifies Design Pressure as 100.0 barg
+  store.saveDatasheetExtraction({
+    id: `ds-ext-${Date.now()}`,
+    project_id: proj.id,
+    document_id: dsDocId,
+    document_name: 'DS-TK-101.pdf',
+    datasheets: [
+      {
+        id: 'ds-rec-tk101',
+        project_id: proj.id,
+        document_id: dsDocId,
+        equipment_tag: 'TK-101',
+        equipment_name: 'Feed Storage Tank',
+        equipment_type: 'tank',
+        design_pressure: {
+          id: 'dp-ds',
+          original_value: 100.0,
+          normalized_value: 100.0,
+          original_unit: 'barg',
+          normalized_unit: 'barg',
+          source_document_id: dsDocId,
+          source_document_name: 'DS-TK-101.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.98,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        nozzles: [],
+        confidence: 0.98,
+        extracted_at: new Date().toISOString(),
+      },
+    ],
+    total_equipment_found: 1,
+    extraction_warnings: [],
+    extracted_at: new Date().toISOString(),
+  });
+
+  const discrepancies = detectCrossDocumentDiscrepancies(proj.id, store);
+  const mismatch = discrepancies.find((d) => d.discrepancy_type === 'numerical_mismatch' && d.entity_tag === 'TK-101');
+
+  assert.ok(mismatch, 'Must detect numerical mismatch between P&ID (95 barg) and Datasheet (100 barg)');
+  assert.strictEqual(mismatch.severity, 'warning');
+  assert.strictEqual(mismatch.property_name, 'design_pressure');
+  assert.strictEqual(mismatch.status, 'open');
+  assert.ok(mismatch.evidence_records.length >= 2, 'Must preserve both source evidence records without overwrite');
+});
+
+test('Scenario 3: Metallurgy & Material of Construction Divergence (moc_divergence)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Metallurgy Conflict Project', 'Testing MOC divergence');
+  const pidDocId = `doc-pid-${Date.now()}`;
+  const dsDocId = `doc-ds-${Date.now()}`;
+
+  // P&ID says Carbon Steel
+  const eq = {
+    id: `eq-c-101-${Date.now()}`,
+    project_id: proj.id,
+    document_id: pidDocId,
+    tag: 'C-101',
+    description: 'Contactor Column',
+    equipment_type: 'column' as any,
+    assigned_chemical_id: null,
+    confidence: 0.95,
+    status: 'confirmed' as any,
+    source: { document: 'PID.pdf', page: 1, snippet: 'C-101' },
+    created_at: new Date().toISOString(),
+    specifications: createDefaultSpecifications(proj.id, 'eq-c-101'),
+  };
+  eq.specifications.material_of_construction = {
+    value: 'Carbon Steel',
+    status: 'extracted',
+    source_document: 'PID.pdf',
+    source_page: 1,
+    confidence: 0.9,
+  };
+  store.addEquipment([eq], 'P&ID', 'Setup');
+
+  // Datasheet specifies 316L SS
+  store.saveDatasheetExtraction({
+    id: `ds-ext-${Date.now()}`,
+    project_id: proj.id,
+    document_id: dsDocId,
+    document_name: 'DS-C-101.pdf',
+    datasheets: [
+      {
+        id: 'ds-rec-c101',
+        project_id: proj.id,
+        document_id: dsDocId,
+        equipment_tag: 'C-101',
+        equipment_name: 'Contactor Column',
+        equipment_type: 'column',
+        material_of_construction: {
+          id: 'moc-ss',
+          original_value: '316L Stainless Steel',
+          normalized_value: '316L Stainless Steel',
+          source_document_id: dsDocId,
+          source_document_name: 'DS-C-101.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.98,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        nozzles: [],
+        confidence: 0.98,
+        extracted_at: new Date().toISOString(),
+      },
+    ],
+    total_equipment_found: 1,
+    extraction_warnings: [],
+    extracted_at: new Date().toISOString(),
+  });
+
+  const discrepancies = detectCrossDocumentDiscrepancies(proj.id, store);
+  const mocDisc = discrepancies.find((d) => d.discrepancy_type === 'moc_divergence' && d.entity_tag === 'C-101');
+
+  assert.ok(mocDisc, 'Must detect MOC divergence on C-101');
+  assert.strictEqual(mocDisc.property_name, 'material_of_construction');
+  assert.strictEqual(mocDisc.severity, 'warning');
+  assert.ok(mocDisc.message.includes('Carbon Steel') && mocDisc.message.includes('316L Stainless Steel'));
+});
+
+test('Scenario 4: Relief Valve Set Pressure Exceeding Vessel Design Pressure (relief_vs_mawp)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Overpressure Protection Project', 'Testing relief valve vs MAWP');
+  const dsDocId = `doc-ds-${Date.now()}`;
+
+  // Protected vessel design pressure is 100.0 barg, but relief valve set pressure is 105.0 barg
+  const eq = {
+    id: `eq-pg-2001-${Date.now()}`,
+    project_id: proj.id,
+    document_id: dsDocId,
+    tag: 'PG-2001',
+    description: 'High Pressure Separator',
+    equipment_type: 'separator' as any,
+    assigned_chemical_id: null,
+    confidence: 0.95,
+    status: 'confirmed' as any,
+    source: { document: 'DS.pdf', page: 1, snippet: 'PG-2001' },
+    created_at: new Date().toISOString(),
+  };
+  store.addEquipment([eq], 'P&ID', 'Setup');
+
+  store.saveDatasheetExtraction({
+    id: `ds-ext-${Date.now()}`,
+    project_id: proj.id,
+    document_id: dsDocId,
+    document_name: 'DS-PG-2001.pdf',
+    datasheets: [
+      {
+        id: 'ds-rec-pg2001',
+        project_id: proj.id,
+        document_id: dsDocId,
+        equipment_tag: 'PG-2001',
+        equipment_name: 'High Pressure Separator',
+        equipment_type: 'separator',
+        design_pressure: {
+          id: 'dp-pg2001',
+          original_value: 100.0,
+          normalized_value: 100.0,
+          original_unit: 'barg',
+          normalized_unit: 'barg',
+          source_document_id: dsDocId,
+          source_document_name: 'DS-PG-2001.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        relief_valve_set_pressure: {
+          id: 'rv-pg2001',
+          original_value: 105.0,
+          normalized_value: 105.0,
+          original_unit: 'barg',
+          normalized_unit: 'barg',
+          source_document_id: dsDocId,
+          source_document_name: 'DS-PG-2001.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        nozzles: [],
+        confidence: 0.95,
+        extracted_at: new Date().toISOString(),
+      },
+    ],
+    total_equipment_found: 1,
+    extraction_warnings: [],
+    extracted_at: new Date().toISOString(),
+  });
+
+  const discrepancies = detectCrossDocumentDiscrepancies(proj.id, store);
+  const rsvDisc = discrepancies.find((d) => d.discrepancy_type === 'relief_vs_mawp' && d.entity_tag === 'PG-2001');
+
+  assert.ok(rsvDisc, 'Must flag relief valve set pressure (105 barg) exceeding design pressure (100 barg)');
+  assert.strictEqual(rsvDisc.severity, 'critical');
+  assert.ok(rsvDisc.message.includes('ASME Section VIII') || rsvDisc.message.includes('API 520'));
+});
+
+test('Scenario 5: Safety Interlock Trip Setpoint Exceeding Design Limit (trip_vs_design)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Trip Setpoint Check Project', 'Testing PSHH > Design Pressure');
+  const dsDocId = `doc-ds-${Date.now()}`;
+  const philDocId = `doc-phil-${Date.now()}`;
+
+  // Vessel Design Pressure is 90.0 barg
+  const eq = {
+    id: `eq-v-3001-${Date.now()}`,
+    project_id: proj.id,
+    document_id: dsDocId,
+    tag: 'V-3001',
+    description: 'Fuel Gas Drum',
+    equipment_type: 'vessel' as any,
+    assigned_chemical_id: null,
+    confidence: 0.95,
+    status: 'confirmed' as any,
+    source: { document: 'DS.pdf', page: 1, snippet: 'V-3001' },
+    created_at: new Date().toISOString(),
+  };
+  store.addEquipment([eq], 'P&ID', 'Setup');
+
+  store.saveDatasheetExtraction({
+    id: `ds-ext-${Date.now()}`,
+    project_id: proj.id,
+    document_id: dsDocId,
+    document_name: 'DS-V-3001.pdf',
+    datasheets: [
+      {
+        id: 'ds-rec-v3001',
+        project_id: proj.id,
+        document_id: dsDocId,
+        equipment_tag: 'V-3001',
+        equipment_name: 'Fuel Gas Drum',
+        equipment_type: 'vessel',
+        design_pressure: {
+          id: 'dp-v3001',
+          original_value: 90.0,
+          normalized_value: 90.0,
+          original_unit: 'barg',
+          normalized_unit: 'barg',
+          source_document_id: dsDocId,
+          source_document_name: 'DS-V-3001.pdf',
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        nozzles: [],
+        confidence: 0.95,
+        extracted_at: new Date().toISOString(),
+      },
+    ],
+    total_equipment_found: 1,
+    extraction_warnings: [],
+    extracted_at: new Date().toISOString(),
+  });
+
+  // Interlock rule has PSHH-3001 set at 95.0 barg (> 90.0 barg design!)
+  store.addPhilosophyRule({
+    id: `rule-v3001-${Date.now()}`,
+    project_id: proj.id,
+    source_document_id: philDocId,
+    source_document_name: 'Shutdown_Philosophy.pdf',
+    source_category: 'shutdown_philosophy',
+    rule_type: 'interlock',
+    equipment_tag: 'V-3001',
+    loop_tag: 'PSHH-3001',
+    condition: 'Pressure on PSHH-3001 >= 95.0 barg',
+    action: 'Close XV-3001 to isolate drum',
+    fail_safe_position: 'fail_closed',
+    sil_rating: 'SIL 2',
+    is_confirmed_setpoint: true,
+    verification_status: 'unverified',
+  });
+
+  const discrepancies = detectCrossDocumentDiscrepancies(proj.id, store);
+  const tripDisc = discrepancies.find((d) => d.discrepancy_type === 'trip_vs_design');
+
+  assert.ok(tripDisc, 'Must flag SIF trip setpoint (95 barg) higher than design pressure (90 barg)');
+  assert.strictEqual(tripDisc.severity, 'critical');
+  assert.ok(tripDisc.message.includes('95 barg') && tripDisc.message.includes('90 barg'));
+});
+
+test('Scenario 6: Discrepancy Resolution Lifecycle, Reviewer Attribution & Audit Trail', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Resolution Lifecycle Project', 'Testing resolution states');
+
+  const discId = `disc-test-${Date.now()}`;
+  store.addDiscrepancy({
+    id: discId,
+    project_id: proj.id,
+    entity_type: 'equipment',
+    entity_tag: 'PG-1001',
+    property_name: 'design_pressure',
+    discrepancy_type: 'numerical_mismatch',
+    status: 'open',
+    severity: 'warning',
+    message: 'Design pressure mismatch between P&ID (95 barg) and Datasheet (100 barg)',
+    evidence_records: [],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+
+  // 1. Initial State
+  const initial = store.listDiscrepancies(proj.id).find((d) => d.id === discId);
+  assert.ok(initial);
+  assert.strictEqual(initial.status, 'open');
+
+  // 2. Resolve via resolveEngineeringDiscrepancy
+  const resolved = resolveEngineeringDiscrepancy(
+    proj.id,
+    discId,
+    {
+      status: 'accepted_as_margin',
+      resolution_notes: '100 barg on datasheet reflects 5% design margin over 95 barg maximum operating. Both values approved.',
+      resolved_by: 'Shlok (Lead Process Safety Engineer)',
+    },
+    store
+  );
+
+  assert.strictEqual(resolved, true, 'Resolution must succeed');
+
+  // 3. Verify updated state in store
+  const updated = store.listDiscrepancies(proj.id).find((d) => d.id === discId);
+  assert.ok(updated);
+  assert.strictEqual(updated.status, 'accepted_as_margin');
+  assert.strictEqual(updated.resolved_by, 'Shlok (Lead Process Safety Engineer)');
+  assert.ok(updated.resolution_notes?.includes('design margin'));
+  assert.ok(updated.resolved_at !== null);
 });
 
 console.log(`\n========================================`);

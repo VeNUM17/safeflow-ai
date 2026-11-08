@@ -468,6 +468,19 @@ export class PsiDataStore {
     this.saveDatabase();
   }
 
+  public addDiscrepancies(discrepancies: CrossDocumentDiscrepancy[]): void {
+    if (!this.data.discrepancies) this.data.discrepancies = [];
+    for (const discrepancy of discrepancies) {
+      const idx = this.data.discrepancies.findIndex((d) => d.id === discrepancy.id);
+      if (idx >= 0) {
+        this.data.discrepancies[idx] = discrepancy;
+      } else {
+        this.data.discrepancies.push(discrepancy);
+      }
+    }
+    this.saveDatabase();
+  }
+
   public resolveDiscrepancy(
     id: string,
     resolution: { status: DiscrepancyStatus; resolution_notes?: string; resolved_by?: string }

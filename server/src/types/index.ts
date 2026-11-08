@@ -344,7 +344,12 @@ export type DiscrepancyType =
   | 'unit_difference'
   | 'design_vs_operating'
   | 'missing_in_source'
-  | 'compatible';
+  | 'compatible'
+  | 'numerical_mismatch'
+  | 'moc_divergence'
+  | 'relief_vs_mawp'
+  | 'trip_vs_design'
+  | 'flow_imbalance';
 
 export type DiscrepancyStatus =
   | 'open'
