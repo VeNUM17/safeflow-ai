@@ -345,23 +345,23 @@ Nitrogen         0.80`
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
       {/* 1. Header Banner & Engineering Principle */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-500" />
+      <div className="bg-slate-950/90 border border-amber-500/30 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-600" />
         
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="space-y-1.5">
             <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-cyan-500/20 to-teal-500/10 p-3 rounded-xl border border-cyan-500/30 text-cyan-400 shadow-md shadow-cyan-950/40">
+              <div className="bg-gradient-to-br from-amber-500/20 via-slate-900 to-yellow-500/10 p-3 rounded-xl border border-amber-500/30 text-amber-400 shadow-md shadow-amber-950/40">
                 <FlaskConical className="w-7 h-7" />
               </div>
               <div>
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <h2 className="text-xl font-black text-white tracking-tight">
+                  <h2 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-amber-100 to-amber-400 tracking-tight">
                     Chemical Identification & Process Mapping Engine
                   </h2>
-                  <div className="flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 text-xs font-semibold shadow-sm">
-                    <Sparkles className="w-3 h-3 text-cyan-400" />
-                    <span>Engineered by <strong className="text-white">Shlok</strong></span>
+                  <div className="flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-gradient-to-r from-amber-950/80 via-slate-900 to-slate-950 border border-amber-500/40 text-amber-300 text-xs font-semibold shadow-sm">
+                    <Sparkles className="w-3 h-3 text-amber-400" />
+                    <span>Engineered by <strong className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 font-extrabold">Shlok</strong></span>
                   </div>
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5">
@@ -371,22 +371,22 @@ Nitrogen         0.80`
             </div>
           </div>
 
-          {/* KPI Completeness vs Verification */}
+          {/* KPI Completeness (Gold) vs Verification (Silver) */}
           <div className="flex items-center gap-4 bg-slate-950/90 px-5 py-3 rounded-xl border border-slate-800 shadow-inner">
             <div className="text-center">
-              <div className="text-2xl font-black text-cyan-400 font-mono text-glow-cyan">
+              <div className="text-2xl font-black font-mono text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 text-glow-gold">
                 {psiReport?.overall_completeness_pct ?? 0}%
               </div>
-              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">
+              <div className="text-[10px] text-amber-400/90 uppercase tracking-wider font-bold">
                 Completeness
               </div>
             </div>
             <div className="h-9 w-px bg-slate-800" />
             <div className="text-center">
-              <div className="text-2xl font-black text-emerald-400 font-mono text-glow-emerald">
+              <div className="text-2xl font-black font-mono text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-slate-300 text-glow-silver">
                 {psiReport?.overall_verification_pct ?? 0}%
               </div>
-              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">
+              <div className="text-[10px] text-slate-300 uppercase tracking-wider font-bold">
                 PE Verified
               </div>
             </div>
@@ -412,13 +412,13 @@ Nitrogen         0.80`
       </div>
 
       {/* 2. Navigation Tabs */}
-      <div className="flex bg-slate-900/90 p-1.5 rounded-xl border border-slate-800 gap-1 overflow-x-auto text-xs font-semibold shadow-inner">
+      <div className="flex bg-slate-950/90 p-1.5 rounded-xl border border-slate-800 gap-1 overflow-x-auto text-xs font-semibold shadow-inner">
         <button
           onClick={() => setActiveSubTab('assignment')}
           className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all ${
             activeSubTab === 'assignment'
-              ? 'bg-cyan-600 text-white shadow-sm'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-slate-950 font-bold shadow-md shadow-amber-950/40'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
           }`}
         >
           <Plus className="w-4 h-4" />
@@ -429,8 +429,8 @@ Nitrogen         0.80`
           onClick={() => setActiveSubTab('mapping')}
           className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all ${
             activeSubTab === 'mapping'
-              ? 'bg-cyan-600 text-white shadow-sm'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-slate-950 font-bold shadow-md shadow-amber-950/40'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
           }`}
         >
           <Split className="w-4 h-4" />
@@ -441,8 +441,8 @@ Nitrogen         0.80`
           onClick={() => setActiveSubTab('psi-dashboard')}
           className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all ${
             activeSubTab === 'psi-dashboard'
-              ? 'bg-cyan-600 text-white shadow-sm'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-slate-950 font-bold shadow-md shadow-amber-950/40'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
           }`}
         >
           <ListChecks className="w-4 h-4" />
@@ -453,8 +453,8 @@ Nitrogen         0.80`
           onClick={() => setActiveSubTab('gas-reports')}
           className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all ${
             activeSubTab === 'gas-reports'
-              ? 'bg-cyan-600 text-white shadow-sm'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-slate-950 font-bold shadow-md shadow-amber-950/40'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
           }`}
         >
           <FileSpreadsheet className="w-4 h-4" />
@@ -465,8 +465,8 @@ Nitrogen         0.80`
           onClick={() => setActiveSubTab('inventory')}
           className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all ${
             activeSubTab === 'inventory'
-              ? 'bg-cyan-600 text-white shadow-sm'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-slate-950 font-bold shadow-md shadow-amber-950/40'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
           }`}
         >
           <Database className="w-4 h-4" />

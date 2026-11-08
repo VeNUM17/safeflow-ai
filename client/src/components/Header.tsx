@@ -45,7 +45,7 @@ export const Header: React.FC<HeaderProps> = ({
   setActiveTab,
 }) => {
   return (
-    <header className="bg-slate-950/85 backdrop-blur-xl border-b border-slate-800/80 sticky top-0 z-30 shadow-2xl shadow-black/40">
+    <header className="bg-slate-950/90 backdrop-blur-xl border-b border-amber-500/20 sticky top-0 z-30 shadow-2xl shadow-black/60">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           
@@ -54,18 +54,18 @@ export const Header: React.FC<HeaderProps> = ({
             {/* SafeFlow AI Brand Icon */}
             <div className="flex items-center gap-2.5">
               <div className="relative group">
-                <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500 to-emerald-500 rounded-xl blur opacity-60 group-hover:opacity-100 transition duration-300" />
-                <div className="relative bg-slate-900 p-2.5 rounded-xl border border-cyan-500/30 text-cyan-400 flex items-center justify-center shadow-inner">
-                  <Shield className="w-5 h-5 text-cyan-400 fill-cyan-400/20" />
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-600 rounded-xl blur opacity-60 group-hover:opacity-100 transition duration-300" />
+                <div className="relative bg-gradient-to-b from-slate-900 to-slate-950 p-2.5 rounded-xl border border-amber-400/40 text-amber-300 flex items-center justify-center shadow-inner">
+                  <Shield className="w-5 h-5 text-amber-400 fill-amber-400/20" />
                 </div>
               </div>
 
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white via-cyan-100 to-cyan-400 text-lg tracking-tight">
+                  <span className="font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white via-amber-100 to-amber-400 text-lg tracking-tight">
                     SafeFlow AI
                   </span>
-                  <span className="bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full shadow-sm">
+                  <span className="bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full shadow-sm">
                     OSHA 1910.119
                   </span>
                 </div>
@@ -76,19 +76,19 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
 
             {/* PROMINENT CREATOR ATTRIBUTION BADGE: MADE BY SHLOK */}
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-cyan-950/80 via-slate-900 to-indigo-950/80 border border-cyan-500/30 shadow-sm hover:border-cyan-400/60 transition-all cursor-default group">
-              <Sparkles className="w-3.5 h-3.5 text-cyan-400 group-hover:rotate-12 transition-transform duration-300" />
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-950/60 via-slate-900 to-slate-950 border border-amber-500/40 shadow-sm hover:border-amber-400/70 transition-all cursor-default group">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 group-hover:rotate-12 transition-transform duration-300" />
               <span className="text-[11px] text-slate-300 font-medium">
-                Made by <strong className="text-white font-bold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-emerald-300">Shlok</strong>
+                Made by <strong className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 font-black tracking-wide">Shlok</strong>
               </span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse ml-0.5" />
             </div>
 
             {/* Project Picker */}
-            <div className="flex items-center gap-1.5 bg-slate-900/90 p-1 rounded-lg border border-slate-700/60 shadow-inner">
+            <div className="flex items-center gap-1.5 bg-slate-900/90 p-1 rounded-lg border border-slate-700/60 hover:border-amber-500/30 shadow-inner transition-colors">
               <FolderGit2 className="w-3.5 h-3.5 text-slate-400 ml-1.5" />
               <select
-                className="bg-transparent text-slate-200 text-xs py-1 px-1.5 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded font-medium cursor-pointer max-w-[210px] truncate"
+                className="bg-transparent text-slate-200 text-xs py-1 px-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500 rounded font-medium cursor-pointer max-w-[210px] truncate"
                 value={currentProject?.id || ''}
                 onChange={(e) => onSelectProject(e.target.value)}
               >
@@ -102,7 +102,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 onClick={onOpenNewProjectModal}
                 title="Create New Project"
-                className="bg-slate-800 hover:bg-cyan-600 text-slate-300 hover:text-white p-1 rounded-md transition-colors"
+                className="bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-slate-300 p-1 rounded-md transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
               </button>
@@ -117,7 +117,7 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => setActiveTab('workspace')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${
                   activeTab === 'workspace'
-                    ? 'bg-gradient-to-r from-cyan-600 to-cyan-500 text-white shadow-md shadow-cyan-900/40 font-semibold'
+                    ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-slate-950 font-bold shadow-md shadow-amber-950/40'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                 }`}
               >
@@ -129,7 +129,7 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => setActiveTab('pid-graph')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${
                   activeTab === 'pid-graph'
-                    ? 'bg-gradient-to-r from-cyan-600 to-cyan-500 text-white shadow-md shadow-cyan-900/40 font-semibold'
+                    ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-slate-950 font-bold shadow-md shadow-amber-950/40'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                 }`}
               >
@@ -141,7 +141,7 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => setActiveTab('chemical-inventory')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${
                   activeTab === 'chemical-inventory'
-                    ? 'bg-gradient-to-r from-cyan-600 to-teal-500 text-white shadow-md shadow-cyan-900/40 font-semibold'
+                    ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-slate-950 font-bold shadow-md shadow-amber-950/40'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                 }`}
               >
@@ -153,7 +153,7 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => setActiveTab('documents')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${
                   activeTab === 'documents'
-                    ? 'bg-gradient-to-r from-cyan-600 to-cyan-500 text-white shadow-md shadow-cyan-900/40 font-semibold'
+                    ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-slate-950 font-bold shadow-md shadow-amber-950/40'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                 }`}
               >
@@ -176,9 +176,9 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Upload Files Button */}
             <button
               onClick={onOpenUploadModal}
-              className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700/80 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:border-slate-600 shadow-sm"
+              className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 hover:border-amber-400/40 px-3 py-1.5 rounded-lg text-xs font-medium transition-all shadow-sm"
             >
-              <Upload className="w-3.5 h-3.5 text-cyan-400" />
+              <Upload className="w-3.5 h-3.5 text-amber-400" />
               Upload Files
             </button>
 
@@ -186,7 +186,7 @@ export const Header: React.FC<HeaderProps> = ({
             {onOpenManualChemicalModal && (
               <button
                 onClick={onOpenManualChemicalModal}
-                className="flex items-center gap-1.5 bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-md shadow-cyan-950/50"
+                className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-extrabold px-3 py-1.5 rounded-lg text-xs transition-all shadow-md shadow-amber-950/50"
                 title="Create a new chemical record manually without requiring SDS"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -197,7 +197,7 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Export Records Button */}
             <button
               onClick={onOpenExportModal}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-md shadow-emerald-950/50"
+              className="flex items-center gap-1.5 bg-gradient-to-r from-slate-200 via-slate-100 to-slate-300 hover:from-white hover:to-slate-200 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs transition-all shadow-md shadow-black/40"
             >
               <Download className="w-3.5 h-3.5" />
               Export

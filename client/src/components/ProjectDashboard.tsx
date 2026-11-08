@@ -46,40 +46,40 @@ export const ProjectDashboard: React.FC<DashboardProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           
           {/* Completeness Card */}
-          <div className="col-span-2 sm:col-span-3 lg:col-span-2 bg-gradient-to-br from-slate-900/90 to-slate-950 p-4 rounded-xl border border-cyan-500/30 flex flex-col justify-between shadow-lg shadow-cyan-950/20 relative overflow-hidden group">
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-500" />
+          <div className="col-span-2 sm:col-span-3 lg:col-span-2 bg-gradient-to-br from-slate-900/95 via-slate-950 to-amber-950/20 p-4 rounded-xl border border-amber-500/30 flex flex-col justify-between shadow-xl shadow-amber-950/20 relative overflow-hidden group">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-600" />
             
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-cyan-400" />
+              <span className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-amber-400" />
                 PSI Completeness Meter
               </span>
-              <span className="text-xl font-extrabold font-mono text-cyan-400 text-glow-cyan">
+              <span className="text-2xl font-black font-mono text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 text-glow-gold">
                 {completeness}%
               </span>
             </div>
 
-            {/* Progress bar with glowing gradient */}
+            {/* Progress bar with glowing gold gradient */}
             <div className="w-full bg-slate-800/80 rounded-full h-2.5 overflow-hidden my-2 shadow-inner border border-slate-700/50">
               <div
-                className="h-full transition-all duration-700 rounded-full bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-400 shadow-sm"
+                className="h-full transition-all duration-700 rounded-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-300 shadow-md shadow-amber-500/20"
                 style={{ width: `${Math.max(completeness, 3)}%` }}
               />
             </div>
 
-            <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono mt-1 pt-1 border-t border-slate-800/60">
-              <span className="text-emerald-400 font-semibold">{summary.confirmed_fields} Confirmed</span>
+            <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono mt-1 pt-1 border-t border-slate-800/80">
+              <span className="text-amber-300 font-semibold">{summary.confirmed_fields} Confirmed</span>
               <span className="text-amber-400 font-semibold">{summary.needs_review_fields} Review</span>
-              <span className="text-slate-500">{summary.missing_fields} Missing</span>
+              <span className="text-slate-400">{summary.missing_fields} Missing</span>
             </div>
           </div>
 
           {/* Stat: Chemicals */}
-          <div className="bg-gradient-to-br from-slate-900/90 to-slate-950 p-3.5 rounded-xl border border-slate-800 hover:border-purple-500/40 transition-all flex flex-col justify-between shadow-md relative overflow-hidden group">
-            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-purple-500 to-indigo-500 opacity-60 group-hover:opacity-100 transition-opacity" />
+          <div className="bg-gradient-to-br from-slate-900/90 to-slate-950 p-3.5 rounded-xl border border-slate-800 hover:border-amber-500/40 transition-all flex flex-col justify-between shadow-md relative overflow-hidden group">
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-400 to-yellow-400 opacity-60 group-hover:opacity-100 transition-opacity" />
             <div className="text-slate-400 text-xs font-semibold flex items-center justify-between">
               <span>Chemicals</span>
-              <div className="p-1 rounded-md bg-purple-500/10 text-purple-400 border border-purple-500/20">
+              <div className="p-1 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20">
                 <FlaskConical className="w-3.5 h-3.5" />
               </div>
             </div>
@@ -100,7 +100,7 @@ export const ProjectDashboard: React.FC<DashboardProps> = ({
                 : 'bg-gradient-to-br from-slate-900/90 to-slate-950 border-slate-800 hover:border-amber-500/50'
             }`}
           >
-            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-500 to-orange-500 opacity-70" />
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-500 to-yellow-500 opacity-70" />
             <div className="text-slate-400 text-xs font-semibold flex items-center justify-between">
               <span>Needs Review</span>
               <div className="p-1 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20">
@@ -140,11 +140,11 @@ export const ProjectDashboard: React.FC<DashboardProps> = ({
           </div>
 
           {/* Stat: Documents */}
-          <div className="bg-gradient-to-br from-slate-900/90 to-slate-950 p-3.5 rounded-xl border border-slate-800 hover:border-cyan-500/40 transition-all flex flex-col justify-between shadow-md relative overflow-hidden group">
-            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-cyan-500 to-blue-500 opacity-60 group-hover:opacity-100 transition-opacity" />
+          <div className="bg-gradient-to-br from-slate-900/90 to-slate-950 p-3.5 rounded-xl border border-slate-800 hover:border-slate-600 transition-all flex flex-col justify-between shadow-md relative overflow-hidden group">
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-slate-200 via-slate-400 to-slate-200 opacity-60 group-hover:opacity-100 transition-opacity" />
             <div className="text-slate-400 text-xs font-semibold flex items-center justify-between">
               <span>Documents</span>
-              <div className="p-1 rounded-md bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+              <div className="p-1 rounded-md bg-slate-800 text-slate-200 border border-slate-700">
                 <FileText className="w-3.5 h-3.5" />
               </div>
             </div>
@@ -154,7 +154,7 @@ export const ProjectDashboard: React.FC<DashboardProps> = ({
             <div className="text-[11px] text-slate-400 flex items-center gap-1.5 font-mono">
               <span className="text-slate-300">{summary.sds_count} SDS</span>
               <span>•</span>
-              <span className="text-cyan-400">{summary.pid_count} P&ID</span>
+              <span className="text-amber-400">{summary.pid_count} P&ID</span>
               {summary.unreadable_docs_count > 0 && (
                 <span className="text-rose-400 font-semibold" title="Scanned/unreadable file">
                   • {summary.unreadable_docs_count} Unreadable
@@ -166,21 +166,21 @@ export const ProjectDashboard: React.FC<DashboardProps> = ({
         </div>
 
         {/* P&ID Process Topology Status Breakdown Ribbon */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs shadow-md">
+        <div className="bg-slate-950/80 border border-slate-800/90 rounded-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs shadow-md">
           <div className="flex items-center gap-2.5">
-            <div className="flex items-center gap-1.5 font-bold text-cyan-400">
-              <GitBranch className="w-4 h-4 text-cyan-400" />
-              <span>P&ID Topology Grounding:</span>
+            <div className="flex items-center gap-1.5 font-bold text-amber-400">
+              <GitBranch className="w-4 h-4 text-amber-400" />
+              <span className="text-amber-300">P&ID Topology Grounding:</span>
             </div>
             <span>
               {summary.graph_approved ? (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                  <CheckCircle2 className="w-3 h-3" />
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                  <CheckCircle2 className="w-3 h-3 text-amber-400" />
                   Engineer Approved
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/30">
-                  <Activity className="w-3 h-3 animate-pulse" />
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                  <Activity className="w-3 h-3 animate-pulse text-amber-400" />
                   Provisional Candidate Topology
                 </span>
               )}
@@ -188,20 +188,20 @@ export const ProjectDashboard: React.FC<DashboardProps> = ({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap text-[11px] font-mono">
-            <span className="bg-slate-950/90 border border-slate-800 px-2.5 py-1 rounded-lg text-slate-200 shadow-inner">
-              <strong className="text-cyan-400 font-bold">{summary.equipment_nodes_count ?? (summary.confirmed_equipment_count + summary.provisional_equipment_count)}</strong> Equipment Nodes
+            <span className="bg-slate-900/90 border border-slate-700/80 px-2.5 py-1 rounded-lg text-slate-200 shadow-inner">
+              <strong className="text-amber-400 font-bold">{summary.equipment_nodes_count ?? (summary.confirmed_equipment_count + summary.provisional_equipment_count)}</strong> Equipment Nodes
             </span>
-            <span className="bg-slate-950/90 border border-emerald-500/30 px-2.5 py-1 rounded-lg text-emerald-300 shadow-inner">
-              <strong className="text-emerald-400 font-bold">{summary.confirmed_process_edges_count ?? 0}</strong> Confirmed Piping
+            <span className="bg-slate-900/90 border border-amber-500/30 px-2.5 py-1 rounded-lg text-amber-300 shadow-inner">
+              <strong className="text-amber-400 font-bold">{summary.confirmed_process_edges_count ?? 0}</strong> Confirmed Piping
             </span>
-            <span className="bg-slate-950/90 border border-amber-500/30 px-2.5 py-1 rounded-lg text-amber-300 shadow-inner">
-              <strong className="text-amber-400 font-bold">{summary.provisional_candidate_edges_count ?? 0}</strong> Provisional Edges
+            <span className="bg-slate-900/90 border border-slate-700/60 px-2.5 py-1 rounded-lg text-slate-300 shadow-inner">
+              <strong className="text-slate-200 font-bold">{summary.provisional_candidate_edges_count ?? 0}</strong> Provisional Edges
             </span>
-            <span className="bg-slate-950/90 border border-purple-500/30 px-2.5 py-1 rounded-lg text-purple-300 shadow-inner">
-              <strong className="text-purple-400 font-bold">{summary.unresolved_connections_count ?? 0}</strong> Unresolved
+            <span className="bg-slate-900/90 border border-slate-800 px-2.5 py-1 rounded-lg text-slate-400 shadow-inner">
+              <strong className="text-slate-300 font-bold">{summary.unresolved_connections_count ?? 0}</strong> Unresolved
             </span>
-            <span className="bg-slate-950/90 border border-indigo-500/30 px-2.5 py-1 rounded-lg text-indigo-300 shadow-inner">
-              <strong className="text-indigo-400 font-bold">{summary.signal_only_connections_count ?? 0}</strong> Signal Loops (Non-Chemical)
+            <span className="bg-slate-900/90 border border-slate-800 px-2.5 py-1 rounded-lg text-slate-400 shadow-inner">
+              <strong className="text-slate-300 font-bold">{summary.signal_only_connections_count ?? 0}</strong> Signal Loops (Non-Chemical)
             </span>
             {(summary.isolated_nodes_count ?? 0) > 0 && (
               <span className="bg-rose-950/50 border border-rose-500/40 px-2.5 py-1 rounded-lg text-rose-300 flex items-center gap-1 font-semibold">
@@ -228,7 +228,7 @@ export const ProjectDashboard: React.FC<DashboardProps> = ({
                 onClick={() => setStatusFilter(f.id)}
                 className={`px-3 py-1.5 rounded-lg font-medium whitespace-nowrap transition-all text-xs ${
                   statusFilter === f.id
-                    ? 'bg-gradient-to-r from-cyan-600 to-teal-600 text-white font-bold shadow-md shadow-cyan-950/40 border border-cyan-400/40'
+                    ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-slate-950 font-black shadow-md shadow-amber-950/40 border border-amber-400/60'
                     : 'bg-slate-900/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800 border border-slate-800'
                 }`}
               >
@@ -238,13 +238,13 @@ export const ProjectDashboard: React.FC<DashboardProps> = ({
           </div>
 
           <div className="relative min-w-[260px]">
-            <Search className="w-3.5 h-3.5 text-cyan-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-amber-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search PSI parameters, CAS, or lines..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-slate-900/90 border border-slate-700/80 text-slate-200 text-xs rounded-xl pl-9 pr-3 py-1.5 w-full focus:outline-none focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 placeholder-slate-500 shadow-inner"
+              className="bg-slate-900/90 border border-slate-700/80 text-slate-200 text-xs rounded-xl pl-9 pr-3 py-1.5 w-full focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500 placeholder-slate-500 shadow-inner"
             />
           </div>
         </div>
