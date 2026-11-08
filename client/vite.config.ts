@@ -7,7 +7,7 @@ export default defineConfig({
   server: {
     host: true,
     port: 3000,
-    allowedHosts: ['private-justness-unmanned.ngrok-free.dev'],
+    allowedHosts: true,
     proxy: {
       '/api': {
         target: 'http://localhost:5001',
