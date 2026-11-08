@@ -14,8 +14,18 @@ import {
   Shield,
   Activity,
   ChevronDown,
+  Database,
+  AlertOctagon,
 } from 'lucide-react';
 import { ProcessProject, ProjectDashboardSummary } from '../types';
+
+export type ActiveNavTab =
+  | 'workspace'
+  | 'pid-graph'
+  | 'chemical-inventory'
+  | 'engineering-matrix'
+  | 'discrepancy-manager'
+  | 'documents';
 
 interface HeaderProps {
   projects: ProcessProject[];
@@ -27,8 +37,8 @@ interface HeaderProps {
   onOpenManualChemicalModal?: () => void;
   onOpenExportModal: () => void;
   onOpenConflictsModal: () => void;
-  activeTab: 'workspace' | 'pid-graph' | 'chemical-inventory' | 'documents';
-  setActiveTab: (tab: 'workspace' | 'pid-graph' | 'chemical-inventory' | 'documents') => void;
+  activeTab: ActiveNavTab;
+  setActiveTab: (tab: ActiveNavTab) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -147,6 +157,30 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <FlaskConical className="w-3.5 h-3.5" />
                 Chemicals & Mapping
+              </button>
+
+              <button
+                onClick={() => setActiveTab('engineering-matrix')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${
+                  activeTab === 'engineering-matrix'
+                    ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-slate-950 font-bold shadow-md shadow-amber-950/40'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <Database className="w-3.5 h-3.5" />
+                Unified Matrix
+              </button>
+
+              <button
+                onClick={() => setActiveTab('discrepancy-manager')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${
+                  activeTab === 'discrepancy-manager'
+                    ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-slate-950 font-bold shadow-md shadow-amber-950/40'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <AlertOctagon className="w-3.5 h-3.5" />
+                Discrepancies
               </button>
 
               <button

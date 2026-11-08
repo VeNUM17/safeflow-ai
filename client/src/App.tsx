@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Header } from './components/Header';
+import { Header, ActiveNavTab } from './components/Header';
 import { SafetyDisclaimerBanner } from './components/SafetyDisclaimerBanner';
 import { ProjectDashboard } from './components/ProjectDashboard';
 import { PsiReviewWorkspace } from './components/PsiReviewWorkspace';
@@ -11,6 +11,8 @@ import { ExportModal } from './components/ExportModal';
 import { NewProjectModal } from './components/NewProjectModal';
 import { ManualChemicalModal } from './components/ManualChemicalModal';
 import { ChemicalInventoryAssignmentView } from './components/ChemicalInventoryAssignmentView';
+import { UnifiedEngineeringMatrixView } from './components/UnifiedEngineeringMatrixView';
+import { CrossDocumentDiscrepancyView } from './components/CrossDocumentDiscrepancyView';
 import {
   ProcessProject,
   ProjectDashboardSummary,
@@ -35,7 +37,7 @@ export const App: React.FC = () => {
   const [graph, setGraph] = useState<TopologyGraph | null>(null);
   const [selectedChemicalId, setSelectedChemicalId] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'workspace' | 'pid-graph' | 'chemical-inventory' | 'documents'>('workspace');
+  const [activeTab, setActiveTab] = useState<ActiveNavTab>('workspace');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -434,6 +436,20 @@ export const App: React.FC = () => {
             lines={lines}
             onOpenManualChemicalModal={handleOpenCreateChemical}
             onRefreshData={async () => {
+              if (currentProject) await loadProjectData(currentProject.id);
+            }}
+          />
+        ) : activeTab === 'engineering-matrix' ? (
+          <UnifiedEngineeringMatrixView
+            projectId={currentProject?.id || ''}
+            onRefreshProject={async () => {
+              if (currentProject) await loadProjectData(currentProject.id);
+            }}
+          />
+        ) : activeTab === 'discrepancy-manager' ? (
+          <CrossDocumentDiscrepancyView
+            projectId={currentProject?.id || ''}
+            onRefreshProject={async () => {
               if (currentProject) await loadProjectData(currentProject.id);
             }}
           />

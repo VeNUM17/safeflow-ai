@@ -302,11 +302,22 @@ export const PhaNodesView: React.FC<PhaNodesViewProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-mono text-slate-300 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
               Approved Nodes: {readiness?.nodes_ready_count || 0} /{' '}
               {readiness?.total_nodes_count || 0}
             </span>
+            {(readiness?.unresolved_discrepancies_count ?? 0) > 0 && (
+              <span className="text-xs font-mono text-rose-300 bg-rose-950/60 px-3 py-1.5 rounded-lg border border-rose-500/30 flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+                {readiness?.unresolved_discrepancies_count} Open Discrepancies
+              </span>
+            )}
+            {(readiness?.nodes_with_critical_gaps_count ?? 0) > 0 && (
+              <span className="text-xs font-mono text-amber-300 bg-amber-950/60 px-3 py-1.5 rounded-lg border border-amber-500/30">
+                {readiness?.nodes_with_critical_gaps_count} Nodes with Gaps
+              </span>
+            )}
           </div>
         </div>
 
@@ -400,21 +411,28 @@ export const PhaNodesView: React.FC<PhaNodesViewProps> = ({
                     <span className="font-mono text-xs font-bold text-cyan-400 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-500/30">
                       {node.node_id}
                     </span>
-                    <span
-                      className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold uppercase ${
-                        node.status === 'approved'
-                          ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/40'
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {node.multi_document_context?.limit_comparison_status === 'unverified_or_blocked' && (
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                          Blocked Limits
+                        </span>
+                      )}
+                      <span
+                        className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold uppercase ${
+                          node.status === 'approved'
+                            ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/40'
+                            : node.status === 'under_review'
+                            ? 'bg-amber-950/80 text-amber-300 border border-amber-500/40'
+                            : 'bg-slate-800 text-slate-400 border border-slate-700'
+                        }`}
+                      >
+                        {node.status === 'candidate_not_authoritative'
+                          ? 'Candidate'
                           : node.status === 'under_review'
-                          ? 'bg-amber-950/80 text-amber-300 border border-amber-500/40'
-                          : 'bg-slate-800 text-slate-400 border border-slate-700'
-                      }`}
-                    >
-                      {node.status === 'candidate_not_authoritative'
-                        ? 'Candidate'
-                        : node.status === 'under_review'
-                        ? 'Under Review'
-                        : 'Approved'}
-                    </span>
+                          ? 'Under Review'
+                          : 'Approved'}
+                      </span>
+                    </div>
                   </div>
 
                   <h4 className="font-bold text-slate-100 text-xs mb-1">
@@ -525,6 +543,69 @@ export const PhaNodesView: React.FC<PhaNodesViewProps> = ({
                   </button>
                 )}
               </div>
+
+              {/* Multi-Document Verification & Limit Comparison Status */}
+              {selectedNode.multi_document_context && (
+                <div
+                  className={`p-4 rounded-xl border space-y-3 ${
+                    selectedNode.multi_document_context.limit_comparison_status === 'unverified_or_blocked'
+                      ? 'bg-rose-950/20 border-rose-500/40'
+                      : selectedNode.multi_document_context.limit_comparison_status === 'partially_verified'
+                      ? 'bg-amber-950/20 border-amber-500/40'
+                      : 'bg-emerald-950/20 border-emerald-500/40'
+                  }`}
+                >
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-amber-400" />
+                      <span className="text-xs font-bold text-white uppercase tracking-wider">
+                        Limit Verification:
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
+                          selectedNode.multi_document_context.limit_comparison_status === 'unverified_or_blocked'
+                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/50'
+                            : selectedNode.multi_document_context.limit_comparison_status === 'partially_verified'
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
+                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50'
+                        }`}
+                      >
+                        {selectedNode.multi_document_context.limit_comparison_status.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+
+                    <span className="text-[10px] font-mono text-slate-400">
+                      {selectedNode.multi_document_context.matrix_entries.length} matrix entities linked
+                    </span>
+                  </div>
+
+                  {selectedNode.multi_document_context.limit_comparison_status === 'unverified_or_blocked' && (
+                    <p className="text-[11px] text-rose-300/90 leading-relaxed">
+                      <strong>Strict Non-Fabrication PSM Rule:</strong> Quantitative overpressure and temperature limit comparisons cannot be claimed as verified because critical design specifications (design pressure, design temperature, or metallurgy) are absent or unverified in engineering documents.
+                    </p>
+                  )}
+
+                  {/* Explicit Critical Information Gaps */}
+                  {selectedNode.critical_information_gaps && selectedNode.critical_information_gaps.length > 0 && (
+                    <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-amber-400 font-bold block">
+                        Explicit Critical Information Gaps ({selectedNode.critical_information_gaps.length}):
+                      </span>
+                      <div className="space-y-1">
+                        {selectedNode.critical_information_gaps.map((gap, i) => (
+                          <div
+                            key={i}
+                            className="flex items-start gap-2 p-2 rounded-lg bg-slate-950/70 border border-slate-800 text-[11px] text-slate-300"
+                          >
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                            <span>{gap}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Design Intent */}
               <div className="space-y-1.5">
