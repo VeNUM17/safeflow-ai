@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Search, Plus, Layers, Activity, Cpu, ShieldCheck } from 'lucide-react';
 import { DrawingElementType } from '../../types';
+import { ClientRegistryComponent, ClientRegistryPort, loadComponentRegistry } from '../../utils/componentRegistryClient';
 
 export interface PaletteItem {
   type: DrawingElementType;
@@ -10,9 +11,14 @@ export interface PaletteItem {
   description: string;
   defaultWidth: number;
   defaultHeight: number;
+  registryClassId?: string;
+  symbolKey?: string;
+  inline?: boolean;
+  registryPorts?: ClientRegistryPort[];
+  registryViewBox?: { x: number; y: number; width: number; height: number };
 }
 
-export const PALETTE_ITEMS: PaletteItem[] = [
+export const DEFAULT_PALETTE_ITEMS: PaletteItem[] = [
   // Vessels & Storage
   {
     type: 'vessel',
@@ -159,6 +165,44 @@ export const PALETTE_ITEMS: PaletteItem[] = [
   },
 ];
 
+function paletteItemsFromRegistry(components: ClientRegistryComponent[]): PaletteItem[] {
+  return components.flatMap((component) => {
+    const prefix = component.tag_prefixes[0];
+    if (!prefix || component.category === 'line') return [];
+
+    let type: DrawingElementType;
+    if (component.category === 'connector') type = 'offpage_connector';
+    else if (component.category === 'instrument') type = 'instrument';
+    else if (component.class_id === 'equipment.filter.strainer') type = 'filter';
+    else if (component.class_id === 'valve.check') type = 'check_valve';
+    else if (component.class_id === 'valve.pressure_relief') type = 'relief_valve';
+    else type = component.equipment_type as DrawingElementType;
+
+    let category: PaletteItem['category'];
+    if (component.category === 'valve') category = 'Valves & Flow Control';
+    else if (component.category === 'instrument' || component.category === 'connector') category = 'Instrumentation & Connectivity';
+    else if (['pump', 'compressor', 'agitator'].includes(component.equipment_type)) category = 'Rotating Equipment';
+    else if (['heat_exchanger', 'separator', 'column'].includes(component.equipment_type) || type === 'filter') category = 'Heat Transfer & Separation';
+    else category = 'Vessels & Storage';
+
+    const [x, y, width, height] = component.symbol.viewBox.split(/\s+/).map(Number);
+    return [{
+      type,
+      label: component.name,
+      category,
+      defaultTagPrefix: prefix,
+      description: component.aliases[0] || component.name,
+      defaultWidth: width || 90,
+      defaultHeight: height || 90,
+      registryClassId: component.class_id,
+      symbolKey: component.symbol.key,
+      inline: component.inline,
+      registryPorts: component.ports,
+      registryViewBox: { x: x || 0, y: y || 0, width: width || 100, height: height || 100 },
+    }];
+  });
+}
+
 interface SymbolPaletteProps {
   onAddSymbol: (item: PaletteItem) => void;
 }
@@ -166,6 +210,17 @@ interface SymbolPaletteProps {
 export const SymbolPalette: React.FC<SymbolPaletteProps> = ({ onAddSymbol }) => {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [items, setItems] = useState<PaletteItem[]>(DEFAULT_PALETTE_ITEMS);
+
+  useEffect(() => {
+    let active = true;
+    loadComponentRegistry().then((registry) => {
+      if (!active || !registry) return;
+      const registryItems = paletteItemsFromRegistry(registry.components);
+      if (registryItems.length > 0) setItems(registryItems);
+    });
+    return () => { active = false; };
+  }, []);
 
   const categories = [
     'All',
@@ -176,7 +231,7 @@ export const SymbolPalette: React.FC<SymbolPaletteProps> = ({ onAddSymbol }) => 
     'Instrumentation & Connectivity',
   ];
 
-  const filteredItems = PALETTE_ITEMS.filter((item) => {
+  const filteredItems = items.filter((item) => {
     const matchesSearch =
       item.label.toLowerCase().includes(search.toLowerCase()) ||
       item.description.toLowerCase().includes(search.toLowerCase()) ||

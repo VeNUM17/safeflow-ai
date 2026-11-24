@@ -1,14 +1,22 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { DrawingElement, DrawingPort } from '../../types';
+import { P_ID_SYMBOL_LIBRARY, resolveSymbolClassKey } from '../pid-viewer/symbolLibrary';
+import { ClientComponentRegistry, loadComponentRegistry } from '../../utils/componentRegistryClient';
 
 interface SymbolRendererProps {
   element: DrawingElement;
   isSelected?: boolean;
   isConnecting?: boolean;
   connectingSourcePortId?: string | null;
+  detailLevel?: 'standard' | 'high_detail';
+  showPortPins?: boolean;
+  zoom?: number;
+  isRouteSource?: boolean;
+  isRouteTarget?: boolean;
   onSelect?: (element: DrawingElement, e: React.MouseEvent) => void;
   onPortClick?: (element: DrawingElement, port: DrawingPort, e: React.MouseEvent) => void;
   onStartDrag?: (element: DrawingElement, e: React.MouseEvent) => void;
+  onStartDragLabel?: (element: DrawingElement, e: React.MouseEvent) => void;
 }
 
 export const SymbolRenderer: React.FC<SymbolRendererProps> = ({
@@ -16,20 +24,52 @@ export const SymbolRenderer: React.FC<SymbolRendererProps> = ({
   isSelected,
   isConnecting,
   connectingSourcePortId,
+  detailLevel = 'standard',
+  showPortPins = false,
+  zoom = 1.0,
+  isRouteSource = false,
+  isRouteTarget = false,
   onSelect,
   onPortClick,
   onStartDrag,
+  onStartDragLabel,
 }) => {
+  const [isHovered, setIsHovered] = useState<boolean>(false);
+  const [componentRegistry, setComponentRegistry] = useState<ClientComponentRegistry | null>(null);
   const { id, tag, type, position, size, rotation, ports, status } = element;
   const w = size.width || 90;
   const h = size.height || 110;
   const isConfirmed = status === 'confirmed';
+
+  useEffect(() => {
+    let active = true;
+    loadComponentRegistry().then((registry) => {
+      if (active) setComponentRegistry(registry);
+    });
+    return () => { active = false; };
+  }, []);
 
   // Base stroke color based on status and selection
   const strokeColor = isSelected ? '#2563eb' : isConfirmed ? '#0f172a' : '#d97706';
   const fillColor = isSelected ? '#eff6ff' : '#ffffff';
 
   const renderShape = () => {
+    // Check rich P&ID SVG Symbol Library first
+    const symClass = resolveSymbolClassKey(tag, type, componentRegistry?.components, element.component_class_id);
+    const symMeta = P_ID_SYMBOL_LIBRARY[symClass];
+    if (symMeta) {
+      return symMeta.render({
+        width: w,
+        height: h,
+        strokeColor,
+        fillColor,
+        tag,
+        isSelected,
+        isHovered,
+        detailLevel,
+      });
+    }
+
     switch (type) {
       case 'vessel': {
         const headH = Math.min(22, h * 0.2);
@@ -214,6 +254,8 @@ export const SymbolRenderer: React.FC<SymbolRendererProps> = ({
       id={`symbol-${id}`}
       transform={`translate(${position.x}, ${position.y}) rotate(${rotation || 0} ${w / 2} ${h / 2})`}
       className="cursor-move select-none"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       onClick={(e) => {
         e.stopPropagation();
         onSelect?.(element, e);
@@ -224,6 +266,52 @@ export const SymbolRenderer: React.FC<SymbolRendererProps> = ({
         }
       }}
     >
+      {/* Route Source Highlight */}
+      {isRouteSource && (
+        <g className="pointer-events-none">
+          <rect
+            x="-10"
+            y="-10"
+            width={w + 20}
+            height={h + 20}
+            fill="rgba(16, 185, 129, 0.08)"
+            stroke="#10b981"
+            strokeWidth="2.5"
+            strokeDasharray="5,3"
+            rx="6"
+          />
+          <g transform={`translate(${w / 2}, -16)`}>
+            <rect x="-35" y="-9" width="70" height="18" fill="#10b981" rx="4" />
+            <text x="0" y="4" textAnchor="middle" fill="#ffffff" fontSize="9" fontWeight="bold">
+              ▲ FROM
+            </text>
+          </g>
+        </g>
+      )}
+
+      {/* Route Target Highlight */}
+      {isRouteTarget && (
+        <g className="pointer-events-none">
+          <rect
+            x="-10"
+            y="-10"
+            width={w + 20}
+            height={h + 20}
+            fill="rgba(59, 130, 246, 0.08)"
+            stroke="#3b82f6"
+            strokeWidth="2.5"
+            strokeDasharray="5,3"
+            rx="6"
+          />
+          <g transform={`translate(${w / 2}, -16)`}>
+            <rect x="-30" y="-9" width="60" height="18" fill="#3b82f6" rx="4" />
+            <text x="0" y="4" textAnchor="middle" fill="#ffffff" fontSize="9" fontWeight="bold">
+              ▼ TO
+            </text>
+          </g>
+        </g>
+      )}
+
       {/* Selection Bounding Box */}
       {isSelected && (
         <rect
@@ -243,32 +331,87 @@ export const SymbolRenderer: React.FC<SymbolRendererProps> = ({
       {renderShape()}
 
       {/* Engineering Tag Label (unless balloon or junction) */}
-      {type !== 'instrument' && type !== 'offpage_connector' && type !== 'junction' && (
-        <g transform={`translate(${w / 2}, ${h + 16})`}>
-          <rect
-            x={-tag.length * 4 - 8}
-            y="-10"
-            width={tag.length * 8 + 16}
-            height="18"
-            fill="#ffffff"
-            stroke="#e2e8f0"
-            strokeWidth="1"
-            rx="3"
-            opacity="0.9"
-          />
-          <text
-            x="0"
-            y="3"
-            textAnchor="middle"
-            fontFamily="monospace"
-            fontSize="11"
-            fontWeight="bold"
-            fill="#0f172a"
-          >
-            {tag}
-          </text>
-        </g>
-      )}
+      {type !== 'instrument' && type !== 'offpage_connector' && type !== 'junction' && (() => {
+        const offsetX = element.label_offset?.x || 0;
+        const offsetY = element.label_offset?.y || 0;
+        const defaultLabelX = w / 2;
+        const defaultLabelY = h + 16;
+        const labelCenterX = defaultLabelX + offsetX;
+        const labelCenterY = defaultLabelY + offsetY;
+        const isDisplaced = offsetX !== 0 || offsetY !== 0;
+
+        // Semantic font size scaling: clamp minimum size so tags remain readable even at 40% zoom
+        const labelScale = zoom < 0.65 ? Math.min(1.4, 0.75 / zoom) : 1.0;
+
+        return (
+          <g>
+            {/* Leader line if tag is displaced from default location */}
+            {isDisplaced && (
+              <line
+                x1={w / 2}
+                y1={h / 2}
+                x2={labelCenterX}
+                y2={labelCenterY}
+                stroke="#94a3b8"
+                strokeWidth="1.25"
+                strokeDasharray="3,2"
+              />
+            )}
+            <g
+              transform={`translate(${labelCenterX}, ${labelCenterY}) scale(${labelScale})`}
+              className="cursor-move group/tag select-none"
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                onStartDragLabel?.(element, e);
+              }}
+            >
+              <title>Drag tag label to reposition without changing connections</title>
+              <rect
+                x={-Math.max(tag.length * 4.5, 28) - 10}
+                y="-10"
+                width={Math.max(tag.length * 9, 56) + 20}
+                height={detailLevel === 'high_detail' ? "30" : "18"}
+                fill="#ffffff"
+                stroke={isSelected ? "#2563eb" : isDisplaced ? "#6366f1" : "#cbd5e1"}
+                strokeWidth={isSelected || isDisplaced ? "1.5" : "1"}
+                rx="4"
+                className="shadow-xs group-hover/tag:stroke-blue-500 transition-colors"
+                opacity="0.98"
+              />
+              <text
+                x="0"
+                y="3"
+                textAnchor="middle"
+                fontFamily="monospace"
+                fontSize="11"
+                fontWeight="bold"
+                fill="#0f172a"
+                style={{
+                  paintOrder: 'stroke fill',
+                  stroke: '#ffffff',
+                  strokeWidth: '3.5px',
+                  strokeLinejoin: 'round',
+                }}
+              >
+                {tag}
+              </text>
+              {detailLevel === 'high_detail' && (
+                <text
+                  x="0"
+                  y="15"
+                  textAnchor="middle"
+                  fontFamily="sans-serif"
+                  fontSize="8"
+                  fontWeight="600"
+                  fill={isConfirmed ? "#059669" : "#d97706"}
+                >
+                  {isConfirmed ? '✓ VERIFIED' : 'PROVISIONAL'} • {type.toUpperCase()}
+                </text>
+              )}
+            </g>
+          </g>
+        );
+      })()}
 
       {/* Interactive Port Connection Dots */}
       {ports.map((port) => {
@@ -302,17 +445,48 @@ export const SymbolRenderer: React.FC<SymbolRendererProps> = ({
             }}
           >
             {/* Extended click target */}
-            <circle cx="0" cy="0" r="10" fill="transparent" />
-            {/* Visual port handle */}
-            <circle
-              cx="0"
-              cy="0"
-              r={isConnecting ? 6 : 4}
-              fill={portColor}
-              stroke="#ffffff"
-              strokeWidth="2"
-              className="transition-all duration-150 group-hover:scale-150"
-            />
+            <circle cx="0" cy="0" r="12" fill="transparent" />
+            {/* Visual port handle (clean decluttered mode: subtle 1.5px pinhead unless hovered/selected) */}
+            {(() => {
+              const shouldHighlight = isConnecting || isSelected || isHovered || showPortPins || detailLevel === 'high_detail';
+              return (
+                <circle
+                  cx="0"
+                  cy="0"
+                  r={isConnecting ? 6 : shouldHighlight ? 4.5 : 1.5}
+                  opacity={shouldHighlight ? 1 : 0.35}
+                  fill={portColor}
+                  stroke={shouldHighlight ? "#ffffff" : "none"}
+                  strokeWidth={shouldHighlight ? 1.5 : 0}
+                  className="transition-all duration-150 group-hover:scale-150 shadow-sm"
+                />
+              );
+            })()}
+            {/* High-detail port label badge */}
+            {(detailLevel === 'high_detail' || isSelected) && (
+              <g transform="translate(0, -9)" className="pointer-events-none">
+                <rect
+                  x={-port.name.length * 3 - 4}
+                  y="-8"
+                  width={port.name.length * 6 + 8}
+                  height="12"
+                  rx="3"
+                  fill="#0f172a"
+                  opacity="0.85"
+                />
+                <text
+                  x="0"
+                  y="1"
+                  textAnchor="middle"
+                  fontFamily="monospace"
+                  fontSize="7.5"
+                  fontWeight="bold"
+                  fill="#ffffff"
+                >
+                  {port.name}
+                </text>
+              </g>
+            )}
             {/* Tooltip on hover */}
             <title>{`${port.name} (${port.type})`}</title>
           </g>

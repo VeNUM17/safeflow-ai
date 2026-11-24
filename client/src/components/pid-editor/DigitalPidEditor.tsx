@@ -12,6 +12,20 @@ import {
   Layers,
   ArrowLeft,
   FileImage,
+  Maximize2,
+  Minimize2,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  Sparkles,
+  Crosshair,
+  Grid,
+  Split,
+  Undo2,
+  Redo2,
+  Columns,
+  Eye,
 } from 'lucide-react';
 import {
   DigitalPidDrawing,
@@ -29,7 +43,7 @@ import { DrawingValidationDrawer } from './DrawingValidationDrawer';
 import { DrawingApprovalModal } from './DrawingApprovalModal';
 import { DrawingExportModal } from './DrawingExportModal';
 import { HybridReconciliationPanel } from './HybridReconciliationPanel';
-import { Sparkles } from 'lucide-react';
+import { PidCleanViewer } from '../pid-viewer/PidCleanViewer';
 
 interface DigitalPidEditorProps {
   project: ProcessProject;
@@ -37,6 +51,55 @@ interface DigitalPidEditorProps {
   chemicals: ChemicalRecord[];
   onBackToWorkflow?: () => void;
   onProceedToPhaNodes?: () => void;
+}
+
+async function safeFetchJson<T = any>(url: string, options?: RequestInit): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(url, options);
+  } catch (netErr: any) {
+    throw new Error(
+      `Network connection failed: ${netErr.message || 'Unable to connect'}. Please ensure the backend server is running on http://localhost:5001.`
+    );
+  }
+
+  const ct = res.headers.get('content-type') || '';
+
+  // Handle non-2xx status codes
+  if (!res.ok) {
+    if (ct.includes('application/json')) {
+      try {
+        const errJson = await res.json();
+        throw new Error(errJson.error || errJson.message || `Server returned HTTP ${res.status}`);
+      } catch (e: any) {
+        if (e.message && !e.message.includes('JSON')) throw e;
+      }
+    }
+    if (res.status === 404) {
+      throw new Error(`Endpoint not found (404) at ${url}. Please verify the backend route is active.`);
+    }
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      throw new Error('Backend server is offline or restarting. Please verify the PSI backend is active on port 5001.');
+    }
+    throw new Error(`Server returned HTTP ${res.status} (${res.statusText || 'Error'}).`);
+  }
+
+  // Handle case where status is 200 but content is HTML (e.g. Vite SPA fallback or error page)
+  if (!ct.includes('application/json')) {
+    const rawText = await res.text().catch(() => '');
+    if (rawText.trim().startsWith('<') || rawText.includes('<!DOCTYPE')) {
+      throw new Error(
+        'Backend server returned HTML instead of JSON. The backend server on port 5001 may have stopped or the API route is missing.'
+      );
+    }
+    throw new Error(`Invalid response format from server (expected JSON, received ${ct || 'unknown'}).`);
+  }
+
+  try {
+    return await res.json();
+  } catch (parseErr: any) {
+    throw new Error(`Failed to parse server JSON response: ${parseErr.message}`);
+  }
 }
 
 export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
@@ -52,7 +115,7 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [editorViewTab, setEditorViewTab] = useState<'canvas' | 'hybrid'>('canvas');
+  const [editorViewTab, setEditorViewTab] = useState<'clean_viewer' | 'canvas' | 'hybrid'>('clean_viewer');
 
   // Selection
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
@@ -65,25 +128,26 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
   const [isNewDrawingModalOpen, setIsNewDrawingModalOpen] = useState<boolean>(false);
 
-  // Undo / Redo History
-  const [history, setHistory] = useState<
-    { elements: DrawingElement[]; connectors: DrawingConnector[] }[]
-  >([]);
-  const [historyIndex, setHistoryIndex] = useState<number>(-1);
+  // Robust Undo / Redo History (Past / Future Snapshot Architecture)
+  interface HistorySnapshot {
+    elements: DrawingElement[];
+    connectors: DrawingConnector[];
+  }
+  const [historyPast, setHistoryPast] = useState<HistorySnapshot[]>([]);
+  const [historyFuture, setHistoryFuture] = useState<HistorySnapshot[]>([]);
 
   // Load drawings from backend
   const fetchDrawings = useCallback(async () => {
     try {
       setIsLoading(true);
-      const res = await fetch(`/api/projects/${project.id}/drawings`);
-      const data = await res.json();
+      const data = await safeFetchJson(`/api/projects/${project.id}/drawings`);
       if (data.success && data.data) {
         setDrawings(data.data);
         if (data.data.length > 0) {
           const current = data.data[0];
           setActiveDrawing(current);
-          setHistory([{ elements: current.elements, connectors: current.connectors }]);
-          setHistoryIndex(0);
+          setHistoryPast([]);
+          setHistoryFuture([]);
         }
       }
     } catch (err) {
@@ -100,8 +164,7 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
   // Run validation whenever drawing changes
   const runValidation = useCallback(async (drawingId: string) => {
     try {
-      const res = await fetch(`/api/drawings/${drawingId}/validate`, { method: 'POST' });
-      const data = await res.json();
+      const data = await safeFetchJson(`/api/drawings/${drawingId}/validate`, { method: 'POST' });
       if (data.success) {
         setValidationResult(data.data);
       }
@@ -116,52 +179,100 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
     }
   }, [activeDrawing?.id, runValidation]);
 
-  // History Helper: push state
-  const pushHistory = (newElements: DrawingElement[], newConnectors: DrawingConnector[]) => {
-    const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push({ elements: newElements, connectors: newConnectors });
-    if (newHistory.length > 30) newHistory.shift();
-    setHistory(newHistory);
-    setHistoryIndex(newHistory.length - 1);
+  // Record a new state snapshot for Undo
+  const recordSnapshot = useCallback((elementsToSave?: DrawingElement[], connectorsToSave?: DrawingConnector[]) => {
+    if (!activeDrawing) return;
+    const snapElements = elementsToSave || activeDrawing.elements;
+    const snapConnectors = connectorsToSave || activeDrawing.connectors;
+    const snapshot: HistorySnapshot = {
+      elements: JSON.parse(JSON.stringify(snapElements)),
+      connectors: JSON.parse(JSON.stringify(snapConnectors)),
+    };
+    setHistoryPast((prev) => [...prev.slice(-40), snapshot]);
+    setHistoryFuture([]); // Clear redo stack on new action
+  }, [activeDrawing]);
+
+  const handleUndo = useCallback(() => {
+    if (historyPast.length === 0 || !activeDrawing) return;
+    const previous = historyPast[historyPast.length - 1];
+    const newPast = historyPast.slice(0, historyPast.length - 1);
+    const currentSnapshot: HistorySnapshot = {
+      elements: JSON.parse(JSON.stringify(activeDrawing.elements)),
+      connectors: JSON.parse(JSON.stringify(activeDrawing.connectors)),
+    };
+
+    setHistoryFuture((prev) => [currentSnapshot, ...prev]);
+    setHistoryPast(newPast);
+    setActiveDrawing({
+      ...activeDrawing,
+      elements: JSON.parse(JSON.stringify(previous.elements)),
+      connectors: JSON.parse(JSON.stringify(previous.connectors)),
+    });
+    setHasUnsavedChanges(true);
+  }, [historyPast, activeDrawing]);
+
+  const handleRedo = useCallback(() => {
+    if (historyFuture.length === 0 || !activeDrawing) return;
+    const next = historyFuture[0];
+    const newFuture = historyFuture.slice(1);
+    const currentSnapshot: HistorySnapshot = {
+      elements: JSON.parse(JSON.stringify(activeDrawing.elements)),
+      connectors: JSON.parse(JSON.stringify(activeDrawing.connectors)),
+    };
+
+    setHistoryPast((prev) => [...prev, currentSnapshot]);
+    setHistoryFuture(newFuture);
+    setActiveDrawing({
+      ...activeDrawing,
+      elements: JSON.parse(JSON.stringify(next.elements)),
+      connectors: JSON.parse(JSON.stringify(next.connectors)),
+    });
+    setHasUnsavedChanges(true);
+  }, [historyFuture, activeDrawing]);
+
+  // Canvas update handlers
+  const handleUpdateElements = (newElements: DrawingElement[]) => {
+    if (!activeDrawing) return;
+    setActiveDrawing({ ...activeDrawing, elements: newElements });
+    setHasUnsavedChanges(true);
   };
 
-  const handleUndo = () => {
-    if (historyIndex > 0 && activeDrawing) {
-      const prev = history[historyIndex - 1];
-      setActiveDrawing({
-        ...activeDrawing,
-        elements: prev.elements,
-        connectors: prev.connectors,
-      });
-      setHistoryIndex(historyIndex - 1);
-      setHasUnsavedChanges(true);
-    }
+  const handleDragCommit = () => {
+    if (!activeDrawing) return;
+    recordSnapshot(activeDrawing.elements, activeDrawing.connectors);
   };
 
-  const handleRedo = () => {
-    if (historyIndex < history.length - 1 && activeDrawing) {
-      const next = history[historyIndex + 1];
-      setActiveDrawing({
-        ...activeDrawing,
-        elements: next.elements,
-        connectors: next.connectors,
-      });
-      setHistoryIndex(historyIndex + 1);
-      setHasUnsavedChanges(true);
-    }
+  const handleUpdateConnectors = (newConnectors: DrawingConnector[]) => {
+    if (!activeDrawing) return;
+    recordSnapshot(activeDrawing.elements, activeDrawing.connectors);
+    setActiveDrawing({ ...activeDrawing, connectors: newConnectors });
+    setHasUnsavedChanges(true);
   };
 
   // Add symbol from palette
   const handleAddSymbol = (item: PaletteItem) => {
     if (!activeDrawing) return;
 
+    recordSnapshot(activeDrawing.elements, activeDrawing.connectors);
+
     const countOfType = activeDrawing.elements.filter((e) => e.type === item.type).length;
     const tag = `${item.defaultTagPrefix}-${101 + countOfType}`;
+    const registryPorts = item.registryPorts?.map((port) => ({
+      id: port.id,
+      name: port.id,
+      type: port.role === 'drain' || port.role === 'vent' ? 'outlet' as const : port.role,
+      position: {
+        x: (((port.x - (item.registryViewBox?.x || 0)) / (item.registryViewBox?.width || 1)) - 0.5) * item.defaultWidth,
+        y: (((port.y - (item.registryViewBox?.y || 0)) / (item.registryViewBox?.height || 1)) - 0.5) * item.defaultHeight,
+      },
+    }));
 
     const newElement: DrawingElement = {
       id: `elem-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       tag,
       type: item.type,
+      component_class_id: item.registryClassId,
+      inline: item.inline,
       description: item.description,
       position: { x: 300 + (countOfType % 3) * 60, y: 250 + (countOfType % 3) * 60 },
       size: { width: item.defaultWidth, height: item.defaultHeight },
@@ -170,7 +281,7 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
       status: 'provisional',
       confidence: 1.0,
       notes: '',
-      ports: [
+      ports: registryPorts || [
         { id: 'p_in', name: 'Process Inlet', type: 'inlet', position: { x: -item.defaultWidth / 2, y: 0 } },
         { id: 'p_out', name: 'Process Outlet', type: 'outlet', position: { x: item.defaultWidth / 2, y: 0 } },
         { id: 'p_top', name: 'Vent / Relief', type: 'outlet', position: { x: 0, y: -item.defaultHeight / 2 } },
@@ -184,22 +295,6 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
     setSelectedElementId(newElement.id);
     setSelectedConnectorId(null);
     setHasUnsavedChanges(true);
-    pushHistory(updatedElements, activeDrawing.connectors);
-  };
-
-  // Canvas update handlers
-  const handleUpdateElements = (newElements: DrawingElement[]) => {
-    if (!activeDrawing) return;
-    setActiveDrawing({ ...activeDrawing, elements: newElements });
-    setHasUnsavedChanges(true);
-    pushHistory(newElements, activeDrawing.connectors);
-  };
-
-  const handleUpdateConnectors = (newConnectors: DrawingConnector[]) => {
-    if (!activeDrawing) return;
-    setActiveDrawing({ ...activeDrawing, connectors: newConnectors });
-    setHasUnsavedChanges(true);
-    pushHistory(activeDrawing.elements, newConnectors);
   };
 
   // Save Draft to Backend
@@ -207,22 +302,82 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
     if (!activeDrawing) return;
     try {
       setIsSaving(true);
-      const res = await fetch(`/api/drawings/${activeDrawing.id}`, {
+      const data = await safeFetchJson(`/api/drawings/${activeDrawing.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(activeDrawing),
       });
-      const data = await res.json();
       if (data.success && data.data) {
         setActiveDrawing(data.data);
         setDrawings((prev) => prev.map((d) => (d.id === data.data.id ? data.data : d)));
         setHasUnsavedChanges(false);
         runValidation(data.data.id);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save drawing draft:', err);
+      alert(err.message || 'Failed to save drawing draft');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Auto-Align Digital Elements to 1:1 Reference Drawing Scale & Coordinates
+  const [isAligning, setIsAligning] = useState<boolean>(false);
+  const handleAlignToReference = async () => {
+    if (!activeDrawing) return;
+    try {
+      setIsAligning(true);
+      recordSnapshot(activeDrawing.elements, activeDrawing.connectors);
+      const json = await safeFetchJson(`/api/drawings/${activeDrawing.id}/align-to-reference`, { method: 'POST' });
+      if (json.success && json.data) {
+        setActiveDrawing(json.data);
+        setDrawings((prev) => prev.map((d) => (d.id === json.data.id ? json.data : d)));
+        setHasUnsavedChanges(true);
+        runValidation(json.data.id);
+        alert(`1:1 Scale & Overlap Applied!\n${json.message || 'Elements snapped to reference drawing coordinates.'}`);
+      } else {
+        alert(json.error || 'Failed to align elements.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error aligning elements.');
+    } finally {
+      setIsAligning(false);
+    }
+  };
+
+  // Multi-Part / Partitioned Digitization Engine (High-Accuracy Divide & Conquer)
+  const [isPartitioning, setIsPartitioning] = useState<boolean>(false);
+  const [partitionGrid, setPartitionGrid] = useState<'2x2' | '3x3' | '4x4'>('3x3');
+  const [showPartitionOverlay, setShowPartitionOverlay] = useState<boolean>(false);
+  const [partitionStats, setPartitionStats] = useState<any[]>([]);
+
+  const handlePartitionedDigitize = async () => {
+    if (!activeDrawing) return;
+    try {
+      setIsPartitioning(true);
+      recordSnapshot(activeDrawing.elements, activeDrawing.connectors);
+      const [rows, cols] = partitionGrid.split('x').map((n) => parseInt(n, 10));
+
+      const json = await safeFetchJson(`/api/drawings/${activeDrawing.id}/partitioned-digitize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ grid_rows: rows, grid_cols: cols, overlap_px: 40 }),
+      });
+      if (json.success && json.data) {
+        setActiveDrawing(json.data);
+        setDrawings((prev) => prev.map((d) => (d.id === json.data.id ? json.data : d)));
+        setPartitionStats(json.partitions || []);
+        setShowPartitionOverlay(true);
+        setHasUnsavedChanges(true);
+        runValidation(json.data.id);
+        alert(`Partitioned Digitization Succeeded!\n${json.message || 'Piping network stitched across all partition zones.'}`);
+      } else {
+        alert(json.error || 'Failed to execute partitioned digitization.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error during partitioned digitization.');
+    } finally {
+      setIsPartitioning(false);
     }
   };
 
@@ -230,16 +385,15 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
   const handleAcknowledgeWarning = async (warningCode: string) => {
     if (!activeDrawing) return;
     try {
-      const res = await fetch(`/api/drawings/${activeDrawing.id}/acknowledge-warning`, {
+      const data = await safeFetchJson(`/api/drawings/${activeDrawing.id}/acknowledge-warning`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ warning_code: warningCode }),
       });
-      const data = await res.json();
       if (data.success && data.validation) {
         setValidationResult(data.validation);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to acknowledge warning:', err);
     }
   };
@@ -249,18 +403,17 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
     if (!activeDrawing) return;
     try {
       // First save draft
-      await fetch(`/api/drawings/${activeDrawing.id}`, {
+      await safeFetchJson(`/api/drawings/${activeDrawing.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(activeDrawing),
       });
 
-      const res = await fetch(`/api/drawings/${activeDrawing.id}/approve`, {
+      const data = await safeFetchJson(`/api/drawings/${activeDrawing.id}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ approver: reviewer, revision, notes }),
       });
-      const data = await res.json();
       if (data.success && data.data) {
         setActiveDrawing(data.data);
         setDrawings((prev) => prev.map((d) => (d.id === data.data.id ? data.data : d)));
@@ -269,8 +422,9 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
       } else {
         alert(data.error || 'Approval check failed');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to approve drawing:', err);
+      alert(err.message || 'Approval request failed.');
     }
   };
 
@@ -278,17 +432,33 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
   const handleSyncToGraph = async () => {
     if (!activeDrawing) return;
     try {
-      const res = await fetch(`/api/drawings/${activeDrawing.id}/sync`, { method: 'POST' });
-      const data = await res.json();
+      const data = await safeFetchJson(`/api/drawings/${activeDrawing.id}/sync`, { method: 'POST' });
       if (data.success) {
         alert(
           `Process Topology Synchronized!\n${data.equipment_count || activeDrawing.elements.length} equipment items & ${data.lines_count || activeDrawing.connectors.length} lines updated.`
         );
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to sync drawing:', err);
+      alert(err.message || 'Sync failed.');
     }
   };
+
+  // Window & Detail Enhancements
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [isPaletteCollapsed, setIsPaletteCollapsed] = useState<boolean>(false);
+  const [isPropertiesCollapsed, setIsPropertiesCollapsed] = useState<boolean>(false);
+  const [detailLevel, setDetailLevel] = useState<'standard' | 'high_detail'>('high_detail');
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen]);
 
   // Create New Drawing Mode Dialog State
   const [newMode, setNewMode] = useState<'scratch' | 'imported_overlay'>('scratch');
@@ -299,7 +469,7 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
   const handleCreateNewDrawing = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch(`/api/projects/${project.id}/drawings`, {
+      const data = await safeFetchJson(`/api/projects/${project.id}/drawings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -309,17 +479,17 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
           import_extracted_objects: importExtracted,
         }),
       });
-      const data = await res.json();
       if (data.success && data.data) {
         setDrawings((prev) => [data.data, ...prev]);
         setActiveDrawing(data.data);
         setIsNewDrawingModalOpen(false);
-        setHistory([{ elements: data.data.elements, connectors: data.data.connectors }]);
-        setHistoryIndex(0);
+        setHistoryPast([]);
+        setHistoryFuture([]);
         setHasUnsavedChanges(false);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to create new drawing:', err);
+      alert(err.message || 'Failed to create new drawing');
     }
   };
 
@@ -363,7 +533,13 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
   const isApproved = activeDrawing.status === 'approved';
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-slate-100 overflow-hidden">
+    <div
+      className={
+        isFullscreen
+          ? 'fixed inset-0 z-50 w-screen h-screen bg-slate-950 flex flex-col overflow-hidden select-none'
+          : 'flex-1 flex flex-col h-full bg-slate-100 overflow-hidden'
+      }
+    >
       {/* Top Main Navigation & Action Toolbar */}
       <div className="bg-slate-900 text-white border-b border-slate-800 px-4 py-2.5 flex items-center justify-between shadow-md shrink-0">
         <div className="flex items-center gap-3">
@@ -390,8 +566,8 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
                   setActiveDrawing(found);
                   setSelectedElementId(null);
                   setSelectedConnectorId(null);
-                  setHistory([{ elements: found.elements, connectors: found.connectors }]);
-                  setHistoryIndex(0);
+                  setHistoryPast([]);
+                  setHistoryFuture([]);
                   setHasUnsavedChanges(false);
                 }
               }}
@@ -437,8 +613,19 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
             )}
           </div>
 
-          {/* Sub-view switcher: Canvas vs Hybrid Reconciliation */}
+          {/* Sub-view switcher: Clean Source Viewer vs Interactive Editor vs Hybrid Reconciliation */}
           <div className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5 ml-2">
+            <button
+              onClick={() => setEditorViewTab('clean_viewer')}
+              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 ${
+                editorViewTab === 'clean_viewer'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Eye className="w-3.5 h-3.5" />
+              Source Clean Viewer
+            </button>
             <button
               onClick={() => setEditorViewTab('canvas')}
               className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
@@ -447,7 +634,7 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Interactive Canvas
+              Interactive Editor
             </button>
             <button
               onClick={() => setEditorViewTab('hybrid')}
@@ -458,13 +645,123 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
               }`}
             >
               <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
-              Hybrid Recognition & Reconciliation
+              Hybrid Recognition
             </button>
           </div>
         </div>
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
+          {/* Quick Undo / Redo */}
+          <div className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5">
+            <button
+              onClick={handleUndo}
+              disabled={historyPast.length === 0}
+              className="p-1.5 hover:bg-slate-800 text-slate-300 hover:text-white disabled:opacity-25 disabled:hover:bg-transparent rounded transition-colors"
+              title="Undo Last Action (Ctrl+Z)"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={handleRedo}
+              disabled={historyFuture.length === 0}
+              className="p-1.5 hover:bg-slate-800 text-slate-300 hover:text-white disabled:opacity-25 disabled:hover:bg-transparent rounded transition-colors"
+              title="Redo (Ctrl+Shift+Z)"
+            >
+              <Redo2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Multi-Part Partition Digitization Control */}
+          <div className="flex items-center bg-purple-950/40 border border-purple-700/50 rounded-lg p-0.5">
+            <select
+              value={partitionGrid}
+              onChange={(e) => setPartitionGrid(e.target.value as any)}
+              className="bg-transparent text-purple-200 text-xs font-semibold px-2 py-1 outline-hidden cursor-pointer"
+              title="Choose grid density for dividing the large P&ID into precision sub-drawings"
+            >
+              <option value="2x2" className="bg-slate-900 text-slate-200">2x2 (4 Parts)</option>
+              <option value="3x3" className="bg-slate-900 text-slate-200">3x3 (9 Parts)</option>
+              <option value="4x4" className="bg-slate-900 text-slate-200">4x4 (16 Parts)</option>
+            </select>
+            <button
+              onClick={handlePartitionedDigitize}
+              disabled={isPartitioning}
+              className="px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 bg-purple-600 hover:bg-purple-500 text-white transition-all shadow-xs disabled:opacity-50"
+              title="Divide this large P&ID into smaller zones and digitize each part with localized connection tracing"
+            >
+              <Split className={`w-3.5 h-3.5 ${isPartitioning ? 'animate-spin' : ''}`} />
+              <span>{isPartitioning ? 'Digitizing Parts...' : 'Divide & Digitize'}</span>
+            </button>
+          </div>
+
+          {/* Toggle Partition Grid Overlay */}
+          <button
+            onClick={() => setShowPartitionOverlay(!showPartitionOverlay)}
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border transition-colors ${
+              showPartitionOverlay
+                ? 'bg-purple-900/60 text-purple-200 border-purple-500/80'
+                : 'bg-slate-900/80 text-slate-400 border-slate-700/80 hover:text-slate-200'
+            }`}
+            title="Toggle visual partition grid overlay on canvas"
+          >
+            <Grid className="w-3.5 h-3.5 text-purple-400" />
+            <span className="hidden md:inline">Grid</span>
+          </button>
+
+          {/* Snap 1:1 Reference Overlap Button */}
+          <button
+            onClick={handleAlignToReference}
+            disabled={isAligning}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 bg-blue-950/60 hover:bg-blue-900/80 text-blue-300 border border-blue-700/60 shadow-xs transition-colors"
+            title="Snap digital equipment, vessels, and lines directly onto their physical coordinates on the reference drawing"
+          >
+            <Crosshair className={`w-3.5 h-3.5 text-blue-400 ${isAligning ? 'animate-spin' : ''}`} />
+            <span>{isAligning ? 'Aligning 1:1...' : 'Snap 1:1 Overlap'}</span>
+          </button>
+
+          {/* Fullscreen Studio Window Toggle */}
+          <button
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs ${
+              isFullscreen
+                ? 'bg-amber-600 hover:bg-amber-500 text-white ring-2 ring-amber-400/50'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+            }`}
+            title={isFullscreen ? 'Exit Fullscreen Studio (Esc)' : 'Expand to Fullscreen Studio Window'}
+          >
+            {isFullscreen ? (
+              <Minimize2 className="w-3.5 h-3.5 text-amber-200" />
+            ) : (
+              <Maximize2 className="w-3.5 h-3.5 text-blue-400" />
+            )}
+            <span className="hidden sm:inline">{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
+          </button>
+
+          {/* Wide Canvas / Zen Toggle */}
+          <button
+            onClick={() => {
+              const shouldCollapse = !(isPaletteCollapsed && isPropertiesCollapsed);
+              setIsPaletteCollapsed(shouldCollapse);
+              setIsPropertiesCollapsed(shouldCollapse);
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs ${
+              isPaletteCollapsed && isPropertiesCollapsed
+                ? 'bg-indigo-600 hover:bg-indigo-500 text-white ring-2 ring-indigo-400/50'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+            }`}
+            title={
+              isPaletteCollapsed && isPropertiesCollapsed
+                ? 'Restore side panels'
+                : 'Maximize canvas workspace (hide side panels for expansive editing)'
+            }
+          >
+            <Columns className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="hidden sm:inline">
+              {isPaletteCollapsed && isPropertiesCollapsed ? 'Zen View ON' : 'Wide Canvas'}
+            </span>
+          </button>
+
           {/* Save Draft */}
           <button
             onClick={handleSaveDraft}
@@ -543,8 +840,39 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
         </div>
       </div>
 
-      {/* Hybrid Reconciliation View OR 3-Column Studio Workspace */}
-      {editorViewTab === 'hybrid' ? (
+      {/* Main Content Area: Clean Source Viewer OR Hybrid Reconciliation OR Interactive Studio */}
+      {editorViewTab === 'clean_viewer' ? (
+        <div className="flex-1 overflow-hidden relative">
+          <PidCleanViewer
+            elements={activeDrawing.elements}
+            connectors={activeDrawing.connectors}
+            selectedElementId={selectedElementId}
+            selectedConnectorId={selectedConnectorId}
+            backgroundImageUrl={(() => {
+              if (!activeDrawing.source_document_id) return null;
+              const doc = documents.find(
+                (d) =>
+                  d.id === activeDrawing.source_document_id ||
+                  d.file_path === activeDrawing.source_document_id ||
+                  d.name === activeDrawing.source_document_id
+              );
+              if (doc) return doc.file_path;
+              if (activeDrawing.source_document_id.startsWith('/uploads/')) {
+                return activeDrawing.source_document_id;
+              }
+              return `/uploads/${activeDrawing.source_document_id}`;
+            })()}
+            onSelectElement={(el) => {
+              setSelectedElementId(el ? el.id : null);
+              if (el) setSelectedConnectorId(null);
+            }}
+            onSelectConnector={(conn) => {
+              setSelectedConnectorId(conn ? conn.id : null);
+              if (conn) setSelectedElementId(null);
+            }}
+          />
+        </div>
+      ) : editorViewTab === 'hybrid' ? (
         <div className="flex-1 overflow-hidden">
           <HybridReconciliationPanel
             project={project}
@@ -553,16 +881,44 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
           />
         </div>
       ) : (
-        <div className="flex-1 flex overflow-hidden">
-          {/* Left: Reusable Engineering Symbol Palette */}
-          <SymbolPalette onAddSymbol={handleAddSymbol} />
+        <div className="flex-1 flex overflow-hidden relative">
+          {/* Left: Reusable Engineering Symbol Palette (Collapsible) */}
+          {!isPaletteCollapsed ? (
+            <div className="relative flex shrink-0">
+              <SymbolPalette onAddSymbol={handleAddSymbol} />
+              <button
+                onClick={() => setIsPaletteCollapsed(true)}
+                className="absolute top-2 right-2 p-1 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white text-[10px] z-10 border border-slate-700 shadow-xs"
+                title="Collapse Symbol Library to Maximize Canvas"
+              >
+                <PanelLeftClose className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="w-10 bg-slate-900 border-r border-slate-800 flex flex-col items-center py-3 gap-3 shrink-0 select-none">
+              <button
+                onClick={() => setIsPaletteCollapsed(false)}
+                className="p-1.5 rounded bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white transition-colors border border-slate-700"
+                title="Expand Symbol Library"
+              >
+                <PanelLeftOpen className="w-4 h-4 text-blue-400" />
+              </button>
+              <span className="text-[10px] font-mono font-bold text-slate-500 [writing-mode:vertical-lr] tracking-widest uppercase">
+                Symbols
+              </span>
+            </div>
+          )}
 
-          {/* Center: Interactive Canvas */}
+          {/* Center: Interactive Canvas (Expands to Full Width) */}
           <EditorCanvas
             elements={activeDrawing.elements}
             connectors={activeDrawing.connectors}
             selectedElementId={selectedElementId}
             selectedConnectorId={selectedConnectorId}
+            detailLevel={detailLevel}
+            onToggleDetailLevel={() =>
+              setDetailLevel((prev) => (prev === 'standard' ? 'high_detail' : 'standard'))
+            }
             backgroundImageUrl={(() => {
               if (!activeDrawing.source_document_id) return null;
               const doc = documents.find(
@@ -603,34 +959,62 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
               });
               setHasUnsavedChanges(true);
             }}
-            canUndo={historyIndex > 0}
-            canRedo={historyIndex < history.length - 1}
+            canUndo={historyPast.length > 0}
+            canRedo={historyFuture.length > 0}
             onUndo={handleUndo}
             onRedo={handleRedo}
+            onPushHistory={handleDragCommit}
+            showPartitionGrid={showPartitionOverlay}
+            partitionGridType={partitionGrid}
+            partitionZones={partitionStats}
           />
 
-          {/* Right: Contextual Properties Panel */}
-          <EditorPropertiesPanel
-            drawing={activeDrawing}
-            selectedElement={selectedElement}
-            selectedConnector={selectedConnector}
-            chemicals={chemicals}
-            allElements={activeDrawing.elements}
-            onUpdateElement={(updated) => {
-              handleUpdateElements(
-                activeDrawing.elements.map((el) => (el.id === updated.id ? updated : el))
-              );
-            }}
-            onUpdateConnector={(updated) => {
-              handleUpdateConnectors(
-                activeDrawing.connectors.map((c) => (c.id === updated.id ? updated : c))
-              );
-            }}
-            onUpdateDrawingMeta={(meta) => {
-              setActiveDrawing({ ...activeDrawing, ...meta });
-              setHasUnsavedChanges(true);
-            }}
-          />
+          {/* Right: Contextual Properties Panel (Collapsible) */}
+          {!isPropertiesCollapsed ? (
+            <div className="relative flex shrink-0">
+              <button
+                onClick={() => setIsPropertiesCollapsed(true)}
+                className="absolute top-2.5 right-2 p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 text-[10px] z-10 border border-slate-300 shadow-xs"
+                title="Collapse Properties Inspector to Maximize Canvas"
+              >
+                <PanelRightClose className="w-3.5 h-3.5" />
+              </button>
+              <EditorPropertiesPanel
+                drawing={activeDrawing}
+                selectedElement={selectedElement}
+                selectedConnector={selectedConnector}
+                chemicals={chemicals}
+                allElements={activeDrawing.elements}
+                onUpdateElement={(updated) => {
+                  handleUpdateElements(
+                    activeDrawing.elements.map((el) => (el.id === updated.id ? updated : el))
+                  );
+                }}
+                onUpdateConnector={(updated) => {
+                  handleUpdateConnectors(
+                    activeDrawing.connectors.map((c) => (c.id === updated.id ? updated : c))
+                  );
+                }}
+                onUpdateDrawingMeta={(meta) => {
+                  setActiveDrawing({ ...activeDrawing, ...meta });
+                  setHasUnsavedChanges(true);
+                }}
+              />
+            </div>
+          ) : (
+            <div className="w-10 bg-slate-900 border-l border-slate-800 flex flex-col items-center py-3 gap-3 shrink-0 select-none">
+              <button
+                onClick={() => setIsPropertiesCollapsed(false)}
+                className="p-1.5 rounded bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white transition-colors border border-slate-700"
+                title="Expand Properties Inspector"
+              >
+                <PanelRightOpen className="w-4 h-4 text-blue-400" />
+              </button>
+              <span className="text-[10px] font-mono font-bold text-slate-500 [writing-mode:vertical-lr] tracking-widest uppercase">
+                Properties
+              </span>
+            </div>
+          )}
         </div>
       )}
 

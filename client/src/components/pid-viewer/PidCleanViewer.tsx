@@ -394,28 +394,47 @@ export const PidCleanViewer: React.FC<PidCleanViewerProps> = ({
     }
   }, [returnToOverview]);
 
-  // Mouse wheel zoom anchored at cursor
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+  // Native non-passive mouse wheel zoom anchored at cursor
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
 
-    const zoomFactor = e.deltaY < 0 ? 1.15 : 0.86;
-    const newZoom = Math.min(3.5, Math.max(0.12, parseFloat((zoom * zoomFactor).toFixed(3))));
+    const onNativeWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
 
-    const newPanX = mouseX - ((mouseX - pan.x) / zoom) * newZoom;
-    const newPanY = mouseY - ((mouseY - pan.y) / zoom) * newZoom;
+      const rect = container.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
 
-    if (newZoom < PID_VIEWER_CONFIG.zoom.overview_max && activeSectionId) {
-      setActiveSectionId(null);
-      window.location.hash = '';
-    }
+      setZoom((prevZoom) => {
+        const zoomFactor = e.deltaY < 0 ? 1.15 : 0.86;
+        const newZoom = Math.min(3.5, Math.max(0.12, parseFloat((prevZoom * zoomFactor).toFixed(3))));
 
-    setZoom(newZoom);
-    setPan({ x: Math.round(newPanX), y: Math.round(newPanY) });
-  };
+        if (newZoom < PID_VIEWER_CONFIG.zoom.overview_max) {
+          setActiveSectionId((prevSec) => {
+            if (prevSec) {
+              try { window.location.hash = ''; } catch {}
+            }
+            return null;
+          });
+        }
+
+        setPan((prevPan) => {
+          const newPanX = mouseX - ((mouseX - prevPan.x) / prevZoom) * newZoom;
+          const newPanY = mouseY - ((mouseY - prevPan.y) / prevZoom) * newZoom;
+          return { x: Math.round(newPanX), y: Math.round(newPanY) };
+        });
+
+        return newZoom;
+      });
+    };
+
+    container.addEventListener('wheel', onNativeWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', onNativeWheel);
+    };
+  }, []);
 
   // Pan handlers
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -596,11 +615,10 @@ export const PidCleanViewer: React.FC<PidCleanViewerProps> = ({
       {/* Main Canvas Area */}
       <div
         ref={containerRef}
-        onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        className={`flex-1 relative w-full h-full cursor-${isPanning ? 'grabbing' : 'grab'} select-none`}
+        className={`flex-1 relative w-full h-full cursor-${isPanning ? 'grabbing' : 'grab'} select-none overscroll-contain touch-none`}
       >
         <svg
           ref={svgRef}
