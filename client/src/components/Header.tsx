@@ -104,7 +104,7 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 {projects.map((p) => (
                   <option key={p.id} value={p.id} className="bg-slate-900 text-slate-200">
-                    {p.name} {p.is_sample ? '(Demo)' : ''}
+                    {typeof p.name === 'string' ? p.name : (p.name as any)?.name || 'Project'} {p.is_sample ? '(Demo)' : ''}
                   </option>
                 ))}
               </select>

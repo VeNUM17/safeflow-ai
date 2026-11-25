@@ -37,7 +37,14 @@ export const App: React.FC = () => {
   const [graph, setGraph] = useState<TopologyGraph | null>(null);
   const [selectedChemicalId, setSelectedChemicalId] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<ActiveNavTab>('workspace');
+  const [activeTab, setActiveTab] = useState<ActiveNavTab>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    if (tab && ['workspace', 'pid-graph', 'chemical-inventory', 'engineering-matrix', 'discrepancy-manager', 'documents'].includes(tab)) {
+      return tab as ActiveNavTab;
+    }
+    return 'pid-graph';
+  });
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -56,9 +63,12 @@ export const App: React.FC = () => {
       const res = await fetch('/api/projects');
       const json = await res.json();
       if (json.success && json.data.length > 0) {
-        setProjects(json.data);
+        const uniqueProjects = Array.from(
+          new Map(json.data.map((p: ProcessProject) => [p.id, p])).values()
+        ) as ProcessProject[];
+        setProjects(uniqueProjects);
         if (!currentProject) {
-          setCurrentProject(json.data[0]);
+          setCurrentProject(uniqueProjects[0]);
         }
       }
     } catch (err) {
@@ -89,14 +99,12 @@ export const App: React.FC = () => {
       ]);
 
       if (projJson.success) {
-        setCurrentProject(projJson.data.project);
+        setCurrentProject((prev) => (prev?.id === projJson.data.project.id ? { ...prev, ...projJson.data.project } : projJson.data.project));
         setSummary(projJson.data.summary);
       }
       if (chemsJson.success) {
         setChemicals(chemsJson.data);
-        if (chemsJson.data.length > 0 && !selectedChemicalId) {
-          setSelectedChemicalId(chemsJson.data[0].id);
-        }
+        setSelectedChemicalId((prev) => prev || (chemsJson.data.length > 0 ? chemsJson.data[0].id : null));
       }
       if (docsJson.success) {
         setDocuments(docsJson.data);
@@ -116,14 +124,14 @@ export const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedChemicalId]);
+  }, []);
 
   useEffect(() => {
     fetchProjects();
   }, []);
 
   useEffect(() => {
-    if (currentProject) {
+    if (currentProject?.id) {
       loadProjectData(currentProject.id);
     }
   }, [currentProject?.id, loadProjectData]);
@@ -368,7 +376,12 @@ export const App: React.FC = () => {
         onOpenExportModal={() => setIsExportOpen(true)}
         onOpenConflictsModal={() => setIsConflictsOpen(true)}
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={(tab) => {
+          setActiveTab(tab);
+          const url = new URL(window.location.href);
+          url.searchParams.set('tab', tab);
+          window.history.replaceState(null, '', url.toString());
+        }}
       />
 
       {/* 3. Dashboard KPI Overview & Completeness Meter */}

@@ -339,6 +339,12 @@ export interface UnifiedProvenanceValue<T = any> {
   notes?: string;
 }
 
+export type DiscrepancyCategory =
+  | 'source_to_source_discrepancy'
+  | 'operating_vs_design_limit_violation'
+  | 'missing_engineering_information'
+  | 'unit_or_basis_inconsistency';
+
 export type DiscrepancyType =
   | 'conflict'
   | 'unit_difference'
@@ -349,13 +355,42 @@ export type DiscrepancyType =
   | 'moc_divergence'
   | 'relief_vs_mawp'
   | 'trip_vs_design'
-  | 'flow_imbalance';
+  | 'flow_imbalance'
+  | 'source_to_source_discrepancy'
+  | 'operating_vs_design_limit_violation'
+  | 'missing_engineering_information'
+  | 'unit_or_basis_inconsistency';
 
 export type DiscrepancyStatus =
   | 'open'
   | 'reviewed'
   | 'resolved'
   | 'accepted_as_margin';
+
+export interface PropertyVerificationHistoryEntry {
+  verified_by: string;
+  verified_at: string;
+  action: 'verified' | 'rejected' | 'modified' | 'flagged' | 'reviewed';
+  notes?: string;
+  previous_value?: any;
+  revised_value?: any;
+}
+
+export interface PropertyProvenance<T = any> {
+  value: T | null;
+  normalized_value?: T | null;
+  unit?: string | null;
+  source_document_id?: string | null;
+  source_document_name?: string | null;
+  source_category?: DocumentCategory | string | null;
+  source_revision?: string | null;
+  source_page?: number | null;
+  drawing_location?: string | null;
+  original_extracted_text?: string | null;
+  extraction_confidence?: number | null;
+  verification_status?: 'unverified' | 'engineer_verified' | 'rejected';
+  verification_history?: PropertyVerificationHistoryEntry[];
+}
 
 export interface CrossDocumentDiscrepancy {
   id: string;
@@ -364,6 +399,7 @@ export interface CrossDocumentDiscrepancy {
   entity_tag: string; // e.g. "PG-1001", "10\"-PG-00101-A1A", "STR-101"
   property_name: string; // e.g. "design_pressure", "operating_temperature", "material"
   discrepancy_type: DiscrepancyType;
+  discrepancy_category?: DiscrepancyCategory;
   status: DiscrepancyStatus;
   severity: 'critical' | 'warning' | 'info';
   message: string;
@@ -582,6 +618,13 @@ export function createDefaultSpecifications(type?: EquipmentType): EquipmentSpec
   };
 }
 
+export type IsolatedReviewStatus =
+  | 'confirmed_isolated'
+  | 'missing_connection_suspected'
+  | 'connection_exists_on_another_drawing'
+  | 'incorrect_equipment_identification'
+  | 'awaiting_review';
+
 export interface EquipmentTag {
   id: string; // Stable internal ID
   project_id: string;
@@ -610,11 +653,43 @@ export interface EquipmentTag {
   drawing_id?: string | null;
   drawing_revision?: string | null;
   drawing_element_id?: string | null;
+  source_drawing?: string | null;
+  source_page?: number | null;
+  source_revision?: string | null;
+  isolated_review_status?: IsolatedReviewStatus | null;
+  isolated_review_notes?: string | null;
+  isolated_reviewed_by?: string | null;
+  isolated_reviewed_at?: string | null;
+  verification_status?: 'unverified' | 'engineer_verified';
+  verified_by?: string | null;
+  verified_at?: string | null;
+  duplicate_detected?: boolean;
+  duplicate_tag_ids?: string[];
+  conflicting_tags?: Array<{
+    document_id: string;
+    document_name: string;
+    tag: string;
+    confidence: number;
+    conflict_reason?: string;
+  }>;
+  original_extracted_values?: {
+    tag?: string;
+    equipment_type?: string;
+    description?: string;
+    confidence?: number;
+    extracted_at?: string;
+  };
+  property_provenance?: Record<string, PropertyProvenance>;
   created_at: string;
   updated_at?: string;
 }
 
-export type FunctionalType = 'piping_line' | 'signal_line' | 'utility_line';
+export type FunctionalType = 'piping_line' | 'signal_line' | 'utility_line' | 'non_process_line';
+export type ConnectionClassification =
+  | 'process_piping'
+  | 'instrument_signal'
+  | 'utility_connection'
+  | 'non_process_equipment_relationship';
 export type FlowDirection = 'forward' | 'reverse' | 'bidirectional' | 'unknown';
 
 // --- PROCESS STREAM DATA MODEL ---
@@ -652,21 +727,41 @@ export interface ProcessStream {
   id: string; // Unique stream ID
   project_id: string;
   stream_number: string; // Identifier e.g. "STR-101", "1", "S-01"
+  stream_id?: string;
+  stream_description?: string | null;
   source_equipment_id: string | null;
   source_equipment_tag: string; // e.g. "TK-101"
   destination_equipment_id: string | null;
   destination_equipment_tag: string; // e.g. "P-101"
+  connected_equipment?: string[];
   connected_line_id: string | null;
   line_number: string | null;
+  connected_line_ids?: string[];
+  connected_line_numbers?: string[];
   material_description: string;
   assigned_chemical_id: string | null;
+  components?: (StreamTableComponentFraction | ChemicalCompositionEntry)[];
   flow_direction: FlowDirection;
   flow_rates: StreamFlowRates;
+  total_flow_rate?: UnifiedProvenanceValue<number>;
   operating_pressure: StreamOperatingCondition;
   operating_temperature: StreamOperatingCondition;
   phase: StreamPhase | null;
   pipe_nominal_diameter: string | null;
   pipe_spec: string | null;
+  density?: UnifiedProvenanceValue<number>;
+  vapor_fraction?: UnifiedProvenanceValue<number>;
+  molecular_weight?: UnifiedProvenanceValue<number>;
+  viscosity?: UnifiedProvenanceValue<number>;
+  enthalpy?: UnifiedProvenanceValue<number>;
+  heat_capacity?: UnifiedProvenanceValue<number>;
+  z_factor?: UnifiedProvenanceValue<number>;
+  operating_range?: {
+    min?: number | null;
+    normal?: number | null;
+    max?: number | null;
+    unit?: string | null;
+  };
   associated_instrument_tags: string[]; // e.g. ["FI-101", "FIT-101", "FIC-101", "FCV-101", "FE-101", "FO-101"]
   source: {
     document: string;
@@ -674,14 +769,93 @@ export interface ProcessStream {
     page: number | null;
     snippet: string | null;
     section?: string | null;
+    drawing_location?: string | null;
   };
   data_origin: StreamDataOrigin;
   verification_status: StreamVerificationStatus;
   verified_by?: string | null;
   verified_at?: string | null;
+  original_extracted_values?: Record<string, any>;
   notes?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ProcessStreamValidationIssue {
+  id: string;
+  stream_id: string;
+  stream_number: string;
+  category: ValidationCategory;
+  severity: ValidationSeverity;
+  property_name?: string;
+  message: string;
+  operating_value?: any;
+  design_limit?: any;
+  unit?: string;
+  source_document?: string;
+}
+
+export interface ProcessStreamValidationReport {
+  project_id: string;
+  total_streams_count: number;
+  verified_streams_count: number;
+  unverified_streams_count: number;
+  issues: ProcessStreamValidationIssue[];
+  critical_errors_count: number;
+  warnings_count: number;
+  limit_violations_count: number;
+  missing_info_count: number;
+  separator_decoupling_violations_count: number;
+  can_approve: boolean;
+  validated_at: string;
+}
+
+// --- CONNECTION CLASSIFICATION & TOPOLOGY VALIDATION (PHASE 4) ---
+
+export type ConnectionValidationCategory =
+  | 'critical_error'
+  | 'warning'
+  | 'engineering_review_required'
+  | 'informational';
+
+export interface ConnectionValidationIssue {
+  id: string;
+  connection_id: string;
+  line_number: string;
+  severity: ConnectionValidationCategory;
+  category:
+    | 'unresolved_endpoint'
+    | 'flow_direction_conflict'
+    | 'material_flow_on_non_process'
+    | 'material_flow_on_signal'
+    | 'utility_fluid_gap'
+    | 'missing_engineering_data'
+    | 'circular_connection'
+    | 'cross_drawing_boundary'
+    | 'self_loop';
+  message: string;
+  source_equipment: string;
+  target_equipment: string;
+  connection_classification: ConnectionClassification;
+  is_drawing_boundary?: boolean;
+  can_approve: boolean;
+  created_at: string;
+}
+
+export interface ConnectionValidationReport {
+  project_id: string;
+  total_connections_count: number;
+  process_piping_count: number;
+  instrument_signal_count: number;
+  utility_connection_count: number;
+  non_process_count: number;
+  critical_errors_count: number;
+  warnings_count: number;
+  review_required_count: number;
+  informational_count: number;
+  issues: ConnectionValidationIssue[];
+  can_approve: boolean;
+  validated_at: string;
 }
 
 // --- PFD & BFD EXTRACTION DATA MODELS ---
@@ -908,19 +1082,34 @@ export interface PhilosophyExtractionResult {
 export interface CreateStreamInput {
   project_id: string;
   stream_number?: string;
+  stream_id?: string;
+  stream_description?: string;
   source_equipment_tag: string;
   destination_equipment_tag: string;
   connected_line_id?: string | null;
   line_number?: string | null;
+  connected_line_ids?: string[];
+  connected_line_numbers?: string[];
+  connected_equipment?: string[];
   material_description?: string;
   assigned_chemical_id?: string | null;
+  components?: (StreamTableComponentFraction | ChemicalCompositionEntry)[];
   flow_direction?: FlowDirection;
   flow_rates?: Partial<StreamFlowRates>;
+  total_flow_rate?: UnifiedProvenanceValue<number>;
   operating_pressure?: Partial<StreamOperatingCondition>;
   operating_temperature?: Partial<StreamOperatingCondition>;
   phase?: StreamPhase | null;
   pipe_nominal_diameter?: string | null;
   pipe_spec?: string | null;
+  density?: UnifiedProvenanceValue<number>;
+  vapor_fraction?: UnifiedProvenanceValue<number>;
+  molecular_weight?: UnifiedProvenanceValue<number>;
+  viscosity?: UnifiedProvenanceValue<number>;
+  enthalpy?: UnifiedProvenanceValue<number>;
+  heat_capacity?: UnifiedProvenanceValue<number>;
+  z_factor?: UnifiedProvenanceValue<number>;
+  operating_range?: { min?: number | null; normal?: number | null; max?: number | null; unit?: string | null };
   associated_instrument_tags?: string[];
   source_document?: string;
   source_page?: number | null;
@@ -996,7 +1185,40 @@ export function createEmptyProcessStream(
   };
 }
 
-export interface PipingLine {
+export type ConnectionType =
+  | 'process_piping'
+  | 'instrument_signal'
+  | 'utility_connection'
+  | 'non_process_equipment_relationship'
+  | 'non_process';
+
+export type ChemicalCompositionBasis =
+  | 'mol%'
+  | 'wt%'
+  | 'ppm mol'
+  | 'ppm wt'
+  | 'vol%';
+
+export interface ChemicalCompositionEntry {
+  component_identity: string;
+  cas_number?: string | null;
+  concentration_value: number | null;
+  concentration_basis: ChemicalCompositionBasis;
+  unit: string;
+  source?: string | null;
+  source_document_id?: string | null;
+  verification_status: 'unverified' | 'engineer_verified';
+  notes?: string | null;
+}
+
+export interface ProcessLineFlowRates {
+  min: PropertyProvenance<number>;
+  normal: PropertyProvenance<number>;
+  max: PropertyProvenance<number>;
+  design?: PropertyProvenance<number>;
+}
+
+export interface ProcessLine {
   id: string;
   project_id: string;
   document_id: string;
@@ -1005,6 +1227,7 @@ export interface PipingLine {
   to_equipment: string;
   size: string;
   material: string;
+  pipe_specification?: string;
   stream_label: string;
   functional_type: FunctionalType;
   flow_direction: FlowDirection;
@@ -1018,14 +1241,72 @@ export interface PipingLine {
     snippet: string;
   };
   alerts: string[];
-  notes?: string;
-  change_reason?: string;
+  nominal_pipe_size?: PropertyProvenance<string>;
+  pipe_spec?: PropertyProvenance<string>;
+  fluid_service?: PropertyProvenance<string>;
+  connection_type?: ConnectionType;
+  connection_classification?: ConnectionClassification;
+  is_drawing_boundary?: boolean;
+  drawing_boundary_target?: string | null;
+  drawing_boundary_drawing?: string | null;
+  operating_flow_rate?: PropertyProvenance<number>;
+  flow_rates?: ProcessLineFlowRates;
+  operating_pressure?: PropertyProvenance<number>;
+  operating_temperature?: PropertyProvenance<number>;
+  design_pressure?: PropertyProvenance<number>;
+  design_temperature?: PropertyProvenance<number>;
+  chemical_composition?: ChemicalCompositionEntry[];
+  physical_state?: PropertyProvenance<'liquid' | 'gas' | 'vapor' | 'multiphase' | 'slurry' | string>;
+  source_document_id?: string | null;
+  source_document_name?: string | null;
+  source_drawing?: string | null;
+  source_page?: number | null;
+  source_revision?: string | null;
+  drawing_location?: string | null;
+  extraction_confidence?: number;
+  verification_status?: 'unverified' | 'engineer_verified';
+  verified_by?: string | null;
+  verified_at?: string | null;
+  original_extracted_values?: Record<string, any>;
+  property_provenance?: Record<string, PropertyProvenance>;
+  notes?: string | null;
+  change_reason?: string | null;
+  is_manual_entry?: boolean;
   machine_from?: string;
   machine_to?: string;
   machine_line_number?: string;
-  is_manual_entry?: boolean;
   created_at: string;
   updated_at?: string;
+}
+
+export type PipingLine = ProcessLine;
+
+export interface ProcessLineValidationIssue {
+  id: string;
+  line_id: string;
+  line_number: string;
+  category: ValidationCategory;
+  severity: ValidationSeverity;
+  property_name?: string;
+  message: string;
+  operating_value?: any;
+  design_limit?: any;
+  unit?: string;
+  source_document?: string;
+}
+
+export interface ProcessLineValidationReport {
+  project_id: string;
+  total_lines_count: number;
+  verified_lines_count: number;
+  unverified_lines_count: number;
+  issues: ProcessLineValidationIssue[];
+  critical_errors_count: number;
+  warnings_count: number;
+  limit_violations_count: number;
+  missing_info_count: number;
+  can_approve: boolean;
+  validated_at: string;
 }
 
 export interface ChemicalConflict {
@@ -1060,22 +1341,46 @@ export interface ProcessProject {
 }
 
 // Graph Validation Types
+export type ValidationSeverity =
+  | 'critical_error'
+  | 'warning'
+  | 'engineering_review_required'
+  | 'informational'
+  | 'error' // backwards compatibility
+  | 'info';  // backwards compatibility
+
+export type ValidationCategory =
+  | 'source_to_source_discrepancy'
+  | 'operating_vs_design_limit_violation'
+  | 'missing_engineering_information'
+  | 'unit_or_basis_inconsistency'
+  | 'topology_integrity';
+
 export interface ValidationIssue {
   id: string;
-  severity: 'error' | 'warning' | 'info';
+  severity: ValidationSeverity;
+  category?: ValidationCategory;
   code: string;
   message: string;
-  entity_type: 'equipment' | 'line' | 'graph';
+  entity_type: 'equipment' | 'line' | 'graph' | 'stream';
   entity_id?: string;
   acknowledged?: boolean;
   acknowledgment_reason?: string;
+  documented_waiver?: {
+    approved_by: string;
+    approved_at: string;
+    justification: string;
+  };
 }
 
 export interface GraphValidationResult {
   is_valid: boolean;
   can_approve: boolean;
   errors_count: number;
+  critical_errors_count?: number;
   warnings_count: number;
+  review_required_count?: number;
+  info_count?: number;
   issues: ValidationIssue[];
   checked_at: string;
 }
@@ -1083,9 +1388,18 @@ export interface GraphValidationResult {
 export interface GraphApprovalRecord {
   approved: boolean;
   approved_by?: string;
+  approver_role?: string;
   approved_at?: string;
   notes?: string;
+  graph_snapshot_hash?: string;
+  document_versions_used?: Array<{ document_id: string; filename: string; category?: string; revision?: string }>;
+  acknowledged_warnings?: string[];
+  outstanding_provisional_items?: Array<{ id: string; type: string; tag_or_number: string; reason?: string }>;
   validation_snapshot?: GraphValidationResult;
+  invalidated_at?: string;
+  invalidation_reason?: string;
+  invalidated_by?: string;
+  previous_approval_snapshot?: any;
 }
 
 // Audit Trail Types
@@ -1101,6 +1415,58 @@ export interface AuditTrailEntry {
   revised_value?: any;
   change_reason: string;
   reviewer: string;
+  previous_state?: any;
+  new_state?: any;
+  can_revert?: boolean;
+  reverted_at?: string;
+  reverted_by?: string;
+  revert_audit_id?: string;
+}
+
+// Change Impact Analysis Types
+export interface ChangeImpactConnectedLine {
+  id: string;
+  line_number: string;
+  direction: string;
+  from_equipment: string;
+  to_equipment: string;
+  is_utility?: boolean;
+}
+
+export interface ChangeImpactConnectedStream {
+  id: string;
+  stream_number: string;
+  source_equipment_tag?: string;
+  destination_equipment_tag?: string;
+  connected_lines: string[];
+}
+
+export interface ChangeImpactPhaNode {
+  id: string;
+  node_id: string;
+  name: string;
+  current_status: string;
+  impact_reasons: string[];
+}
+
+export interface ChangeImpactAnalysisResult {
+  project_id: string;
+  target_entity_type: 'equipment' | 'line' | 'stream' | 'drawing';
+  target_entity_id: string;
+  target_entity_tag_or_number: string;
+  change_type: 'update' | 'delete' | 'create' | 'limit_change' | 'stream_assignment';
+  change_description: string;
+  timestamp: string;
+  directly_affected_entity: any;
+  connected_lines: ChangeImpactConnectedLine[];
+  connected_streams: ChangeImpactConnectedStream[];
+  downstream_equipment: string[];
+  upstream_equipment: string[];
+  impacted_pha_nodes: ChangeImpactPhaNode[];
+  impacted_deviations_count: number;
+  severity_level: 'critical' | 'warning' | 'informational';
+  requires_pha_reassessment: boolean;
+  reassessment_recommendations: string[];
 }
 
 // PHA Study Node Types
@@ -1315,6 +1681,10 @@ export interface TopologyGraphSummary {
   unresolved_connections_count: number;
   signal_only_connections_count: number;
   isolated_nodes_count: number;
+  process_piping_edges_count?: number;
+  utility_connection_edges_count?: number;
+  instrument_signal_edges_count?: number;
+  non_process_relationship_edges_count?: number;
 }
 
 export interface GraphNode {
@@ -1357,6 +1727,8 @@ export interface GraphEdge {
   size: string;
   material: string;
   functional_type: FunctionalType;
+  connection_classification?: ConnectionClassification;
+  connection_type?: ConnectionType;
   flow_direction: FlowDirection;
   status: string;
   stream_id?: string | null;
@@ -1374,6 +1746,14 @@ export interface GraphEdge {
     pel: string | null;
     corrosivity: string | null;
     inadvertent_mixing: string | null;
+  };
+  operating_conditions?: {
+    flow_rate?: number | null;
+    flow_unit?: string | null;
+    pressure?: number | null;
+    pressure_unit?: string | null;
+    temperature?: number | null;
+    temperature_unit?: string | null;
   };
   alerts: string[];
 }
@@ -1410,6 +1790,8 @@ export interface DrawingElement {
   id: string; // Stable internal ID, separate from tag
   tag: string; // Engineering tag (e.g. V-101, P-101A)
   type: DrawingElementType;
+  component_class_id?: string;
+  inline?: boolean;
   description: string;
   position: { x: number; y: number };
   size: { width: number; height: number };
@@ -1425,6 +1807,7 @@ export interface DrawingElement {
   };
   notes?: string;
   ports: DrawingPort[];
+  label_offset?: { x: number; y: number };
   instrument_type?: string;
   measured_variable?: string;
   loop_id?: string;
@@ -1471,6 +1854,8 @@ export interface DigitalPidDrawing {
   revision: string;
   mode: 'scratch' | 'imported_overlay';
   status: 'draft' | 'under_review' | 'approved';
+  canvas_width?: number;
+  canvas_height?: number;
   elements: DrawingElement[];
   connectors: DrawingConnector[];
   background_visible: boolean;
@@ -1901,4 +2286,188 @@ export interface ComprehensiveHazopDeviation {
   risk_rank: string;
   requires_engineering_review: boolean;
 }
+
+// ============================================================================
+// IEC 61882 HAZOP WORKFLOW & CCPS LOPA DOMAIN MODELS
+// ============================================================================
+
+export interface HazopRiskMatrixConfig {
+  id: string;
+  project_id: string;
+  version: string;
+  standard_reference: string;
+  severity_levels: {
+    level: number;
+    label: string;
+    description: string;
+    safety_impact: string;
+    environmental_impact: string;
+    economic_impact: string;
+  }[];
+  likelihood_levels: {
+    level: number;
+    label: string;
+    description: string;
+    frequency_per_year: string;
+  }[];
+  cells: {
+    severity: number;
+    likelihood: number;
+    risk_level: 'Low' | 'Medium' | 'High' | 'Critical';
+    acceptance_action: string;
+  }[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HazopSafeguard {
+  id: string;
+  type: 'prevention' | 'mitigation';
+  tag?: string;
+  description: string;
+  pid_reference?: string;
+  verification_status: 'unverified' | 'verified' | 'flagged';
+  verified_by?: string;
+  notes?: string;
+}
+
+export interface HazopActionItem {
+  id: string;
+  hazop_row_id: string;
+  project_id: string;
+  node_id: string;
+  action_number: string;
+  recommendation: string;
+  category: 'engineering_design' | 'operating_procedure' | 'maintenance_inspection' | 'instrumentation_alarm';
+  owner: string;
+  target_date: string;
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  status: 'open' | 'in_progress' | 'closed';
+  closure_evidence?: string;
+  closure_date?: string;
+  verified_by?: string;
+  requires_review_on_change: boolean;
+}
+
+export interface HazopWorksheetRow {
+  id: string;
+  project_id: string;
+  node_id: string;
+  node_name: string;
+  drawing_number: string;
+  drawing_revision: string;
+  parameter: HazopParameterCategory;
+  guideword: string;
+  deviation: string;
+  causes: string[];
+  consequences: string[];
+  registry_references?: {
+    component_class_id: string;
+    component_name: string;
+    typical_failure_modes: string[];
+    typical_safeguards: string[];
+    verification_status: 'generic_unverified';
+  }[];
+  prevention_safeguards: HazopSafeguard[];
+  mitigation_safeguards: HazopSafeguard[];
+  initial_severity: number;
+  initial_likelihood: number;
+  initial_risk_level: 'Low' | 'Medium' | 'High' | 'Critical';
+  residual_severity?: number;
+  residual_likelihood?: number;
+  residual_risk_level?: 'Low' | 'Medium' | 'High' | 'Critical';
+  actions: HazopActionItem[];
+  supporting_documents: {
+    document_id: string;
+    document_name: string;
+    page?: number;
+    section?: string;
+  }[];
+  linked_lopa_id?: string | null;
+  review_status: 'draft' | 'under_review' | 'confirmed';
+  reviewed_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IndependentProtectionLayer {
+  id: string;
+  tag: string;
+  description: string;
+  ipl_type: 'bpcs' | 'alarm_operator_intervention' | 'prv_relief' | 'sis_sif' | 'passive_containment' | 'other';
+  pfd: number;
+  independence_verified: boolean;
+  independence_evidence: string;
+  functionality_verified: boolean;
+  functionality_evidence: string;
+  reliability_verified: boolean;
+  reliability_evidence: string;
+  auditability_verified: boolean;
+  auditability_evidence: string;
+  is_qualified_ipl: boolean;
+  criterion_independence_met?: boolean;
+  criterion_functionality_met?: boolean;
+  criterion_reliability_met?: boolean;
+  criterion_auditability_met?: boolean;
+  verified_by?: string;
+  verified_at?: string;
+}
+
+export interface LopaRecord {
+  id: string;
+  project_id: string;
+  node_id: string;
+  hazop_row_id: string;
+  scenario_title: string;
+  drawing_number: string;
+  drawing_revision: string;
+  consequence_description: string;
+  severity_level: number;
+  initiating_event: {
+    description: string;
+    category: string;
+    frequency_per_year: number;
+    evidence: string;
+  };
+  conditional_modifiers: {
+    id: string;
+    name: string;
+    probability: number;
+    justification: string;
+  }[];
+  unmitigated_frequency: number;
+  unmitigated_frequency_per_year?: number;
+  target_frequency: number;
+  target_mitigated_frequency_per_year?: number;
+  ipls: IndependentProtectionLayer[];
+  total_pfd: number;
+  total_credited_pfd?: number;
+  mitigated_frequency: number;
+  mitigated_frequency_per_year?: number;
+  risk_tolerance_met: boolean;
+  sil_requirement: 'None' | 'SIL 1' | 'SIL 2' | 'SIL 3' | 'SIL 4';
+  analyst_signoff?: {
+    analyst_name: string;
+    date: string;
+    notes: string;
+  };
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConnectionQualityMetrics {
+  drawing_id: string;
+  project_id: string;
+  evaluated_at: string;
+  total_connections_evaluated: number;
+  false_connections_count: number;
+  missed_connections_count: number;
+  line_type_errors_count: number;
+  offpage_matching_errors_count: number;
+  unresolved_endpoints_count: number;
+  path_accuracy_percentage: number;
+  symbol_detection_score: number;
+  human_corrections_retained: number;
+}
+
 

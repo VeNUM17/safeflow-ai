@@ -1,4 +1,6 @@
 import { BoundingBox } from '../types';
+import { PidConventionProfile } from '../types/conventionProfile';
+import { getConventionProfile } from './pidConventionService';
 
 export interface RecognizedTextToken {
   id: string;
@@ -6,7 +8,7 @@ export interface RecognizedTextToken {
   cleanedText: string;
   bbox: BoundingBox;
   confidence: number;
-  tokenType: 'equipment_tag' | 'line_tag' | 'instrument_tag' | 'flow_spec' | 'general_text';
+  tokenType: 'equipment_tag' | 'line_tag' | 'instrument_tag' | 'flow_spec' | 'off_page_connector' | 'general_text';
   tagMatches?: {
     tag: string;
     type: string;
@@ -18,6 +20,7 @@ export interface OcrRecognitionResult {
   equipmentTags: { tag: string; type: string; bbox: BoundingBox; confidence: number }[];
   lineTags: { tag: string; diameter: string; spec: string; bbox: BoundingBox; confidence: number }[];
   instrumentTags: { tag: string; loop: string; bbox: BoundingBox; confidence: number }[];
+  offPageConnectors: { tag: string; targetSheet?: string; bbox: BoundingBox; confidence: number }[];
   flowAnnotations: { text: string; value: number | null; unit: string | null; bbox: BoundingBox }[];
 }
 
@@ -39,15 +42,26 @@ export function normalizeOcrTag(rawTag: string): string {
 
 /**
  * Recognizes and classifies text tokens from drawing text streams or OCR engines.
+ * Dynamically adapts to the specified PidConventionProfile without hardcoding project-specific tags.
  */
 export function recognizeDrawingText(
-  textElements: { text: string; bbox: BoundingBox; confidence?: number }[]
+  textElements: { text: string; bbox: BoundingBox; confidence?: number }[],
+  profile?: PidConventionProfile
 ): OcrRecognitionResult {
+  const activeProfile = profile || getConventionProfile();
+
+  // Compile regexes from profile
+  const eqRegexes = activeProfile.tagPatterns.equipment.map((p) => new RegExp(p, 'i'));
+  const lineRegexes = activeProfile.tagPatterns.pipingLine.map((p) => new RegExp(p, 'i'));
+  const instRegexes = activeProfile.tagPatterns.instrument.map((p) => new RegExp(p, 'i'));
+  const opcRegexes = (activeProfile.tagPatterns.offPageConnector || []).map((p) => new RegExp(p, 'i'));
+
   const result: OcrRecognitionResult = {
     tokens: [],
     equipmentTags: [],
     lineTags: [],
     instrumentTags: [],
+    offPageConnectors: [],
     flowAnnotations: [],
   };
 
@@ -61,7 +75,14 @@ export function recognizeDrawingText(
     let tokenType: RecognizedTextToken['tokenType'] = 'general_text';
 
     // 1. Check Equipment Tag
-    const eqMatch = raw.match(EQUIPMENT_TAG_REGEX);
+    let eqMatch: RegExpMatchArray | null = null;
+    for (const r of eqRegexes) {
+      eqMatch = raw.match(r);
+      if (eqMatch) break;
+    }
+    if (!eqMatch) {
+      eqMatch = raw.match(EQUIPMENT_TAG_REGEX);
+    }
     if (eqMatch) {
       tokenType = 'equipment_tag';
       const tag = normalizeOcrTag(eqMatch[0]);
@@ -75,34 +96,68 @@ export function recognizeDrawingText(
     }
 
     // 2. Check Instrument Tag
-    const instMatch = raw.match(INSTRUMENT_TAG_REGEX);
-    if (instMatch && tokenType === 'general_text') {
-      tokenType = 'instrument_tag';
-      const tag = normalizeOcrTag(instMatch[0]);
-      result.instrumentTags.push({
-        tag,
-        loop: instMatch[2],
-        bbox: elem.bbox,
-        confidence: conf,
-      });
+    let instMatch: RegExpMatchArray | null = null;
+    if (tokenType === 'general_text') {
+      for (const r of instRegexes) {
+        instMatch = raw.match(r);
+        if (instMatch) break;
+      }
+      if (!instMatch) {
+        instMatch = raw.match(INSTRUMENT_TAG_REGEX);
+      }
+      if (instMatch) {
+        tokenType = 'instrument_tag';
+        const tag = normalizeOcrTag(instMatch[0]);
+        result.instrumentTags.push({
+          tag,
+          loop: instMatch[2] || instMatch[1] || '101',
+          bbox: elem.bbox,
+          confidence: conf,
+        });
+      }
     }
 
-    // 3. Check Line Tag
-    const lineMatch = raw.match(LINE_TAG_REGEX);
-    const simpleLineMatch = raw.match(SIMPLE_LINE_REGEX);
-    if ((lineMatch || simpleLineMatch) && tokenType === 'general_text') {
-      tokenType = 'line_tag';
-      const matchedTag = (lineMatch ? lineMatch[0] : simpleLineMatch![0]).toUpperCase();
-      result.lineTags.push({
-        tag: matchedTag,
-        diameter: lineMatch ? (lineMatch[1] ? `${lineMatch[1]}"` : '2"') : '2"',
-        spec: lineMatch ? (lineMatch[4] || 'CS') : 'CS',
-        bbox: elem.bbox,
-        confidence: conf,
-      });
+    // 3. Check Off-Page Connector (OPC)
+    if (tokenType === 'general_text') {
+      for (const r of opcRegexes) {
+        const opcMatch = raw.match(r);
+        if (opcMatch) {
+          tokenType = 'off_page_connector';
+          result.offPageConnectors.push({
+            tag: opcMatch[0].toUpperCase(),
+            targetSheet: opcMatch[2] || opcMatch[1],
+            bbox: elem.bbox,
+            confidence: conf,
+          });
+          break;
+        }
+      }
     }
 
-    // 4. Check Flow Annotation
+    // 4. Check Line Tag
+    if (tokenType === 'general_text') {
+      let lineMatch: RegExpMatchArray | null = null;
+      for (const r of lineRegexes) {
+        lineMatch = raw.match(r);
+        if (lineMatch) break;
+      }
+      if (!lineMatch) {
+        lineMatch = raw.match(LINE_TAG_REGEX) || raw.match(SIMPLE_LINE_REGEX);
+      }
+      if (lineMatch) {
+        tokenType = 'line_tag';
+        const matchedTag = lineMatch[0].toUpperCase();
+        result.lineTags.push({
+          tag: matchedTag,
+          diameter: lineMatch[1] ? (lineMatch[1].includes('"') ? lineMatch[1] : `${lineMatch[1]}"`) : '2"',
+          spec: lineMatch[4] || 'CS',
+          bbox: elem.bbox,
+          confidence: conf,
+        });
+      }
+    }
+
+    // 5. Check Flow Annotation
     const flowMatch = raw.match(FLOW_ANNOTATION_REGEX);
     if (flowMatch) {
       tokenType = 'flow_spec';

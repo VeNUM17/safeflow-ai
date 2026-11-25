@@ -11,7 +11,9 @@ import {
   TopologyGraphSummary,
   ChemicalMixingAlert,
   MixingAlertStatus,
+  ConnectionClassification,
 } from '../types';
+import { classifyConnection, isMaterialFlowConnection } from './connectionClassificationService';
 
 export function buildProcessTopologyGraph(
   equipmentList: EquipmentTag[],
@@ -144,15 +146,22 @@ export function buildProcessTopologyGraph(
 
   // 2. Map piping lines to GraphEdge
   for (const line of linesList) {
-    const isSignal = line.functional_type === 'signal_line';
-    const chem = (!isSignal && line.assigned_chemical_id) ? chemMap.get(line.assigned_chemical_id) : undefined;
+    const classification = line.connection_classification || classifyConnection(line);
+    const isSignal = classification === 'instrument_signal' || line.functional_type === 'signal_line';
+    const isNonProcess = classification === 'non_process_equipment_relationship';
+    const supportsMaterialFlow = isMaterialFlowConnection(classification);
+
+    const chem = (supportsMaterialFlow && line.assigned_chemical_id) ? chemMap.get(line.assigned_chemical_id) : undefined;
     const lineAlerts: string[] = [];
 
-    // Critical rule: Signal lines are NOT chemical streams
+    // Critical rule: Signal lines and non-process relationships are NOT material streams
     if (isSignal) {
-      // Signal loops transmit electrical/pneumatic signals, not process fluid
       if (line.assigned_chemical_id) {
         lineAlerts.push('[CRITICAL ERROR]: Instrument signal line incorrectly assigned a process chemical fluid.');
+      }
+    } else if (isNonProcess) {
+      if (line.assigned_chemical_id) {
+        lineAlerts.push('[CRITICAL ERROR]: Non-process equipment relationship incorrectly assigned a chemical fluid.');
       }
     } else if (chem) {
       const chemName = (chem.chemical_name.user_value || chem.chemical_name.value || '').toLowerCase();
@@ -173,7 +182,7 @@ export function buildProcessTopologyGraph(
       }
     }
 
-    if (line.flow_direction === 'unknown') {
+    if (supportsMaterialFlow && line.flow_direction === 'unknown') {
       lineAlerts.push('[DIRECTION UNRESOLVED]: Flow direction not confirmed on P&ID.');
     }
 
@@ -204,6 +213,8 @@ export function buildProcessTopologyGraph(
       size: line.size || '2"',
       material: line.material || 'CS',
       functional_type: line.functional_type || 'piping_line',
+      connection_classification: classification,
+      connection_type: line.connection_type || (classification as any),
       flow_direction: line.flow_direction || 'forward',
       status: line.status,
       stream_id: matchingStream ? matchingStream.id : (line.stream_id || null),
@@ -220,6 +231,14 @@ export function buildProcessTopologyGraph(
             inadvertent_mixing: chem.psi_parameters.inadvertent_mixing_hazards.user_value || chem.psi_parameters.inadvertent_mixing_hazards.value,
           }
         : undefined,
+      operating_conditions: {
+        flow_rate: line.operating_flow_rate?.value ?? null,
+        flow_unit: line.operating_flow_rate?.unit ?? null,
+        pressure: line.operating_pressure?.value ?? null,
+        pressure_unit: line.operating_pressure?.unit ?? null,
+        temperature: line.operating_temperature?.value ?? null,
+        temperature_unit: line.operating_temperature?.unit ?? null,
+      },
       alerts: lineAlerts,
     });
   }
@@ -229,11 +248,11 @@ export function buildProcessTopologyGraph(
   for (const node of nodes) {
     const nodeTagUpper = node.tag.toUpperCase();
 
-    // Find all process piping lines physically connected to this node
+    // Find all process and utility lines physically connected to this node that support material flow
     const connectedProcessLines = edges.filter(
       (e) =>
         (e.source.toUpperCase() === nodeTagUpper || e.target.toUpperCase() === nodeTagUpper) &&
-        e.functional_type === 'piping_line'
+        isMaterialFlowConnection(e.connection_classification || 'process_piping')
     );
 
     if (connectedProcessLines.length === 0) continue;
@@ -449,6 +468,23 @@ export function buildProcessTopologyGraph(
 
   const isolatedNodesCount = nodes.filter((n) => n.is_isolated).length;
 
+  // Phase 4 Connection Classification Counts
+  const processPipingEdgesCount = linesList.filter(
+    (l) => (l.connection_classification || classifyConnection(l)) === 'process_piping'
+  ).length;
+
+  const utilityConnectionEdgesCount = linesList.filter(
+    (l) => (l.connection_classification || classifyConnection(l)) === 'utility_connection'
+  ).length;
+
+  const instrumentSignalEdgesCount = linesList.filter(
+    (l) => (l.connection_classification || classifyConnection(l)) === 'instrument_signal'
+  ).length;
+
+  const nonProcessRelationshipEdgesCount = linesList.filter(
+    (l) => (l.connection_classification || classifyConnection(l)) === 'non_process_equipment_relationship'
+  ).length;
+
   const counts: TopologyGraphSummary = {
     equipment_nodes_count: equipmentList.length,
     confirmed_process_edges_count: confirmedProcessEdges,
@@ -456,6 +492,10 @@ export function buildProcessTopologyGraph(
     unresolved_connections_count: unresolvedConnections,
     signal_only_connections_count: signalOnlyConnections,
     isolated_nodes_count: isolatedNodesCount,
+    process_piping_edges_count: processPipingEdgesCount,
+    utility_connection_edges_count: utilityConnectionEdgesCount,
+    instrument_signal_edges_count: instrumentSignalEdgesCount,
+    non_process_relationship_edges_count: nonProcessRelationshipEdgesCount,
   };
 
   // Total localized alerts = actual mixing alerts + metallurgy alerts + isolated node warnings

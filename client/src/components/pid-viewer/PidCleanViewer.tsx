@@ -21,6 +21,7 @@ import { CrossingMinimizedLayoutEngine, LayoutNode } from './crossingMinimizedLa
 import { SectionManager, PidSection, SectionExitMarker } from './sectionModel';
 import { OrthogonalRouter, RouteRequest, Point } from './orthogonalRouter';
 import { LabelPlacer } from './labelPlacer';
+import { EngineeringTables } from './EngineeringTables';
 import { ReviewQueuePanel, FlaggedEdgeItem } from './ReviewQueuePanel';
 import { DrawingElement, DrawingConnector } from '../../types';
 
@@ -289,23 +290,54 @@ export const PidCleanViewer: React.FC<PidCleanViewerProps> = ({
     return items;
   }, [routedEdges, connectors, nodeMap]);
 
+  // Refs for non-stale wheel zooming
+  const panRef = useRef<Point>(pan);
+  panRef.current = pan;
+  const zoomRef = useRef<number>(zoom);
+  zoomRef.current = zoom;
+  const hasPannedRef = useRef<boolean>(false);
+
+  // Zoom centered on current viewport center
+  const zoomByFactor = useCallback((factor: number) => {
+    const container = containerRef.current;
+    const width = container ? container.clientWidth : 1400;
+    const height = container ? container.clientHeight : 900;
+    const currentZoom = zoomRef.current;
+    const currentPan = panRef.current;
+    const nextZoom = Math.min(Math.max(0.12, parseFloat((currentZoom * factor).toFixed(3))), 3.5);
+
+    const centerX = (width / 2 - currentPan.x) / currentZoom;
+    const centerY = (height / 2 - currentPan.y) / currentZoom;
+
+    const nextPanX = width / 2 - centerX * nextZoom;
+    const nextPanY = height / 2 - centerY * nextZoom;
+
+    setIsAnimating(false);
+    setZoom(nextZoom);
+    setPan({ x: Math.round(nextPanX), y: Math.round(nextPanY) });
+  }, []);
+
   // Navigation: Smooth Zoom to Section
   const zoomToSection = useCallback(
     (sec: PidSection) => {
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
+      const width = rect.width > 200 ? rect.width : 1400;
+      const height = rect.height > 200 ? rect.height : 900;
       const margin = 100;
 
-      const scaleX = (rect.width - margin * 2) / sec.bounds.width;
-      const scaleY = (rect.height - margin * 2) / sec.bounds.height;
-      const targetZoom = Math.min(Math.max(scaleX, scaleY) * 0.9, 1.4);
+      const scaleX = (width - margin * 2) / sec.bounds.width;
+      const scaleY = (height - margin * 2) / sec.bounds.height;
+      const targetZoom = Math.max(0.35, Math.min(Math.max(scaleX, scaleY) * 0.9, 1.4));
 
-      const targetPanX = (rect.width - sec.bounds.width * targetZoom) / 2 - sec.bounds.x * targetZoom;
-      const targetPanY = (rect.height - sec.bounds.height * targetZoom) / 2 - sec.bounds.y * targetZoom;
+      const targetPanX = (width - sec.bounds.width * targetZoom) / 2 - sec.bounds.x * targetZoom;
+      const targetPanY = (height - sec.bounds.height * targetZoom) / 2 - sec.bounds.y * targetZoom;
 
       setIsAnimating(true);
       setActiveSectionId(sec.id);
-      window.location.hash = `section=${sec.hashKey}`;
+      if (window.location.hash !== `#section=${sec.hashKey}`) {
+        window.history.replaceState(null, '', `#section=${sec.hashKey}`);
+      }
 
       setZoom(parseFloat(targetZoom.toFixed(3)));
       setPan({ x: Math.round(targetPanX), y: Math.round(targetPanY) });
@@ -315,24 +347,28 @@ export const PidCleanViewer: React.FC<PidCleanViewerProps> = ({
     []
   );
 
-  // Return to Overview
+  // Return to Overview (Guaranteed safe positive scale)
   const returnToOverview = useCallback(() => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
+    const width = rect.width > 200 ? rect.width : 1400;
+    const height = rect.height > 200 ? rect.height : 900;
     const margin = 40;
 
-    const scaleX = (rect.width - margin * 2) / CANVAS_WIDTH;
-    const scaleY = (rect.height - margin * 2) / CANVAS_HEIGHT;
-    const fitScale = Math.min(scaleX, scaleY, 0.32);
+    const scaleX = (width - margin * 2) / CANVAS_WIDTH;
+    const scaleY = (height - margin * 2) / CANVAS_HEIGHT;
+    const fitScale = Math.max(0.15, Math.min(scaleX, scaleY, 0.32));
 
     setIsAnimating(true);
     setActiveSectionId(null);
-    window.location.hash = '';
+    if (window.location.hash) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
 
     setZoom(parseFloat(fitScale.toFixed(3)));
     setPan({
-      x: Math.round((rect.width - CANVAS_WIDTH * fitScale) / 2),
-      y: Math.round((rect.height - CANVAS_HEIGHT * fitScale) / 2),
+      x: Math.round((width - CANVAS_WIDTH * fitScale) / 2),
+      y: Math.round((height - CANVAS_HEIGHT * fitScale) / 2),
     });
 
     setTimeout(() => setIsAnimating(false), PID_VIEWER_CONFIG.zoom.animate_ms + 50);
@@ -392,7 +428,10 @@ export const PidCleanViewer: React.FC<PidCleanViewerProps> = ({
     if (!window.location.hash.includes('section=')) {
       returnToOverview();
     }
-  }, [returnToOverview]);
+  }, []);
+
+  const activeSectionIdRef = useRef<string | null>(activeSectionId);
+  activeSectionIdRef.current = activeSectionId;
 
   // Native non-passive mouse wheel zoom anchored at cursor
   useEffect(() => {
@@ -407,27 +446,27 @@ export const PidCleanViewer: React.FC<PidCleanViewerProps> = ({
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
 
-      setZoom((prevZoom) => {
-        const zoomFactor = e.deltaY < 0 ? 1.15 : 0.86;
-        const newZoom = Math.min(3.5, Math.max(0.12, parseFloat((prevZoom * zoomFactor).toFixed(3))));
+      const currentPan = panRef.current;
+      const currentZoom = zoomRef.current;
 
-        if (newZoom < PID_VIEWER_CONFIG.zoom.overview_max) {
-          setActiveSectionId((prevSec) => {
-            if (prevSec) {
-              try { window.location.hash = ''; } catch {}
-            }
-            return null;
-          });
-        }
+      const canvasX = (mouseX - currentPan.x) / currentZoom;
+      const canvasY = (mouseY - currentPan.y) / currentZoom;
 
-        setPan((prevPan) => {
-          const newPanX = mouseX - ((mouseX - prevPan.x) / prevZoom) * newZoom;
-          const newPanY = mouseY - ((mouseY - prevPan.y) / prevZoom) * newZoom;
-          return { x: Math.round(newPanX), y: Math.round(newPanY) };
-        });
+      const zoomFactor = e.deltaY < 0 ? 1.15 : 0.86;
+      const newZoom = Math.min(3.5, Math.max(0.15, parseFloat((currentZoom * zoomFactor).toFixed(3))));
 
-        return newZoom;
+      if (newZoom < PID_VIEWER_CONFIG.zoom.overview_max && activeSectionIdRef.current) {
+        setActiveSectionId(null);
+      }
+
+      const nextPanX = mouseX - canvasX * newZoom;
+      const nextPanY = mouseY - canvasY * newZoom;
+
+      setPan({
+        x: Math.round(nextPanX),
+        y: Math.round(nextPanY),
       });
+      setZoom(newZoom);
     };
 
     container.addEventListener('wheel', onNativeWheel, { passive: false });
@@ -438,23 +477,27 @@ export const PidCleanViewer: React.FC<PidCleanViewerProps> = ({
 
   // Pan handlers
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (
-      (e.button === 0 && (e.target as HTMLElement).tagName === 'svg') ||
-      (e.target as HTMLElement).id === 'canvas-background-rect'
-    ) {
+    if (e.button === 0 || e.button === 1) {
+      const target = e.target as HTMLElement;
+      if (target.closest('button, [role="button"], a, input, select')) return;
       setIsPanning(true);
+      hasPannedRef.current = false;
       setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (isPanning) {
+      hasPannedRef.current = true;
       setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
     }
   };
 
   const handleMouseUp = () => {
     setIsPanning(false);
+    setTimeout(() => {
+      hasPannedRef.current = false;
+    }, 120);
   };
 
   // Standalone SVG Export Handler
@@ -583,7 +626,7 @@ export const PidCleanViewer: React.FC<PidCleanViewerProps> = ({
           <div className="bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-xl p-1 shadow-lg flex items-center gap-1">
             <button
               type="button"
-              onClick={() => setZoom((z) => Math.min(3.5, parseFloat((z + 0.15).toFixed(2))))}
+              onClick={() => zoomByFactor(1.25)}
               className="p-1.5 rounded text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
               title="Zoom In"
             >
@@ -594,7 +637,7 @@ export const PidCleanViewer: React.FC<PidCleanViewerProps> = ({
             </span>
             <button
               type="button"
-              onClick={() => setZoom((z) => Math.max(0.12, parseFloat((z - 0.15).toFixed(2))))}
+              onClick={() => zoomByFactor(0.8)}
               className="p-1.5 rounded text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
               title="Zoom Out"
             >
@@ -651,31 +694,101 @@ export const PidCleanViewer: React.FC<PidCleanViewerProps> = ({
             </marker>
           </defs>
 
-          {/* Base Paper Background */}
+          {/* Base Paper Background - Clean White Paper (Grid Off) */}
           <rect id="canvas-background-rect" width={CANVAS_WIDTH} height={CANVAS_HEIGHT} fill="#ffffff" />
-          <rect width={CANVAS_WIDTH} height={CANVAS_HEIGHT} fill="url(#large-grid-major)" pointerEvents="none" />
 
-          {/* Outer Border & Engineering Title Block */}
+          {/* Outer Border & Inner Border */}
           <rect x="30" y="30" width={CANVAS_WIDTH - 60} height={CANVAS_HEIGHT - 60} fill="none" stroke="#0b192c" strokeWidth="3.5" pointerEvents="none" />
           <rect x="38" y="38" width={CANVAS_WIDTH - 76} height={CANVAS_HEIGHT - 76} fill="none" stroke="#94a3b8" strokeWidth="1.25" pointerEvents="none" />
 
+          {/* Coordinate Grid Markers (A-H along Top & Bottom, 1-6 along Left & Right) */}
+          <g id="border-coordinates" pointerEvents="none" fill="#475569" fontFamily="sans-serif" fontSize="12" fontWeight="bold">
+            {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((col, idx) => {
+              const xPos = 400 + idx * 750;
+              return (
+                <g key={`coord-col-${col}`}>
+                  <text x={xPos} y="24" textAnchor="middle">{col}</text>
+                  <text x={xPos} y={CANVAS_HEIGHT - 12} textAnchor="middle">{col}</text>
+                </g>
+              );
+            })}
+            {['1', '2', '3', '4', '5', '6'].map((row, idx) => {
+              const yPos = 350 + idx * 700;
+              return (
+                <g key={`coord-row-${row}`}>
+                  <text x="18" y={yPos} textAnchor="middle">{row}</text>
+                  <text x={CANVAS_WIDTH - 18} y={yPos} textAnchor="middle">{row}</text>
+                </g>
+              );
+            })}
+          </g>
+
+          {/* General Engineering Notes Box (Top-Right) */}
+          <g id="engineering-notes-box" transform={`translate(${CANVAS_WIDTH - 1160}, 56)`} pointerEvents="none">
+            <rect x="0" y="0" width="1120" height="700" fill="#ffffff" stroke="#0b192c" strokeWidth="2" />
+            <rect x="0" y="0" width="1120" height="28" fill="#f8fafc" stroke="#0b192c" strokeWidth="1.5" />
+            <text x="560" y="19" textAnchor="middle" fontFamily="sans-serif" fontSize="13" fontWeight="bold" fill="#0b192c">
+              NOTES
+            </text>
+            <g fontFamily="sans-serif" fontSize="10.5" fill="#1e293b">
+              <text x="16" y="52">1. ALL EQUIPMENT AND PIPING IN SOUR GAS SERVICE SHALL CONFORM TO NACE MR0175 / ISO 15156. MATERIAL CLASS A1A APPLIES THROUGHOUT.</text>
+              <text x="16" y="78">2. PSV-1001 SET PRESSURE 95 BARG. PSV SIZING PER API 520. OUTLET LINE TO SOUR FLARE HEADER. NV-1001 AND NV-1002 (PSV BLOCK VALVES) SHALL BE LOCKED OPEN</text>
+              <text x="32" y="96">DURING NORMAL OPERATION.</text>
+              <text x="16" y="122">3. BDV-1001 SHALL BE NORMALLY CLOSED. OPENS AUTOMATICALLY ON ESD-1 SIGNAL FROM SIS. MANUAL OPEN CAPABILITY FROM CCR ONLY. BLOWDOWN RATE PER API 521</text>
+              <text x="32" y="140">TO ACHIEVE &le; 7 BARG WITHIN 15 MINUTES.</text>
+              <text x="16" y="166">4. XV-1001 AND XV-1002 ARE ESD CLASS VALVES. PARTIAL STROKE TESTING (PST) CAPABILITY REQUIRED. PROOF TEST INTERVAL PER SIL ASSESSMENT.</text>
+              <text x="16" y="192">5. PIG RECEIVER PG-1001 QUICK-OPENING CLOSURE SHALL BE INTERLOCKED - CLOSURE CANNOT BE OPENED UNLESS INLET PRESSURE IS CONFIRMED ZERO ON PI-1001 AND</text>
+              <text x="32" y="210">XV-1001 IS CONFIRMED CLOSED. INTERLOCK LOGIC IN SIS.</text>
+              <text x="16" y="236">6. ALL INSTRUMENT CONNECTIONS ON SOUR SERVICE LINES SHALL HAVE DOUBLE BLOCK AND BLEED VALVE ARRANGEMENT ON THE INSTRUMENT ROOT VALVE.</text>
+              <text x="16" y="262">7. DRAIN LINE 2"-DR-00101-A1A ROUTES TO CLOSED DRAIN DRUM. NO OPEN DRAINING PERMITTED ON SOUR SERVICE.</text>
+            </g>
+          </g>
+
+          {/* Engineering Title Block (Bottom-Right, Column H) */}
+          <g id="engineering-title-block" transform={`translate(${CANVAS_WIDTH - 1500}, ${CANVAS_HEIGHT - 540})`} pointerEvents="none">
+            <rect x="0" y="0" width="1460" height="500" fill="#ffffff" stroke="#0b192c" strokeWidth="3" />
+            <line x1="0" y1="80" x2="1460" y2="80" stroke="#0b192c" strokeWidth="1.5" />
+            <line x1="0" y1="160" x2="1460" y2="160" stroke="#0b192c" strokeWidth="1.5" />
+            <line x1="0" y1="320" x2="1460" y2="320" stroke="#0b192c" strokeWidth="1.5" />
+            <line x1="0" y1="410" x2="1460" y2="410" stroke="#0b192c" strokeWidth="1.5" />
+            <line x1="1050" y1="320" x2="1050" y2="500" stroke="#0b192c" strokeWidth="1.5" />
+            <line x1="720" y1="410" x2="720" y2="500" stroke="#0b192c" strokeWidth="1.5" />
+
+            {/* Title Content */}
+            <text x="16" y="32" fontFamily="sans-serif" fontSize="11" fontWeight="bold" fill="#64748b">FACILITY:</text>
+            <text x="160" y="52" fontFamily="sans-serif" fontSize="16" fontWeight="bold" fill="#0f172a">ONSHORE GAS PROCESSING FACILITY</text>
+
+            <text x="16" y="112" fontFamily="sans-serif" fontSize="11" fontWeight="bold" fill="#64748b">CONTRACTOR:</text>
+            <text x="160" y="134" fontFamily="sans-serif" fontSize="16" fontWeight="bold" fill="#0f172a">INTELLIGENT ENGINEERING SOLUTIONS (IES)</text>
+
+            <text x="16" y="196" fontFamily="sans-serif" fontSize="11" fontWeight="bold" fill="#64748b">TITLE:</text>
+            <text x="160" y="230" fontFamily="sans-serif" fontSize="20" fontWeight="bold" fill="#0b192c">PIPING &amp; INSTRUMENTATION DIAGRAM</text>
+            <text x="160" y="265" fontFamily="sans-serif" fontSize="20" fontWeight="bold" fill="#0b192c">PIG RECEIVER &amp; INLET CONTROL</text>
+
+            <text x="16" y="352" fontFamily="sans-serif" fontSize="11" fontWeight="bold" fill="#64748b">DOCUMENT NO.:</text>
+            <text x="180" y="375" fontFamily="monospace" fontSize="18" fontWeight="bold" fill="#0f172a">P&amp;ID-GPF-001-02</text>
+
+            <text x="1070" y="352" fontFamily="sans-serif" fontSize="11" fontWeight="bold" fill="#64748b">REVISION:</text>
+            <text x="1240" y="375" fontFamily="sans-serif" fontSize="22" fontWeight="bold" fill="#0b192c">A</text>
+
+            <text x="16" y="442" fontFamily="sans-serif" fontSize="11" fontWeight="bold" fill="#64748b">STATUS:</text>
+            <text x="160" y="468" fontFamily="sans-serif" fontSize="15" fontWeight="bold" fill="#059669">ISSUED FOR REVIEW</text>
+
+            <text x="1070" y="442" fontFamily="sans-serif" fontSize="11" fontWeight="bold" fill="#64748b">DATE:</text>
+            <text x="1200" y="468" fontFamily="sans-serif" fontSize="15" fontWeight="bold" fill="#0f172a">JUNE 2026</text>
+          </g>
+
+          {/* Standard Engineering Tables & Annotations (Instrument Index, Valve Index, Line List, Legend, Inflow/Outflow Banners) */}
+          <EngineeringTables />
+
           {/* 1. Section Overview Bounding Boxes */}
-          <g id="sections-overview-layer">
+          <g id="sections-overview-layer" pointerEvents="none">
             {sections.map((sec) => {
               const isSecActive = activeSectionId === sec.id;
               const isSecHovered = hoveredSectionId === sec.id;
 
               return (
-                <g
-                  key={`sec-${sec.id}`}
-                  className="cursor-pointer group"
-                  onMouseEnter={() => setHoveredSectionId(sec.id)}
-                  onMouseLeave={() => setHoveredSectionId(null)}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    zoomToSection(sec);
-                  }}
-                >
+                <g key={`sec-${sec.id}`} className="group" pointerEvents="none">
                   {/* Dashed Section Boundary Box */}
                   <rect
                     x={sec.bounds.x}
@@ -687,11 +800,23 @@ export const PidCleanViewer: React.FC<PidCleanViewerProps> = ({
                     stroke={sec.color}
                     strokeWidth={isSecActive ? 3.5 : isSecHovered ? 2.5 : 1.75}
                     strokeDasharray={isSecActive ? 'none' : '8,6'}
+                    pointerEvents="none"
                     className="transition-all duration-200"
                   />
 
                   {/* Section Title Banner Pill */}
-                  <g transform={`translate(${sec.bounds.x + 20}, ${sec.bounds.y - 18})`}>
+                  <g
+                    transform={`translate(${sec.bounds.x + 20}, ${sec.bounds.y - 18})`}
+                    className="cursor-pointer"
+                    pointerEvents="auto"
+                    onMouseEnter={() => setHoveredSectionId(sec.id)}
+                    onMouseLeave={() => setHoveredSectionId(null)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (hasPannedRef.current) return;
+                      zoomToSection(sec);
+                    }}
+                  >
                     <rect
                       x="0"
                       y="0"
@@ -839,7 +964,7 @@ export const PidCleanViewer: React.FC<PidCleanViewerProps> = ({
                   className="cursor-pointer group"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (targetSec) zoomToSection(targetSec);
+                    if (!hasPannedRef.current && targetSec) zoomToSection(targetSec);
                   }}
                 >
                   <rect

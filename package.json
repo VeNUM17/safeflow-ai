@@ -4,12 +4,14 @@
   "description": "Process-Safety Information (PSI) Identification Engine & Evidence Management Tool (OSHA 29 CFR 1910.119(d)(1))",
   "main": "server/dist/index.js",
   "scripts": {
-    "dev:server": "tsx server/src/index.ts",
+    "dev:server": "tsx watch server/src/index.ts",
     "dev:client": "cd client && npm run dev",
     "dev": "tsx server/src/index.ts",
+    "validate:registry": "tsx scripts/validateComponentRegistry.ts",
+    "generate:synthetic": "tsx scripts/generateSyntheticPidDataset.ts",
     "build:client": "cd client && npm run build",
     "build:server": "tsc -p server/tsconfig.json",
-    "build": "npm run build:client && npm run build:server",
+    "build": "npm run validate:registry && npm run build:client && npm run build:server",
     "start": "node server/dist/index.js",
     "test": "npx tsx tests/runTests.ts"
   },
@@ -44,6 +46,7 @@
     "@types/multer": "^2.3.0",
     "@types/node": "^26.6.5",
     "@types/uuid": "^10.0.0",
+    "puppeteer-core": "^25.18.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }

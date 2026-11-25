@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import {
   ProcessProject,
@@ -68,9 +69,46 @@ import {
   ExtractedDatasheetRecord,
   NozzleScheduleItem,
   PhilosophyExtractionResult,
+  IsolatedReviewStatus,
+  ProcessLine,
+  ProcessLineValidationReport,
+  ProcessStreamValidationReport,
+  ConnectionValidationReport,
+  ConnectionClassification,
+  ChangeImpactAnalysisResult,
+  HazopRiskMatrixConfig,
+  HazopWorksheetRow,
+  HazopSafeguard,
+  HazopActionItem,
+  IndependentProtectionLayer,
+  LopaRecord,
+  ConnectionQualityMetrics,
 } from '../types';
+import {
+  createDefaultRiskMatrixConfig,
+  generateIec61882HazopWorksheet,
+  calculateRiskLevel,
+} from '../services/hazopService';
+import {
+  createLopaFromHazopFinding,
+  recalculateLopa,
+  evaluateIplQualification,
+} from '../services/lopaService';
+import { analyzeChangeImpact } from '../services/changeImpactService';
 import { detectConflictsForProject } from '../services/conflictDetector';
 import { validateProcessGraph } from '../services/graphValidationService';
+import { validateEquipmentNodes, EquipmentValidationReport } from '../services/equipmentValidationService';
+import { normalizeToProcessLine, validateProcessLines } from '../services/processLineService';
+import { validateProcessStreams } from '../services/processStreamService';
+import {
+  validateConnectionTopology,
+  classifyConnection,
+  isMaterialFlowConnection,
+} from '../services/connectionClassificationService';
+import {
+  generateCrossDocumentReconciliationReport,
+  CrossDocumentReconciliationReport,
+} from '../services/crossDocumentConsistencyService';
 import { buildProcessTopologyGraph } from '../services/graphService';
 import {
   generateCandidatePhaNodes,
@@ -80,6 +118,12 @@ import {
   attachMultiDocumentContextToNode,
 } from '../services/phaService';
 import { validateDigitalDrawing } from '../services/drawingValidationService';
+import {
+  buildEngineeringDossier,
+  EngineeringDossierPayload,
+  exportDossierToJson,
+  exportDossierToMarkdown,
+} from '../services/dossierExportService';
 
 interface DatabaseSchema {
   projects: ProcessProject[];
@@ -108,6 +152,10 @@ interface DatabaseSchema {
   stream_table_extractions: StreamTableExtractionResult[];
   datasheet_extractions: DatasheetExtractionResult[];
   philosophy_extractions: PhilosophyExtractionResult[];
+  hazop_worksheets: HazopWorksheetRow[];
+  risk_matrix_configs: Record<string, HazopRiskMatrixConfig>;
+  lopa_records: LopaRecord[];
+  connection_quality_metrics: Record<string, ConnectionQualityMetrics>;
 }
 
 const DATA_DIR = path.resolve(__dirname, '../../data');
@@ -142,6 +190,10 @@ export class PsiDataStore {
     stream_table_extractions: [],
     datasheet_extractions: [],
     philosophy_extractions: [],
+    hazop_worksheets: [],
+    risk_matrix_configs: {},
+    lopa_records: [],
+    connection_quality_metrics: {},
   };
 
   constructor() {
@@ -193,6 +245,10 @@ export class PsiDataStore {
           stream_table_extractions: parsed.stream_table_extractions || [],
           datasheet_extractions: parsed.datasheet_extractions || [],
           philosophy_extractions: parsed.philosophy_extractions || [],
+          hazop_worksheets: parsed.hazop_worksheets || [],
+          risk_matrix_configs: parsed.risk_matrix_configs || {},
+          lopa_records: parsed.lopa_records || [],
+          connection_quality_metrics: parsed.connection_quality_metrics || {},
         };
 
         // Non-destructive migration for DocumentRecord category and metadata
@@ -220,11 +276,11 @@ export class PsiDataStore {
           if (!eq.specifications) {
             eq.specifications = createDefaultSpecifications(eq.equipment_type);
           }
-          if (eq.tag.toUpperCase() === 'V-101') {
+          if (eq.tag && eq.tag.toUpperCase() === 'V-101' && eq.specifications) {
             // Ensure V-101 illustrative initial values as specified
             if (
-              !eq.specifications.material_of_construction.value ||
-              eq.specifications.material_of_construction.status === 'not_provided'
+              !eq.specifications.material_of_construction?.value ||
+              eq.specifications.material_of_construction?.status === 'not_provided'
             ) {
               eq.specifications.material_of_construction = {
                 value: 'Unknown',
@@ -237,8 +293,9 @@ export class PsiDataStore {
               };
             }
             if (
-              eq.specifications.design_pressure.value === null ||
-              eq.specifications.design_pressure.status === 'not_provided'
+              !eq.specifications.design_pressure ||
+              eq.specifications.design_pressure?.value === null ||
+              eq.specifications.design_pressure?.status === 'not_provided'
             ) {
               eq.specifications.design_pressure = {
                 value: null,
@@ -251,8 +308,9 @@ export class PsiDataStore {
               };
             }
             if (
-              eq.specifications.design_temperature.value === null ||
-              eq.specifications.design_temperature.status === 'not_provided'
+              !eq.specifications.design_temperature ||
+              eq.specifications.design_temperature?.value === null ||
+              eq.specifications.design_temperature?.status === 'not_provided'
             ) {
               eq.specifications.design_temperature = {
                 value: null,
@@ -265,8 +323,9 @@ export class PsiDataStore {
               };
             }
             if (
-              eq.specifications.capacity.value === null ||
-              eq.specifications.capacity.status === 'not_provided'
+              !eq.specifications.capacity ||
+              eq.specifications.capacity?.value === null ||
+              eq.specifications.capacity?.status === 'not_provided'
             ) {
               eq.specifications.capacity = {
                 value: null,
@@ -280,6 +339,11 @@ export class PsiDataStore {
               };
             }
           }
+        }
+
+        // Ensure every line has full ProcessLine provenance
+        if (Array.isArray(this.data.lines)) {
+          this.data.lines = this.data.lines.map((l) => normalizeToProcessLine(l, l.project_id));
         }
 
         // Ensure every PHA node has specification evaluation
@@ -298,10 +362,21 @@ export class PsiDataStore {
   }
 
   private saveDatabase() {
-    try {
-      fs.writeFileSync(DB_FILE, JSON.stringify(this.data, null, 2), 'utf8');
-    } catch (err) {
-      console.error('Failed to save db file:', err);
+    const maxRetries = 50;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        fs.writeFileSync(DB_FILE, JSON.stringify(this.data, null, 2), 'utf8');
+        return;
+      } catch (err: any) {
+        if (attempt === maxRetries - 1) {
+          console.error('Failed to save db file after retries:', err);
+        } else {
+          // Synchronous jittered backoff for Windows file lock release
+          const waitMs = 30 + Math.floor(Math.random() * 20) + attempt * 15;
+          const start = Date.now();
+          while (Date.now() - start < waitMs) {}
+        }
+      }
     }
   }
 
@@ -317,27 +392,184 @@ export class PsiDataStore {
     return fullEntry;
   }
 
-  public listAuditLog(projectId: string): AuditTrailEntry[] {
-    return this.data.audit_log.filter((a) => a.project_id === projectId);
+  public listAuditLog(
+    projectId: string,
+    filter?: { entity_type?: string; entity_id?: string; action?: string }
+  ): AuditTrailEntry[] {
+    let logs = this.data.audit_log.filter((a) => a.project_id === projectId);
+    if (filter) {
+      if (filter.entity_type) {
+        logs = logs.filter((a) => a.entity_type === filter.entity_type);
+      }
+      if (filter.entity_id) {
+        logs = logs.filter((a) => a.entity_id === filter.entity_id);
+      }
+      if (filter.action) {
+        logs = logs.filter((a) => a.action === filter.action);
+      }
+    }
+    return logs;
+  }
+
+  public revertChange(
+    auditId: string,
+    reviewer = 'Process Engineer',
+    reason = 'Engineering rollback'
+  ): { success: boolean; reverted_entry?: AuditTrailEntry; error?: string } {
+    const entry = this.data.audit_log.find((a) => a.id === auditId);
+    if (!entry) {
+      return { success: false, error: `Audit entry ${auditId} not found` };
+    }
+    if (entry.reverted_at) {
+      return { success: false, error: `Audit entry ${auditId} has already been reverted` };
+    }
+    if (entry.can_revert === false) {
+      return { success: false, error: `Audit entry ${auditId} is marked non-reversible` };
+    }
+
+    const now = new Date().toISOString();
+
+    if (entry.entity_type === 'equipment') {
+      const idx = this.data.equipment.findIndex((e) => e.id === entry.entity_id);
+      if (entry.action === 'create') {
+        if (idx !== -1) {
+          this.data.equipment.splice(idx, 1);
+        }
+      } else if (entry.action === 'update' || entry.action === 'verify') {
+        if (entry.previous_state && idx !== -1) {
+          this.data.equipment[idx] = JSON.parse(JSON.stringify(entry.previous_state));
+        }
+      } else if (entry.action === 'delete') {
+        if (entry.previous_state) {
+          this.data.equipment.push(JSON.parse(JSON.stringify(entry.previous_state)));
+        }
+      }
+    } else if (entry.entity_type === 'line') {
+      const idx = this.data.lines.findIndex((l) => l.id === entry.entity_id);
+      if (entry.action === 'create') {
+        if (idx !== -1) {
+          this.data.lines.splice(idx, 1);
+        }
+      } else if (entry.action === 'update' || entry.action === 'verify') {
+        if (entry.previous_state && idx !== -1) {
+          this.data.lines[idx] = JSON.parse(JSON.stringify(entry.previous_state));
+        }
+      } else if (entry.action === 'delete') {
+        if (entry.previous_state) {
+          this.data.lines.push(JSON.parse(JSON.stringify(entry.previous_state)));
+        }
+      }
+    } else if (entry.entity_type === 'stream') {
+      const idx = this.data.streams.findIndex((s) => s.id === entry.entity_id);
+      if (entry.action === 'create') {
+        if (idx !== -1) {
+          this.data.streams.splice(idx, 1);
+        }
+      } else if (entry.action === 'update' || entry.action === 'verify') {
+        if (entry.previous_state && idx !== -1) {
+          this.data.streams[idx] = JSON.parse(JSON.stringify(entry.previous_state));
+        }
+      } else if (entry.action === 'delete') {
+        if (entry.previous_state) {
+          this.data.streams.push(JSON.parse(JSON.stringify(entry.previous_state)));
+        }
+      }
+    }
+
+    // Mark original entry as reverted
+    entry.reverted_at = now;
+    entry.reverted_by = reviewer;
+
+    // Record the restore audit entry
+    const restoreAudit = this.logAudit({
+      project_id: entry.project_id,
+      entity_type: entry.entity_type,
+      entity_id: entry.entity_id,
+      action: 'restore',
+      change_reason: `Reverted audit record ${auditId}: ${reason}`,
+      reviewer,
+      original_value: entry.revised_value || entry.new_state,
+      revised_value: entry.original_value || entry.previous_state,
+      previous_state: entry.new_state,
+      new_state: entry.previous_state,
+      revert_audit_id: auditId,
+      can_revert: false,
+    });
+
+    // Invalidate graph approval because topology / state changed
+    this.invalidateGraphApproval(
+      entry.project_id,
+      `State rolled back via audit revert (${entry.entity_type} ${entry.entity_id})`,
+      reviewer
+    );
+
+    this.saveDatabase();
+    return { success: true, reverted_entry: restoreAudit };
+  }
+
+  public getChangeImpact(
+    projectId: string,
+    targetEntityType: 'equipment' | 'line' | 'stream' | 'drawing',
+    targetIdOrTag: string,
+    changeType: 'update' | 'delete' | 'create' | 'limit_change' | 'stream_assignment' = 'update',
+    changeDescription = 'Entity modified'
+  ): ChangeImpactAnalysisResult {
+    const eq = this.listEquipment(projectId);
+    const lines = this.listLines(projectId);
+    const streams = this.listStreams(projectId);
+    const phaNodes = this.listPhaNodes(projectId);
+
+    return analyzeChangeImpact(
+      projectId,
+      targetEntityType,
+      targetIdOrTag,
+      changeType,
+      changeDescription,
+      eq,
+      lines,
+      streams,
+      phaNodes
+    );
   }
 
   // --- PROJECTS ---
   public listProjects(): ProcessProject[] {
-    return this.data.projects;
+    const seen = new Set<string>();
+    return this.data.projects.filter((p) => {
+      if (!p || !p.id || seen.has(p.id)) return false;
+      seen.add(p.id);
+      return true;
+    });
   }
 
   public getProject(id: string): ProcessProject | undefined {
     return this.data.projects.find((p) => p.id === id);
   }
 
-  public createProject(name: string, description: string): ProcessProject {
+  public createProject(nameOrObj: string | Partial<ProcessProject>, description?: string): ProcessProject {
+    let id = uuidv4();
+    let name = '';
+    let desc = description || '';
+    let createdAt = new Date().toISOString();
+    let isSample = false;
+
+    if (typeof nameOrObj === 'object' && nameOrObj !== null) {
+      if (nameOrObj.id) id = nameOrObj.id;
+      name = typeof nameOrObj.name === 'string' ? nameOrObj.name : (nameOrObj.name as any)?.name || 'Untitled Project';
+      if (nameOrObj.description) desc = nameOrObj.description;
+      if (nameOrObj.created_at) createdAt = nameOrObj.created_at;
+      if (typeof nameOrObj.is_sample === 'boolean') isSample = nameOrObj.is_sample;
+    } else {
+      name = String(nameOrObj || 'Untitled Project');
+    }
+
     const newProj: ProcessProject = {
-      id: uuidv4(),
+      id,
       name,
-      description,
-      created_at: new Date().toISOString(),
+      description: desc,
+      created_at: createdAt,
       updated_at: new Date().toISOString(),
-      is_sample: false,
+      is_sample: isSample,
     };
     this.data.projects.push(newProj);
     this.saveDatabase();
@@ -373,6 +605,32 @@ export class PsiDataStore {
   public addDocument(doc: DocumentRecord): void {
     this.data.documents.push(doc);
     this.saveDatabase();
+  }
+
+  public createDocument(data: Partial<DocumentRecord> & { project_id: string }): DocumentRecord {
+    const docId = data.id || `doc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const filename = (data as any).filename || data.name || data.original_filename || 'document.pdf';
+    const doc: DocumentRecord = {
+      name: data.name || filename,
+      original_filename: data.original_filename || filename,
+      file_path: data.file_path || `/uploads/${filename}`,
+      mime_type: data.mime_type || 'application/pdf',
+      size_bytes: data.size_bytes || 1024,
+      doc_type: (data.doc_type || data.category || 'other') as any,
+      category: (data.category || data.doc_type || 'other') as any,
+      revision: data.revision || 'A',
+      upload_timestamp: data.upload_timestamp || new Date().toISOString(),
+      pages_count: data.pages_count || 1,
+      is_readable: data.is_readable ?? true,
+      chemical_ids: data.chemical_ids || [],
+      extraction_status: data.extraction_status || 'completed',
+      verification_status: data.verification_status || 'unverified',
+      ...data,
+      id: docId,
+      project_id: data.project_id,
+    };
+    this.addDocument(doc);
+    return doc;
   }
 
   public deleteDocument(id: string): { success: boolean; projectId?: string } {
@@ -458,6 +716,29 @@ export class PsiDataStore {
     return (this.data.discrepancies || []).filter((d) => d.project_id === projectId);
   }
 
+  public createDiscrepancy(input: any): CrossDocumentDiscrepancy {
+    const discrepancy: CrossDocumentDiscrepancy = {
+      id: input.id || `disc-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      project_id: input.project_id,
+      entity_type: input.entity_type || 'equipment',
+      entity_tag: input.entity_tag || input.entity_id || '',
+      property_name: input.property_name || input.parameter_name || '',
+      discrepancy_type: input.discrepancy_type || 'source_to_source_discrepancy',
+      discrepancy_category: input.discrepancy_category || input.category || (input.discrepancy_type as any),
+      status: input.status || 'open',
+      severity: input.severity || 'warning',
+      message: input.message || input.description || '',
+      evidence_records: input.evidence_records || [],
+      resolution_notes: input.resolution_notes || (typeof input.resolution === 'string' ? input.resolution : null),
+      resolved_by: input.resolved_by || null,
+      resolved_at: input.resolved_at || null,
+      created_at: input.created_at || new Date().toISOString(),
+      ...input,
+    };
+    this.addDiscrepancy(discrepancy);
+    return discrepancy;
+  }
+
   public addDiscrepancy(discrepancy: CrossDocumentDiscrepancy): void {
     if (!this.data.discrepancies) this.data.discrepancies = [];
     const idx = this.data.discrepancies.findIndex((d) => d.id === discrepancy.id);
@@ -498,6 +779,10 @@ export class PsiDataStore {
 
     this.saveDatabase();
     return true;
+  }
+
+  public getCrossDocumentReconciliationReport(projectId: string): CrossDocumentReconciliationReport {
+    return generateCrossDocumentReconciliationReport(projectId, this);
   }
 
   // --- UNIFIED ENGINEERING MATRIX ---
@@ -690,8 +975,9 @@ export class PsiDataStore {
       ];
 
       for (const k of psiKeys) {
-        const existField = existing.psi_parameters[k];
-        const newField = chem.psi_parameters[k];
+        const existField = existing.psi_parameters ? existing.psi_parameters[k] : undefined;
+        const newField = chem.psi_parameters ? chem.psi_parameters[k] : undefined;
+        if (!existField || !newField) continue;
 
         // If user already confirmed or provided manual value, preserve user_value and verification status
         if (
@@ -1294,6 +1580,10 @@ export class PsiDataStore {
     return this.data.equipment.filter((e) => e.project_id === projectId);
   }
 
+  public getEquipment(id: string): EquipmentTag | undefined {
+    return this.data.equipment.find((e) => e.id === id || e.tag === id);
+  }
+
   public addEquipment(
     tags: EquipmentTag[],
     reviewer = 'Process Engineer',
@@ -1301,8 +1591,9 @@ export class PsiDataStore {
   ): void {
     for (const tag of tags) {
       const existingIdx = this.data.equipment.findIndex(
-        (e) => e.id === tag.id || (e.project_id === tag.project_id && e.tag.toUpperCase() === tag.tag.toUpperCase())
+        (e) => e.id === tag.id
       );
+      const priorEq = existingIdx >= 0 ? JSON.parse(JSON.stringify(this.data.equipment[existingIdx])) : null;
       if (existingIdx >= 0) {
         this.data.equipment[existingIdx] = {
           ...this.data.equipment[existingIdx],
@@ -1320,6 +1611,9 @@ export class PsiDataStore {
         change_reason: reason,
         reviewer,
         revised_value: { tag: tag.tag, type: tag.equipment_type, description: tag.description },
+        previous_state: priorEq,
+        new_state: JSON.parse(JSON.stringify(tag)),
+        can_revert: true,
       });
     }
     // Upstream change invalidates graph approval
@@ -1338,6 +1632,7 @@ export class PsiDataStore {
     const tag = this.data.equipment.find((e) => e.id === tagId);
     if (!tag) return undefined;
 
+    const fullPreviousState = JSON.parse(JSON.stringify(tag));
     const originalSnapshot = {
       tag: tag.tag,
       description: tag.description,
@@ -1350,6 +1645,37 @@ export class PsiDataStore {
     if (!tag.machine_tag) tag.machine_tag = tag.tag;
     if (!tag.machine_type) tag.machine_type = tag.equipment_type;
     if (!tag.machine_description) tag.machine_description = tag.description;
+
+    // Preserve original extracted values for Phase 1 auditability
+    if (!tag.original_extracted_values) {
+      tag.original_extracted_values = {
+        tag: tag.machine_tag || originalSnapshot.tag,
+        equipment_type: tag.machine_type || originalSnapshot.equipment_type,
+        description: tag.machine_description || originalSnapshot.description,
+        confidence: tag.confidence ?? 1.0,
+        extracted_at: tag.created_at,
+      };
+    }
+
+    // Handle isolated review classification updates
+    if (updates.isolated_review_status !== undefined) {
+      tag.isolated_review_status = updates.isolated_review_status;
+      tag.isolated_reviewed_by = reviewer;
+      tag.isolated_reviewed_at = new Date().toISOString();
+      if (updates.isolated_review_notes !== undefined) {
+        tag.isolated_review_notes = updates.isolated_review_notes;
+      }
+    }
+
+    // Handle human verification status updates
+    if (updates.verification_status !== undefined) {
+      tag.verification_status = updates.verification_status;
+      tag.verified_by = reviewer;
+      tag.verified_at = new Date().toISOString();
+      if (updates.verification_status === 'engineer_verified') {
+        tag.status = 'confirmed';
+      }
+    }
 
     Object.assign(tag, updates, { updated_at: new Date().toISOString() });
 
@@ -1391,6 +1717,9 @@ export class PsiDataStore {
       action: 'update',
       original_value: originalSnapshot,
       revised_value: updates,
+      previous_state: fullPreviousState,
+      new_state: JSON.parse(JSON.stringify(tag)),
+      can_revert: true,
       change_reason: reason,
       reviewer,
     });
@@ -1409,6 +1738,7 @@ export class PsiDataStore {
     if (idx === -1) return false;
 
     const eq = this.data.equipment[idx];
+    const fullPreviousState = JSON.parse(JSON.stringify(eq));
     const projectId = eq.project_id;
     const tagUpper = eq.tag.toUpperCase();
 
@@ -1428,6 +1758,9 @@ export class PsiDataStore {
       entity_id: tagId,
       action: 'delete',
       original_value: { tag: eq.tag, type: eq.equipment_type, removed_connected_lines: removedLines.length },
+      previous_state: fullPreviousState,
+      new_state: null,
+      can_revert: true,
       change_reason: reason,
       reviewer,
     });
@@ -1528,7 +1861,7 @@ export class PsiDataStore {
         if (!node.reassessment_reasons) node.reassessment_reasons = [];
         const reasonStr = `Specification '${propertyKey}' on equipment ${eq.tag} changed from ${prevValue ?? 'None'} to ${payload.value ?? 'None'} by ${reviewer} (${changeReason})`;
         if (!node.reassessment_reasons.includes(reasonStr)) {
-          node.reassessment_reasons.push(reasonStr);
+          node.reassessment_reasons.unshift(reasonStr);
         }
         // Re-evaluate node specifications & deviation limits
         const evalResult = evaluateNodeSpecifications(node, this.data.equipment);
@@ -1746,20 +2079,33 @@ export class PsiDataStore {
     return node;
   }
 
-  // --- PIPING LINES ---
-  public listLines(projectId: string): PipingLine[] {
-    return this.data.lines.filter((l) => l.project_id === projectId);
+  // --- PIPING & PROCESS LINES ---
+  public listLines(projectId: string): ProcessLine[] {
+    return this.data.lines
+      .filter((l) => l.project_id === projectId)
+      .map((l) => normalizeToProcessLine(l, projectId));
+  }
+
+  public getProcessLines(projectId: string): ProcessLine[] {
+    return this.listLines(projectId);
+  }
+
+  public getProcessLine(lineId: string): ProcessLine | undefined {
+    const line = this.data.lines.find((l) => l.id === lineId);
+    return line ? normalizeToProcessLine(line, line.project_id) : undefined;
   }
 
   public addLines(
-    lines: PipingLine[],
+    lines: ProcessLine[],
     reviewer = 'Process Engineer',
-    reason = 'Added piping line connection'
+    reason = 'Added process line connection'
   ): void {
-    for (const line of lines) {
+    for (const rawLine of lines) {
+      const line = normalizeToProcessLine(rawLine, rawLine.project_id);
       const existingIdx = this.data.lines.findIndex(
-        (l) => l.id === line.id || (l.project_id === line.project_id && l.line_number === line.line_number)
+        (l) => l.id === line.id
       );
+      const priorLine = existingIdx >= 0 ? JSON.parse(JSON.stringify(this.data.lines[existingIdx])) : null;
       if (existingIdx >= 0) {
         this.data.lines[existingIdx] = {
           ...this.data.lines[existingIdx],
@@ -1781,7 +2127,11 @@ export class PsiDataStore {
           from: line.from_equipment,
           to: line.to_equipment,
           functional_type: line.functional_type,
+          connection_type: line.connection_type,
         },
+        previous_state: priorLine,
+        new_state: JSON.parse(JSON.stringify(line)),
+        can_revert: true,
       });
     }
     if (lines.length > 0) {
@@ -1790,14 +2140,42 @@ export class PsiDataStore {
     this.saveDatabase();
   }
 
+  public addProcessLines(
+    lines: ProcessLine[],
+    reviewer = 'Process Engineer',
+    reason = 'Added process lines'
+  ): void {
+    this.addLines(lines, reviewer, reason);
+  }
+
   public updateLine(
     lineId: string,
-    updates: Partial<PipingLine>,
+    updates: Partial<ProcessLine>,
     reviewer = 'Process Engineer',
     reason = 'Manual line connection modification'
-  ): PipingLine | undefined {
+  ): ProcessLine | undefined {
     const line = this.data.lines.find((l) => l.id === lineId);
     if (!line) return undefined;
+
+    const fullPreviousState = JSON.parse(JSON.stringify(line));
+
+    // Preserve original extracted values upon first edit
+    if (!line.original_extracted_values) {
+      line.original_extracted_values = {
+        line_number: line.line_number,
+        from_equipment: line.from_equipment,
+        to_equipment: line.to_equipment,
+        size: line.size || line.nominal_pipe_size?.value,
+        material: line.material || line.pipe_spec?.value,
+        stream_label: line.stream_label || line.fluid_service?.value,
+        flow_direction: line.flow_direction,
+        operating_flow_rate: line.operating_flow_rate?.value,
+        operating_pressure: line.operating_pressure?.value,
+        operating_temperature: line.operating_temperature?.value,
+        design_pressure: line.design_pressure?.value,
+        design_temperature: line.design_temperature?.value,
+      };
+    }
 
     const originalSnapshot = {
       line_number: line.line_number,
@@ -1809,6 +2187,7 @@ export class PsiDataStore {
       flow_direction: line.flow_direction,
       status: line.status,
       assigned_chemical_id: line.assigned_chemical_id,
+      verification_status: line.verification_status,
     };
 
     if (!line.machine_line_number) line.machine_line_number = line.line_number;
@@ -1824,13 +2203,94 @@ export class PsiDataStore {
       action: 'update',
       original_value: originalSnapshot,
       revised_value: updates,
+      previous_state: fullPreviousState,
+      new_state: JSON.parse(JSON.stringify(line)),
+      can_revert: true,
       change_reason: reason,
       reviewer,
     });
 
     this.invalidateGraphApproval(line.project_id, `Line ${line.line_number} modified`);
     this.saveDatabase();
-    return line;
+    return normalizeToProcessLine(line, line.project_id);
+  }
+
+  public updateProcessLine(
+    lineId: string,
+    updates: Partial<ProcessLine>,
+    reviewer = 'Process Engineer',
+    reason = 'Manual process line modification'
+  ): ProcessLine | undefined {
+    return this.updateLine(lineId, updates, reviewer, reason);
+  }
+
+  public verifyProcessLine(
+    lineId: string,
+    reviewer = 'Process Engineer',
+    notes = 'Verified line engineering properties and connectivity'
+  ): ProcessLine | undefined {
+    const line = this.data.lines.find((l) => l.id === lineId);
+    if (!line) return undefined;
+
+    line.verification_status = 'engineer_verified';
+    line.verified_by = reviewer;
+    line.verified_at = new Date().toISOString();
+    if (notes) line.notes = notes;
+
+    this.logAudit({
+      project_id: line.project_id,
+      entity_type: 'line',
+      entity_id: line.id,
+      action: 'verify',
+      reviewer,
+      change_reason: notes,
+      revised_value: { verification_status: 'engineer_verified', verified_at: line.verified_at },
+    });
+
+    this.saveDatabase();
+    return normalizeToProcessLine(line, line.project_id);
+  }
+
+  public validateProcessLinesForProject(projectId: string): ProcessLineValidationReport {
+    const lines = this.getProcessLines(projectId);
+    const equipment = this.listEquipment(projectId);
+    return validateProcessLines(projectId, lines, equipment);
+  }
+
+  public validateConnectionsForProject(projectId: string): ConnectionValidationReport {
+    const lines = this.getProcessLines(projectId);
+    const equipment = this.listEquipment(projectId);
+    return validateConnectionTopology(lines, equipment, projectId);
+  }
+
+  public updateConnectionClassification(
+    lineId: string,
+    classification: ConnectionClassification,
+    reviewer = 'Process Engineer',
+    reason = 'Manual connection classification'
+  ): ProcessLine | undefined {
+    const line = this.getProcessLine(lineId);
+    if (!line) return undefined;
+
+    const functionalType =
+      classification === 'instrument_signal'
+        ? 'signal_line'
+        : classification === 'utility_connection'
+        ? 'utility_line'
+        : classification === 'non_process_equipment_relationship'
+        ? 'non_process_line'
+        : 'piping_line';
+
+    return this.updateLine(
+      lineId,
+      {
+        connection_classification: classification,
+        connection_type: classification,
+        functional_type: functionalType as any,
+      },
+      reviewer,
+      reason
+    );
   }
 
   public deleteLine(
@@ -1842,6 +2302,7 @@ export class PsiDataStore {
     if (idx === -1) return false;
 
     const line = this.data.lines[idx];
+    const fullPreviousState = JSON.parse(JSON.stringify(line));
     const projectId = line.project_id;
     this.data.lines.splice(idx, 1);
 
@@ -1851,6 +2312,9 @@ export class PsiDataStore {
       entity_id: lineId,
       action: 'delete',
       original_value: { line_number: line.line_number, from: line.from_equipment, to: line.to_equipment },
+      previous_state: fullPreviousState,
+      new_state: null,
+      can_revert: true,
       change_reason: reason,
       reviewer,
     });
@@ -1929,16 +2393,23 @@ export class PsiDataStore {
       input.line_number,
       input.stream_number
     );
+    if ((input as any).id) {
+      stream.id = (input as any).id;
+    }
 
     // Find source & dest equipment IDs
-    const sourceEq = this.data.equipment.find(
-      (e) => e.project_id === input.project_id && e.tag.toUpperCase() === input.source_equipment_tag.trim().toUpperCase()
-    );
+    const sourceEq = input.source_equipment_tag
+      ? this.data.equipment.find(
+          (e) => e.project_id === input.project_id && e.tag?.toUpperCase() === input.source_equipment_tag?.trim().toUpperCase()
+        )
+      : undefined;
     if (sourceEq) stream.source_equipment_id = sourceEq.id;
 
-    const destEq = this.data.equipment.find(
-      (e) => e.project_id === input.project_id && e.tag.toUpperCase() === input.destination_equipment_tag.trim().toUpperCase()
-    );
+    const destEq = input.destination_equipment_tag
+      ? this.data.equipment.find(
+          (e) => e.project_id === input.project_id && e.tag?.toUpperCase() === input.destination_equipment_tag?.trim().toUpperCase()
+        )
+      : undefined;
     if (destEq) stream.destination_equipment_id = destEq.id;
 
     if (input.material_description) stream.material_description = input.material_description;
@@ -1998,8 +2469,29 @@ export class PsiDataStore {
       stream.source.snippet = input.source_snippet || null;
     }
 
-    // Link connected line if line_id provided
-    if (stream.connected_line_id) {
+    if (input.stream_id) stream.stream_id = input.stream_id;
+    if (input.stream_description) stream.stream_description = input.stream_description;
+    if (input.components) stream.components = input.components;
+    if (input.connected_line_ids) stream.connected_line_ids = input.connected_line_ids;
+    if (input.connected_line_numbers) stream.connected_line_numbers = input.connected_line_numbers;
+    if (input.connected_equipment) stream.connected_equipment = input.connected_equipment;
+    if (input.total_flow_rate) stream.total_flow_rate = input.total_flow_rate;
+    if (input.density) stream.density = input.density;
+    if (input.vapor_fraction) stream.vapor_fraction = input.vapor_fraction;
+    if (input.molecular_weight) stream.molecular_weight = input.molecular_weight;
+    if (input.viscosity) stream.viscosity = input.viscosity;
+    if (input.enthalpy) stream.enthalpy = input.enthalpy;
+    if (input.heat_capacity) stream.heat_capacity = input.heat_capacity;
+    if (input.z_factor) stream.z_factor = input.z_factor;
+    if (input.operating_range) stream.operating_range = input.operating_range;
+
+    // Link connected lines if line_ids provided
+    if (Array.isArray(stream.connected_line_ids)) {
+      for (const lineId of stream.connected_line_ids) {
+        const line = this.data.lines.find((l) => l.id === lineId);
+        if (line) line.stream_id = stream.id;
+      }
+    } else if (stream.connected_line_id) {
       const line = this.data.lines.find((l) => l.id === stream.connected_line_id);
       if (line) {
         line.stream_id = stream.id;
@@ -2021,6 +2513,8 @@ export class PsiDataStore {
         dest: stream.destination_equipment_tag,
         flow_rates: stream.flow_rates,
       },
+      new_state: JSON.parse(JSON.stringify(stream)),
+      can_revert: true,
     });
 
     this.invalidateGraphApproval(stream.project_id, `Manual stream ${stream.stream_number} created`);
@@ -2037,19 +2531,51 @@ export class PsiDataStore {
     const stream = this.data.streams.find((s) => s.id === streamId);
     if (!stream) return undefined;
 
+    const fullPreviousState = JSON.parse(JSON.stringify(stream));
+
+    // Preserve original extracted values upon first edit
+    if (!stream.original_extracted_values) {
+      stream.original_extracted_values = {
+        stream_number: stream.stream_number,
+        source_equipment_tag: stream.source_equipment_tag,
+        destination_equipment_tag: stream.destination_equipment_tag,
+        flow_rates: { ...stream.flow_rates },
+        operating_pressure: { ...stream.operating_pressure },
+        operating_temperature: { ...stream.operating_temperature },
+        phase: stream.phase,
+        material_description: stream.material_description,
+        components: stream.components ? [...stream.components] : [],
+      };
+    }
+
     const originalSnapshot = { ...stream, flow_rates: { ...stream.flow_rates } };
 
     if (updates.stream_number !== undefined) stream.stream_number = updates.stream_number;
+    if (updates.stream_id !== undefined) stream.stream_id = updates.stream_id;
+    if (updates.stream_description !== undefined) stream.stream_description = updates.stream_description;
     if (updates.source_equipment_tag !== undefined) stream.source_equipment_tag = updates.source_equipment_tag;
     if (updates.destination_equipment_tag !== undefined) stream.destination_equipment_tag = updates.destination_equipment_tag;
     if (updates.connected_line_id !== undefined) stream.connected_line_id = updates.connected_line_id;
     if (updates.line_number !== undefined) stream.line_number = updates.line_number;
+    if (updates.connected_line_ids !== undefined) stream.connected_line_ids = updates.connected_line_ids;
+    if (updates.connected_line_numbers !== undefined) stream.connected_line_numbers = updates.connected_line_numbers;
+    if (updates.connected_equipment !== undefined) stream.connected_equipment = updates.connected_equipment;
     if (updates.material_description !== undefined) stream.material_description = updates.material_description;
     if (updates.assigned_chemical_id !== undefined) stream.assigned_chemical_id = updates.assigned_chemical_id;
+    if (updates.components !== undefined) stream.components = updates.components;
     if (updates.flow_direction !== undefined) stream.flow_direction = updates.flow_direction;
     if (updates.phase !== undefined) stream.phase = updates.phase;
     if (updates.pipe_nominal_diameter !== undefined) stream.pipe_nominal_diameter = updates.pipe_nominal_diameter;
     if (updates.pipe_spec !== undefined) stream.pipe_spec = updates.pipe_spec;
+    if (updates.density !== undefined) stream.density = updates.density;
+    if (updates.vapor_fraction !== undefined) stream.vapor_fraction = updates.vapor_fraction;
+    if (updates.molecular_weight !== undefined) stream.molecular_weight = updates.molecular_weight;
+    if (updates.viscosity !== undefined) stream.viscosity = updates.viscosity;
+    if (updates.enthalpy !== undefined) stream.enthalpy = updates.enthalpy;
+    if (updates.heat_capacity !== undefined) stream.heat_capacity = updates.heat_capacity;
+    if (updates.z_factor !== undefined) stream.z_factor = updates.z_factor;
+    if (updates.total_flow_rate !== undefined) stream.total_flow_rate = updates.total_flow_rate;
+    if (updates.operating_range !== undefined) stream.operating_range = updates.operating_range;
     if (updates.associated_instrument_tags !== undefined) stream.associated_instrument_tags = updates.associated_instrument_tags;
     if (updates.notes !== undefined) stream.notes = updates.notes;
     if (updates.data_origin !== undefined) stream.data_origin = updates.data_origin;
@@ -2102,6 +2628,9 @@ export class PsiDataStore {
       action: 'update',
       original_value: originalSnapshot,
       revised_value: stream,
+      previous_state: fullPreviousState,
+      new_state: JSON.parse(JSON.stringify(stream)),
+      can_revert: true,
       change_reason: reason,
       reviewer,
     });
@@ -2111,11 +2640,89 @@ export class PsiDataStore {
     return stream;
   }
 
+  public verifyProcessStream(
+    streamId: string,
+    reviewer = 'Lead Process Engineer',
+    notes = 'Verified stream properties, components and connectivity'
+  ): ProcessStream | undefined {
+    const stream = this.data.streams.find((s) => s.id === streamId);
+    if (!stream) return undefined;
+
+    stream.verification_status = 'verified';
+    stream.verified_by = reviewer;
+    stream.verified_at = new Date().toISOString();
+    if (notes) stream.notes = notes;
+
+    this.logAudit({
+      project_id: stream.project_id,
+      entity_type: 'stream',
+      entity_id: stream.id,
+      action: 'verify',
+      reviewer,
+      change_reason: notes,
+      revised_value: { verification_status: 'verified', verified_at: stream.verified_at },
+    });
+
+    this.saveDatabase();
+    return stream;
+  }
+
+  public linkStreamToLines(
+    streamId: string,
+    lineIds: string[],
+    reviewer = 'Process Engineer'
+  ): ProcessStream | undefined {
+    const stream = this.data.streams.find((s) => s.id === streamId);
+    if (!stream) return undefined;
+
+    const existingLineIds = new Set(stream.connected_line_ids || []);
+    const lineNumbers = new Set(stream.connected_line_numbers || []);
+
+    for (const lid of lineIds) {
+      existingLineIds.add(lid);
+      const line = this.data.lines.find((l) => l.id === lid);
+      if (line) {
+        line.stream_id = stream.id;
+        if (line.line_number) lineNumbers.add(line.line_number);
+      }
+    }
+
+    stream.connected_line_ids = Array.from(existingLineIds);
+    stream.connected_line_numbers = Array.from(lineNumbers);
+    if (lineIds.length > 0) {
+      stream.connected_line_id = lineIds[0];
+      const primaryLine = this.data.lines.find((l) => l.id === lineIds[0]);
+      if (primaryLine) stream.line_number = primaryLine.line_number;
+    }
+    stream.updated_at = new Date().toISOString();
+
+    this.logAudit({
+      project_id: stream.project_id,
+      entity_type: 'stream',
+      entity_id: stream.id,
+      action: 'update',
+      change_reason: `Linked stream to lines: ${Array.from(lineNumbers).join(', ')}`,
+      reviewer,
+      revised_value: { connected_line_ids: stream.connected_line_ids, connected_line_numbers: stream.connected_line_numbers },
+    });
+
+    this.saveDatabase();
+    return stream;
+  }
+
+  public validateProcessStreamsForProject(projectId: string): ProcessStreamValidationReport {
+    const streams = this.listStreams(projectId);
+    const equipment = this.listEquipment(projectId);
+    const lines = this.getProcessLines(projectId);
+    return validateProcessStreams(projectId, streams, equipment, lines);
+  }
+
   public deleteStream(streamId: string, reviewer = 'Process Engineer', reason = 'Deleted process stream'): boolean {
     const idx = this.data.streams.findIndex((s) => s.id === streamId);
     if (idx === -1) return false;
 
     const stream = this.data.streams[idx];
+    const fullPreviousState = JSON.parse(JSON.stringify(stream));
     const projectId = stream.project_id;
 
     // Unlink any line pointing to this stream
@@ -2133,6 +2740,9 @@ export class PsiDataStore {
       entity_id: streamId,
       action: 'delete',
       original_value: { stream_number: stream.stream_number, source: stream.source_equipment_tag, dest: stream.destination_equipment_tag },
+      previous_state: fullPreviousState,
+      new_state: null,
+      can_revert: true,
       change_reason: reason,
       reviewer,
     });
@@ -2182,8 +2792,57 @@ export class PsiDataStore {
     const eq = this.listEquipment(projectId);
     const lines = this.listLines(projectId);
     const chems = this.listChemicals(projectId);
+    const docs = this.listDocuments(projectId);
+    const streams = this.listStreams(projectId);
+    const discrepancies = this.listDiscrepancies(projectId);
     const ack = new Set(this.data.acknowledged_warnings[projectId] || []);
-    return validateProcessGraph(eq, lines, chems, ack);
+    return validateProcessGraph(eq, lines, chems, ack, docs, streams, discrepancies);
+  }
+
+  public validateEquipment(projectId: string): EquipmentValidationReport {
+    const eq = this.listEquipment(projectId);
+    const lines = this.listLines(projectId);
+    const docs = this.listDocuments(projectId);
+    const ack = new Set(this.data.acknowledged_warnings[projectId] || []);
+    return validateEquipmentNodes(eq, lines, docs, ack);
+  }
+
+  public updateEquipmentReviewStatus(
+    tagId: string,
+    status: IsolatedReviewStatus,
+    reviewer = 'Process Engineer',
+    notes = ''
+  ): EquipmentTag | undefined {
+    return this.updateEquipment(
+      tagId,
+      {
+        isolated_review_status: status,
+        isolated_review_notes: notes,
+        isolated_reviewed_by: reviewer,
+        isolated_reviewed_at: new Date().toISOString(),
+      },
+      reviewer,
+      `Updated isolated review classification to ${status}`
+    );
+  }
+
+  public verifyEquipment(
+    tagId: string,
+    reviewer = 'Process Engineer',
+    notes = ''
+  ): EquipmentTag | undefined {
+    return this.updateEquipment(
+      tagId,
+      {
+        verification_status: 'engineer_verified',
+        verified_by: reviewer,
+        verified_at: new Date().toISOString(),
+        status: 'confirmed',
+        notes: notes || undefined,
+      },
+      reviewer,
+      'Equipment tag verified by engineer'
+    );
   }
 
   public acknowledgeWarning(projectId: string, warningCode: string): void {
@@ -2202,12 +2861,23 @@ export class PsiDataStore {
 
   public approveGraph(
     projectId: string,
-    reviewer = 'Lead Process Safety Engineer',
-    notes = 'P&ID topology and connectivity verified against design drawing'
+    reviewer: string | { reviewer?: string; role?: string; notes?: string; acknowledged_warnings?: string[] } = 'Lead Process Safety Engineer',
+    notes = 'P&ID topology and connectivity verified against design drawing',
+    role = 'Lead Process Safety Specialist (PE)'
   ): { success: boolean; error?: string; approval?: GraphApprovalRecord } {
+    const approverName = typeof reviewer === 'string' ? reviewer : (reviewer.reviewer || 'Lead Process Safety Engineer');
+    const approverRole = typeof reviewer === 'string' ? role : (reviewer.role || role);
+    const approvalNotes = typeof reviewer === 'string' ? notes : (reviewer.notes || notes);
+
+    if (typeof reviewer === 'object' && Array.isArray(reviewer.acknowledged_warnings)) {
+      for (const w of reviewer.acknowledged_warnings) {
+        this.acknowledgeWarning(projectId, w);
+      }
+    }
+
     const validation = this.getGraphValidation(projectId);
 
-    if (validation.errors_count > 0) {
+    if (validation.errors_count > 0 || (validation.critical_errors_count && validation.critical_errors_count > 0)) {
       return {
         success: false,
         error: `Graph approval blocked: ${validation.errors_count} unresolved critical errors present.`,
@@ -2221,11 +2891,71 @@ export class PsiDataStore {
       };
     }
 
+    const eq = this.listEquipment(projectId);
+    const lines = this.listLines(projectId);
+    const streams = this.listStreams(projectId);
+    const docs = this.listDocuments(projectId);
+    const ackWarnings = this.data.acknowledged_warnings[projectId] || [];
+
+    // Calculate deterministic snapshot hash
+    const snapshotPayload = {
+      equipment: eq.map((e) => ({ id: e.id, tag: e.tag, status: e.status, specs: e.specifications })),
+      lines: lines.map((l) => ({ id: l.id, num: l.line_number, from: l.from_equipment, to: l.to_equipment, dir: l.flow_direction })),
+      streams: streams.map((s) => ({ id: s.id, num: s.stream_number, from: s.source_equipment_tag, to: s.destination_equipment_tag })),
+    };
+    const snapshotHash = crypto.createHash('sha256').update(JSON.stringify(snapshotPayload)).digest('hex');
+
+    // Document versions used
+    const docVersions = docs.map((d) => ({
+      document_id: d.id,
+      filename: d.original_filename || d.name,
+      category: d.category,
+      revision: (d as any).revision || 'Rev 0',
+    }));
+
+    // Outstanding provisional items permitted
+    const outstandingProvisional: Array<{ id: string; type: string; tag_or_number: string; reason?: string }> = [];
+    for (const e of eq) {
+      if (e.status === 'provisional' || e.verification_status === 'unverified') {
+        outstandingProvisional.push({
+          id: e.id,
+          type: 'equipment',
+          tag_or_number: e.tag,
+          reason: e.isolated_review_notes || e.isolated_review_status || 'Documented provisional equipment',
+        });
+      }
+    }
+    for (const l of lines) {
+      if (l.status === 'provisional' || l.status === 'unresolved') {
+        outstandingProvisional.push({
+          id: l.id,
+          type: 'line',
+          tag_or_number: l.line_number,
+          reason: 'Documented provisional line connection',
+        });
+      }
+    }
+    for (const s of streams) {
+      if (s.verification_status === 'unverified') {
+        outstandingProvisional.push({
+          id: s.id,
+          type: 'stream',
+          tag_or_number: s.stream_number,
+          reason: 'Documented provisional process stream',
+        });
+      }
+    }
+
     const record: GraphApprovalRecord = {
       approved: true,
-      approved_by: reviewer,
+      approved_by: approverName,
+      approver_role: approverRole,
       approved_at: new Date().toISOString(),
-      notes,
+      notes: approvalNotes,
+      graph_snapshot_hash: snapshotHash,
+      document_versions_used: docVersions,
+      acknowledged_warnings: [...ackWarnings],
+      outstanding_provisional_items: outstandingProvisional,
       validation_snapshot: validation,
     };
 
@@ -2237,8 +2967,8 @@ export class PsiDataStore {
       entity_id: projectId,
       action: 'approve',
       revised_value: record,
-      change_reason: notes,
-      reviewer,
+      change_reason: approvalNotes,
+      reviewer: approverName,
     });
 
     this.saveDatabase();
@@ -2253,10 +2983,17 @@ export class PsiDataStore {
     this.invalidateGraphApproval(projectId, reason, reviewer);
   }
 
-  private invalidateGraphApproval(projectId: string, reason: string, reviewer = 'System'): void {
+  public invalidateGraphApproval(projectId: string, reason: string, reviewer = 'System'): void {
     const existing = this.data.graph_approvals[projectId];
     if (existing && existing.approved) {
-      this.data.graph_approvals[projectId] = { approved: false };
+      const priorSnapshot = { ...existing };
+      this.data.graph_approvals[projectId] = {
+        approved: false,
+        invalidated_at: new Date().toISOString(),
+        invalidation_reason: reason,
+        invalidated_by: reviewer,
+        previous_approval_snapshot: priorSnapshot,
+      };
       this.logAudit({
         project_id: projectId,
         entity_type: 'graph',
@@ -2264,12 +3001,20 @@ export class PsiDataStore {
         action: 'reject',
         change_reason: `Approval invalidated: ${reason}`,
         reviewer,
+        previous_state: priorSnapshot,
+        new_state: { approved: false, reason },
+        can_revert: false,
       });
-      // Flag PHA study nodes as stale
+      // Flag all project PHA study nodes as requiring reassessment
       this.data.pha_nodes
         .filter((n) => n.project_id === projectId)
         .forEach((n) => {
           if (n.status === 'approved') n.status = 'under_review';
+          n.requires_reassessment = true;
+          if (!n.reassessment_reasons) n.reassessment_reasons = [];
+          if (!n.reassessment_reasons.includes(reason)) {
+            n.reassessment_reasons.push(reason);
+          }
         });
       this.saveDatabase();
     }
@@ -2497,6 +3242,43 @@ export class PsiDataStore {
     }
 
     return affectedNodes;
+  }
+
+  // --- MULTI-DOCUMENT ENGINEERING DOSSIER EXPORT (PHASE 10) ---
+  public getEngineeringDossier(projectId: string): EngineeringDossierPayload | undefined {
+    const project = this.getProject(projectId);
+    if (!project) return undefined;
+
+    const docs = this.listDocuments(projectId);
+    const chems = this.listChemicals(projectId);
+    const eq = this.listEquipment(projectId);
+    const lines = this.getProcessLines(projectId);
+    const streams = this.listStreams(projectId);
+    const matrix = this.listEngineeringMatrix(projectId);
+    const rules = this.listPhilosophyRules(projectId);
+    const discrepancies = this.listDiscrepancies(projectId);
+    const approval = this.getGraphApproval(projectId);
+    const validation = this.getGraphValidation(projectId);
+    const phaNodes = this.listPhaNodes(projectId);
+    const readiness = this.getHazopReadiness(projectId);
+    const auditLog = this.listAuditLog(projectId);
+
+    return buildEngineeringDossier(
+      project,
+      docs,
+      chems,
+      eq,
+      lines,
+      streams,
+      matrix,
+      rules,
+      discrepancies,
+      approval,
+      validation,
+      phaNodes,
+      readiness,
+      auditLog
+    );
   }
 
   // --- DIGITAL P&ID DRAWINGS ---
@@ -4291,6 +5073,217 @@ export class PsiDataStore {
       global_engineering_checklist: globalChecklist,
       evaluated_at: now,
     };
+  }
+
+  // --- IEC 61882 HAZOP & RISK MATRIX ---
+  public getRiskMatrixConfig(projectId: string): HazopRiskMatrixConfig {
+    if (!this.data.risk_matrix_configs[projectId]) {
+      this.data.risk_matrix_configs[projectId] = createDefaultRiskMatrixConfig(projectId);
+      this.saveDatabase();
+    }
+    return this.data.risk_matrix_configs[projectId];
+  }
+
+  public saveRiskMatrixConfig(projectId: string, config: Partial<HazopRiskMatrixConfig>): HazopRiskMatrixConfig {
+    const current = this.getRiskMatrixConfig(projectId);
+    const prevVersion = typeof current.version === 'number' ? current.version : parseInt(String(current.version), 10) || 1;
+    const updated: HazopRiskMatrixConfig = {
+      ...current,
+      ...config,
+      project_id: projectId,
+      version: prevVersion + 1,
+      updated_at: new Date().toISOString(),
+    };
+    this.data.risk_matrix_configs[projectId] = updated;
+    this.saveDatabase();
+    return updated;
+  }
+
+  public listHazopWorksheet(projectId: string): HazopWorksheetRow[] {
+    return this.data.hazop_worksheets.filter((w) => w.project_id === projectId);
+  }
+
+  public generateHazopWorksheet(projectId: string, reviewer = 'System'): HazopWorksheetRow[] {
+    const nodes = this.listPhaNodes(projectId);
+    const docs = this.listDocuments(projectId);
+    const lines = this.getProcessLines(projectId);
+    const equipment = this.listEquipment(projectId);
+    const streams = this.listStreams(projectId);
+    const chemicals = this.listChemicals(projectId);
+    const matrixConfig = this.getRiskMatrixConfig(projectId);
+
+    const generated: HazopWorksheetRow[] = [];
+    for (const node of nodes) {
+      const nodeRows = generateIec61882HazopWorksheet(
+        node,
+        equipment,
+        lines as any,
+        streams,
+        chemicals,
+        docs,
+        matrixConfig
+      );
+      generated.push(...nodeRows);
+    }
+
+    // Keep existing rows if already modified, or append new
+    const existingMap = new Map(this.listHazopWorksheet(projectId).map((row) => [row.id, row]));
+    const merged: HazopWorksheetRow[] = [];
+
+    for (const genRow of generated) {
+      if (existingMap.has(genRow.id)) {
+        merged.push(existingMap.get(genRow.id)!);
+      } else {
+        merged.push(genRow);
+      }
+    }
+
+    // Replace project rows
+    this.data.hazop_worksheets = this.data.hazop_worksheets
+      .filter((w) => w.project_id !== projectId)
+      .concat(merged);
+
+    this.saveDatabase();
+    return merged;
+  }
+
+  public updateHazopWorksheetRow(
+    id: string,
+    updates: Partial<HazopWorksheetRow>,
+    reviewer = 'Engineer'
+  ): HazopWorksheetRow | undefined {
+    const idx = this.data.hazop_worksheets.findIndex((w) => w.id === id);
+    if (idx === -1) return undefined;
+
+    const current = this.data.hazop_worksheets[idx];
+    const matrixConfig = this.getRiskMatrixConfig(current.project_id);
+
+    const updated: HazopWorksheetRow = {
+      ...current,
+      ...updates,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Recalculate risk rating if severity or likelihood changed
+    if (updates.initial_severity !== undefined || updates.initial_likelihood !== undefined) {
+      updated.initial_risk_level = calculateRiskLevel(
+        updated.initial_severity,
+        updated.initial_likelihood,
+        matrixConfig
+      );
+    }
+    if (updates.residual_severity !== undefined || updates.residual_likelihood !== undefined) {
+      updated.residual_risk_level = calculateRiskLevel(
+        updated.residual_severity ?? updated.initial_severity,
+        updated.residual_likelihood ?? updated.initial_likelihood,
+        matrixConfig
+      );
+    }
+
+    this.data.hazop_worksheets[idx] = updated;
+    this.saveDatabase();
+    return updated;
+  }
+
+  public updateHazopActionItem(
+    rowId: string,
+    actionId: string,
+    updates: Partial<HazopActionItem>,
+    reviewer = 'Engineer'
+  ): HazopActionItem | undefined {
+    const row = this.data.hazop_worksheets.find((w) => w.id === rowId);
+    if (!row) return undefined;
+
+    const actionList = row.actions || (row as any).action_items || [];
+    const action = actionList.find((a: any) => a.id === actionId);
+    if (!action) return undefined;
+
+    Object.assign(action, updates);
+    if (updates.status === 'closed' && !action.closure_evidence) {
+      action.closure_evidence = `Closed by ${reviewer} at ${new Date().toISOString()}`;
+    }
+
+    row.updated_at = new Date().toISOString();
+    this.saveDatabase();
+    return action;
+  }
+
+  // --- CCPS LOPA ASSESSMENT ENGINE ---
+  public listLopaRecords(projectId: string): LopaRecord[] {
+    return this.data.lopa_records.filter((l) => l.project_id === projectId);
+  }
+
+  public getLopaRecord(id: string): LopaRecord | undefined {
+    return this.data.lopa_records.find((l) => l.id === id);
+  }
+
+  public createLopaFromHazop(worksheetRowId: string, reviewer = 'Engineer'): LopaRecord | undefined {
+    const row = this.data.hazop_worksheets.find((w) => w.id === worksheetRowId);
+    if (!row) return undefined;
+
+    // Check if LOPA record already exists
+    const existing = this.data.lopa_records.find((l) => l.hazop_row_id === worksheetRowId);
+    if (existing) return existing;
+
+    const node = this.data.pha_nodes.find((n) => n.node_id === row.node_id || n.id === row.node_id);
+    if (!node) return undefined;
+    const newRecord = createLopaFromHazopFinding(row, node);
+    if (reviewer) newRecord.reviewed_by = reviewer;
+    this.data.lopa_records.push(newRecord);
+
+    // Link back to HAZOP row
+    row.linked_lopa_id = newRecord.id;
+
+    this.saveDatabase();
+    return newRecord;
+  }
+
+  public updateLopaRecord(id: string, updates: Partial<LopaRecord>, reviewer = 'Engineer'): LopaRecord | undefined {
+    const idx = this.data.lopa_records.findIndex((l) => l.id === id);
+    if (idx === -1) return undefined;
+
+    const current = this.data.lopa_records[idx];
+    const updated: LopaRecord = recalculateLopa({
+      ...current,
+      ...updates,
+      reviewed_by: reviewer,
+      last_modified: new Date().toISOString(),
+    });
+
+    this.data.lopa_records[idx] = updated;
+    this.saveDatabase();
+    return updated;
+  }
+
+  public updateLopaIpl(
+    lopaId: string,
+    iplId: string,
+    updates: Partial<IndependentProtectionLayer>,
+    reviewer = 'Engineer'
+  ): LopaRecord | undefined {
+    const record = this.getLopaRecord(lopaId);
+    if (!record) return undefined;
+
+    const ipl = record.ipls.find((i) => i.id === iplId);
+    if (!ipl) return undefined;
+
+    Object.assign(ipl, updates);
+    // Enforce CCPS 4-criteria qualification
+    const evaluatedIpl = evaluateIplQualification(ipl);
+    const iplIdx = record.ipls.findIndex((i) => i.id === iplId);
+    record.ipls[iplIdx] = evaluatedIpl;
+
+    return this.updateLopaRecord(lopaId, { ipls: record.ipls }, reviewer);
+  }
+
+  // --- CONNECTION QUALITY METRICS ---
+  public getConnectionQualityMetrics(drawingId: string): ConnectionQualityMetrics | undefined {
+    return this.data.connection_quality_metrics[drawingId];
+  }
+
+  public saveConnectionQualityMetrics(drawingId: string, metrics: ConnectionQualityMetrics): void {
+    this.data.connection_quality_metrics[drawingId] = metrics;
+    this.saveDatabase();
   }
 }
 

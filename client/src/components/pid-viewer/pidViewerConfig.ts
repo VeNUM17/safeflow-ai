@@ -82,8 +82,8 @@ export const PID_VIEWER_CONFIG: PidViewerConfigSchema = {
   layout: {
     scale_factor: 3.0,
     min_node_gap_px: 48,
-    multistart: 20,
-    retry_limit: 5,
+    multistart: 4,
+    retry_limit: 3,
     max_crossings: 6,
     weights: {
       w_cross: 10.0,

@@ -48,24 +48,30 @@ export function buildUnifiedEngineeringMatrix(
   // Flatten extracted datasheets across all documents
   const allDatasheets: ExtractedDatasheetRecord[] = [];
   for (const de of datasheetExtractions) {
-    for (const ds of de.datasheets) {
-      allDatasheets.push(ds);
+    if (Array.isArray(de?.datasheets)) {
+      for (const ds of de.datasheets) {
+        allDatasheets.push(ds);
+      }
     }
   }
 
   // Flatten extracted streams across all stream tables
   const allExtractedStreams: ExtractedStreamRecord[] = [];
   for (const ste of streamTableExtractions) {
-    for (const es of ste.streams) {
-      allExtractedStreams.push(es);
+    if (Array.isArray(ste?.streams)) {
+      for (const es of ste.streams) {
+        allExtractedStreams.push(es);
+      }
     }
   }
 
   // Flatten PFD major units
   const allPfdUnits: { unit: MajorUnitOperation; docId: string; docName: string }[] = [];
   for (const pe of pfdExtractions) {
-    for (const u of pe.major_units) {
-      allPfdUnits.push({ unit: u, docId: pe.document_id, docName: pe.document_name });
+    if (Array.isArray(pe?.major_units)) {
+      for (const u of pe.major_units) {
+        allPfdUnits.push({ unit: u, docId: pe.document_id, docName: pe.document_name });
+      }
     }
   }
 
@@ -334,6 +340,9 @@ export function buildUnifiedEngineeringMatrix(
         confidence: eq.confidence,
         specifications: eq.specifications,
         nozzle_schedule: eq.nozzle_schedule,
+        document_id: eq.document_id,
+        source: eq.source,
+        document_name: eq.source?.document || (eq.document_id ? docMap.get(eq.document_id)?.name : undefined),
       },
       datasheet_data: datasheetData,
       pfd_data: pfdData,

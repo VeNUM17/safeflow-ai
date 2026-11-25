@@ -54,6 +54,17 @@ The system is structured into two main pipeline layers as specified by process-s
                                 └──────────────────────────────────┘
 ```
 
+### Versioned P&ID Component Registry
+The server keeps the P&ID component catalog in `server/src/data/componentRegistry.json` (registry version `0.1.0`). Its validated entries define component classes, parents, tag prefixes and aliases, symbol keys, connection ports, inline behavior, attributes, rule tags, and generic failure-mode/safeguard references.
+
+- The default ISA convention profile builds its equipment, valve, instrument, line, and connector tag patterns and equipment classification rules from the registry.
+- Symbol detection creates registry-classified drawing objects with registry port positions. The editor palette, symbol renderer, and drawing viewer request the same catalog from `GET /api/component-registry`; editor-created objects retain their registry class and inline setting. A single class is available at `GET /api/component-registry/:classId`.
+- HAZOP drafts show registry failure modes and safeguards in a separate “Generic registry references” section marked unverified. They do not change risk ranks or become confirmed site safeguards.
+- Run `npm run validate:registry` to check class IDs, parents, symbol variants, port bounds, equipment types, and allowed rule tags. The production build runs this validation before compiling either application.
+- Run `npm run generate:synthetic -- --samples=20 --seed=20261124 --output=generated/component-training-data` to produce reproducible SVG training sheets and a class-labeled `annotations.json` manifest.
+
+Standard references identify the conventions followed by original SafeFlow symbols; they do not include copied standards artwork. Registry safety references are generic starting points and require engineering review for each site.
+
 ### The 7 OSHA 29 CFR 1910.119(d)(1) Mandated Fields
 For every chemical, the parser extracts, contextualizes, and attributes:
 1. **Toxicity Information** (`§1910.119(d)(1)(i)`): Acute/chronic toxicological data, LC50/LD50 inhalation and oral thresholds, target organs.

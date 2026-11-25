@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Save,
   CheckCircle2,
@@ -116,6 +116,37 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [editorViewTab, setEditorViewTab] = useState<'clean_viewer' | 'canvas' | 'hybrid'>('clean_viewer');
+
+  const editorRootRef = useRef<HTMLDivElement>(null);
+
+  // Wheel listener to isolate entire editor and prevent outer webpage from scrolling up or down
+  useEffect(() => {
+    const rootEl = editorRootRef.current;
+    if (!rootEl) return;
+
+    const onEditorWheel = (e: WheelEvent) => {
+      const target = e.target as HTMLElement | null;
+      // Allow scrolling inside elements with overflow-y-auto or overflow-auto (like symbol palette or properties panel)
+      const scrollable = target?.closest('.overflow-y-auto, .overflow-auto');
+      if (scrollable) {
+        const canScrollDown = scrollable.scrollTop < scrollable.scrollHeight - scrollable.clientHeight - 1;
+        const canScrollUp = scrollable.scrollTop > 1;
+        if ((e.deltaY > 0 && canScrollDown) || (e.deltaY < 0 && canScrollUp)) {
+          return; // Let sidebar scroll internally
+        }
+      }
+
+      // In all other cases (canvas, toolbars, headers, boundaries):
+      // Prevent outer page from scrolling up/down!
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    rootEl.addEventListener('wheel', onEditorWheel, { passive: false });
+    return () => {
+      rootEl.removeEventListener('wheel', onEditorWheel);
+    };
+  }, []);
 
   // Selection
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
@@ -347,30 +378,57 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
 
   // Multi-Part / Partitioned Digitization Engine (High-Accuracy Divide & Conquer)
   const [isPartitioning, setIsPartitioning] = useState<boolean>(false);
-  const [partitionGrid, setPartitionGrid] = useState<'2x2' | '3x3' | '4x4'>('3x3');
+  const [partitionGrid, setPartitionGrid] = useState<'2x2' | '3x3' | '4x4'>('4x4');
   const [showPartitionOverlay, setShowPartitionOverlay] = useState<boolean>(false);
   const [partitionStats, setPartitionStats] = useState<any[]>([]);
+
+  // Automatically execute 16-part (4x4) partitioned digitization on mount if not yet partitioned
+  const autoDigitizedMapRef = useRef<Record<string, boolean>>({});
+  useEffect(() => {
+    if (!activeDrawing) return;
+    if (autoDigitizedMapRef.current[activeDrawing.id]) return;
+    const hasElements = activeDrawing.elements && activeDrawing.elements.length > 0;
+    const missingConnectors = !activeDrawing.connectors || activeDrawing.connectors.length === 0;
+    if (hasElements && missingConnectors) {
+      autoDigitizedMapRef.current[activeDrawing.id] = true;
+      setIsPartitioning(true);
+      safeFetchJson(`/api/drawings/${activeDrawing.id}/partitioned-digitize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ grid_rows: 4, grid_cols: 4, overlap_px: 40 }),
+      })
+        .then((json) => {
+          if (json.success && json.data) {
+            setActiveDrawing(json.data);
+            setDrawings((prev) => prev.map((d) => (d.id === json.data.id ? json.data : d)));
+            setPartitionStats(json.partitions || []);
+            setShowPartitionOverlay(false); // Grid always off
+            runValidation(json.data.id);
+          }
+        })
+        .catch((err) => console.error('Auto 16-part partitioned digitization failed:', err))
+        .finally(() => setIsPartitioning(false));
+    }
+  }, [activeDrawing]);
 
   const handlePartitionedDigitize = async () => {
     if (!activeDrawing) return;
     try {
       setIsPartitioning(true);
       recordSnapshot(activeDrawing.elements, activeDrawing.connectors);
-      const [rows, cols] = partitionGrid.split('x').map((n) => parseInt(n, 10));
 
       const json = await safeFetchJson(`/api/drawings/${activeDrawing.id}/partitioned-digitize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ grid_rows: rows, grid_cols: cols, overlap_px: 40 }),
+        body: JSON.stringify({ grid_rows: 4, grid_cols: 4, overlap_px: 40 }),
       });
       if (json.success && json.data) {
         setActiveDrawing(json.data);
         setDrawings((prev) => prev.map((d) => (d.id === json.data.id ? json.data : d)));
         setPartitionStats(json.partitions || []);
-        setShowPartitionOverlay(true);
+        setShowPartitionOverlay(false); // Grid always off
         setHasUnsavedChanges(true);
         runValidation(json.data.id);
-        alert(`Partitioned Digitization Succeeded!\n${json.message || 'Piping network stitched across all partition zones.'}`);
       } else {
         alert(json.error || 'Failed to execute partitioned digitization.');
       }
@@ -534,10 +592,11 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
 
   return (
     <div
+      ref={editorRootRef}
       className={
         isFullscreen
-          ? 'fixed inset-0 z-50 w-screen h-screen bg-slate-950 flex flex-col overflow-hidden select-none'
-          : 'flex-1 flex flex-col h-full bg-slate-100 overflow-hidden'
+          ? 'fixed inset-0 z-50 w-screen h-screen bg-slate-950 flex flex-col overflow-hidden select-none overscroll-none'
+          : 'flex-1 flex flex-col h-full bg-slate-100 overflow-hidden overscroll-none'
       }
     >
       {/* Top Main Navigation & Action Toolbar */}
@@ -672,42 +731,14 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
             </button>
           </div>
 
-          {/* Multi-Part Partition Digitization Control */}
-          <div className="flex items-center bg-purple-950/40 border border-purple-700/50 rounded-lg p-0.5">
-            <select
-              value={partitionGrid}
-              onChange={(e) => setPartitionGrid(e.target.value as any)}
-              className="bg-transparent text-purple-200 text-xs font-semibold px-2 py-1 outline-hidden cursor-pointer"
-              title="Choose grid density for dividing the large P&ID into precision sub-drawings"
-            >
-              <option value="2x2" className="bg-slate-900 text-slate-200">2x2 (4 Parts)</option>
-              <option value="3x3" className="bg-slate-900 text-slate-200">3x3 (9 Parts)</option>
-              <option value="4x4" className="bg-slate-900 text-slate-200">4x4 (16 Parts)</option>
-            </select>
-            <button
-              onClick={handlePartitionedDigitize}
-              disabled={isPartitioning}
-              className="px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 bg-purple-600 hover:bg-purple-500 text-white transition-all shadow-xs disabled:opacity-50"
-              title="Divide this large P&ID into smaller zones and digitize each part with localized connection tracing"
-            >
-              <Split className={`w-3.5 h-3.5 ${isPartitioning ? 'animate-spin' : ''}`} />
-              <span>{isPartitioning ? 'Digitizing Parts...' : 'Divide & Digitize'}</span>
-            </button>
-          </div>
-
-          {/* Toggle Partition Grid Overlay */}
-          <button
-            onClick={() => setShowPartitionOverlay(!showPartitionOverlay)}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border transition-colors ${
-              showPartitionOverlay
-                ? 'bg-purple-900/60 text-purple-200 border-purple-500/80'
-                : 'bg-slate-900/80 text-slate-400 border-slate-700/80 hover:text-slate-200'
-            }`}
-            title="Toggle visual partition grid overlay on canvas"
+          {/* Automated 16-Part (4x4) Partition Digitization Status */}
+          <div
+            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-purple-950/40 border border-purple-700/50 rounded-lg text-xs font-semibold text-purple-200"
+            title="P&ID automatically digitized across 16 precision partitioned tiles"
           >
-            <Grid className="w-3.5 h-3.5 text-purple-400" />
-            <span className="hidden md:inline">Grid</span>
-          </button>
+            <Split className={`w-3.5 h-3.5 text-purple-400 ${isPartitioning ? 'animate-spin' : ''}`} />
+            <span>{isPartitioning ? 'Digitizing 16 Parts...' : '16-Part Digitized'}</span>
+          </div>
 
           {/* Snap 1:1 Reference Overlap Button */}
           <button
@@ -964,8 +995,8 @@ export const DigitalPidEditor: React.FC<DigitalPidEditorProps> = ({
             onUndo={handleUndo}
             onRedo={handleRedo}
             onPushHistory={handleDragCommit}
-            showPartitionGrid={showPartitionOverlay}
-            partitionGridType={partitionGrid}
+            showPartitionGrid={false}
+            partitionGridType="4x4"
             partitionZones={partitionStats}
           />
 

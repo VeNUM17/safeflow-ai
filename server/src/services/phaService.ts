@@ -18,6 +18,7 @@ import {
   CrossDocumentDiscrepancy,
   PhaMultiDocumentContext,
 } from '../types';
+import { findComponentForTag } from './componentRegistryService';
 
 /**
  * Generates flow-related HAZOP deviations for all applicable process streams in a node.
@@ -61,10 +62,14 @@ export function generateFlowDeviationsForNode(
     const sourceEq = equipment.find((e) => e.tag.toUpperCase() === stream.source_equipment_tag.toUpperCase());
     const destEq = equipment.find((e) => e.tag.toUpperCase() === stream.destination_equipment_tag.toUpperCase());
     const isPumpDischarge = sourceEq?.equipment_type === 'pump';
-    const hasControlValve = stream.associated_instrument_tags.some((t) => t.startsWith('FCV')) ||
-      equipment.some((e) => nodeTagSet.has(e.tag) && e.equipment_type === 'control_valve');
-    const flowInstruments = stream.associated_instrument_tags.filter((t) =>
-      /^(FIT|FIC|FT|FI|FE|FO|FAL|FAH)-/i.test(t)
+    const destinationComponent = findComponentForTag(destEq?.tag || stream.destination_equipment_tag, destEq?.equipment_type);
+    const hasControlValve = stream.associated_instrument_tags.some((tag) =>
+      findComponentForTag(tag)?.rule_tags.includes('flow_control')
+    ) || equipment.some((e) => nodeTagSet.has(e.tag) &&
+      findComponentForTag(e.tag, e.equipment_type)?.rule_tags.includes('flow_control')
+    );
+    const flowInstruments = stream.associated_instrument_tags.filter((tag) =>
+      findComponentForTag(tag)?.rule_tags.includes('flow_measurement')
     );
 
     // 1. NO FLOW
@@ -87,7 +92,7 @@ export function generateFlowDeviationsForNode(
       causes: [
         isPumpDischarge
           ? `Transfer pump ${stream.source_equipment_tag} electrical trip, motor burnout, or mechanical failure.`
-          : stream.destination_equipment_tag.toUpperCase().startsWith('P-')
+          : destinationComponent?.equipment_type === 'pump'
           ? `Downstream pump ${stream.destination_equipment_tag} electrical trip, motor burnout, or mechanical failure.`
           : `Upstream feed supply interruption from ${stream.source_equipment_tag}.`,
         hasControlValve
@@ -99,7 +104,7 @@ export function generateFlowDeviationsForNode(
       consequences: [
         isPumpDischarge
           ? `Pump ${stream.source_equipment_tag} deadheading against closed discharge, leading to liquid overheating, seal failure, or casing overpressure.`
-          : stream.destination_equipment_tag.toUpperCase().startsWith('P-')
+          : destinationComponent?.equipment_type === 'pump'
           ? `Loss of suction head to pump ${stream.destination_equipment_tag}, leading to pump cavitation, dry running, and mechanical seal damage.`
           : `Starvation and loss of feed to downstream process unit ${stream.destination_equipment_tag}.`,
         'Loss of reactant stoichiometry or cooling stream, leading to process upset or runaway thermal conditions.',
@@ -389,23 +394,17 @@ export function attachStreamContextToNode(
   // Associated valves & instruments
   const nodeEquipmentItems = allEquipment.filter((e) => nodeTagsUpper.includes(e.tag.toUpperCase()));
   node.associated_valves = nodeEquipmentItems
-    .filter((e) =>
-      ['manual_valve', 'isolation_valve', 'control_valve', 'drain_valve'].includes(e.equipment_type) ||
-      /^(HV|XV|FCV|PCV|TCV|LCV|DV)-/i.test(e.tag)
-    )
+    .filter((e) => findComponentForTag(e.tag, e.equipment_type)?.category === 'valve')
     .map((e) => e.tag);
 
   node.associated_instruments = nodeEquipmentItems
-    .filter((e) =>
-      e.equipment_type === 'instrument' ||
-      /^(FIT|FIC|FT|FE|FO|FI|TIT|LIT|PIT|AIT|TI|LI|PI|FAL|FAH)-/i.test(e.tag)
-    )
+    .filter((e) => findComponentForTag(e.tag, e.equipment_type)?.category === 'instrument')
     .map((e) => e.tag);
 
   // Identify control loops (e.g. FIC and FCV pairs)
   const loops: string[] = [];
   for (const inst of node.associated_instruments) {
-    if (inst.startsWith('FIC')) {
+    if (findComponentForTag(inst)?.rule_tags.includes('flow_control')) {
       const loopNum = inst.replace(/\D/g, '');
       const valve = node.associated_valves.find((v) => v.includes(loopNum));
       if (valve) {

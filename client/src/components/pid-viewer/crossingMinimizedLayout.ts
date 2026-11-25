@@ -354,11 +354,12 @@ export class CrossingMinimizedLayoutEngine {
         .filter(Boolean) as string[];
 
       if (matched.length >= 3) {
-        return matched;
+        longestPath = matched;
       }
     }
 
-    return longestPath.length >= 2 ? longestPath : elements.map((e) => e.id).slice(0, 6);
+    const rawSpine = longestPath.length >= 2 ? longestPath : elements.map((e) => e.id).slice(0, 6);
+    return Array.from(new Set(rawSpine));
   }
 
   /**

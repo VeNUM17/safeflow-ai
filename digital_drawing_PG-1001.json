@@ -1,0 +1,319 @@
+{
+  "id": "dwg-gpf-001-02",
+  "project_id": "proj-default",
+  "source_document_id": "doc-pid-gpf-001-02",
+  "source_document_page": 1,
+  "title": "PIPING & INSTRUMENTATION DIAGRAM PIG RECEIVER & INLET CONTROL",
+  "drawing_number": "P&ID-GPF-001-02",
+  "revision": "A",
+  "mode": "imported_overlay",
+  "status": "approved",
+  "canvas_width": 1500,
+  "canvas_height": 920,
+  "background_visible": true,
+  "background_opacity": 0.85,
+  "created_at": "2026-11-15T12:35:00Z",
+  "updated_at": "2026-11-15T12:35:00Z",
+  "elements": [
+    {
+      "id": "el-SDV-1001",
+      "tag": "SDV-1001",
+      "type": "isolation_valve",
+      "label": "SHUTDOWN VALVE (WELL 1)",
+      "position": { "x": 130, "y": 110 },
+      "size": { "width": 24, "height": 35 },
+      "specifications": {
+        "size": { "value": "4\"", "status": "verified" },
+        "fail_position": { "value": "Fail Closed", "status": "verified" },
+        "service": { "value": "Well Inlet Isolation", "status": "verified" }
+      }
+    },
+    {
+      "id": "el-SDV-1002",
+      "tag": "SDV-1002",
+      "type": "isolation_valve",
+      "label": "SHUTDOWN VALVE (WELL 2)",
+      "position": { "x": 130, "y": 175 },
+      "size": { "width": 24, "height": 35 },
+      "specifications": {
+        "size": { "value": "4\"", "status": "verified" },
+        "fail_position": { "value": "Fail Closed", "status": "verified" },
+        "service": { "value": "Well Inlet Isolation", "status": "verified" }
+      }
+    },
+    {
+      "id": "el-SDV-1003",
+      "tag": "SDV-1003",
+      "type": "isolation_valve",
+      "label": "SHUTDOWN VALVE (WELL 3)",
+      "position": { "x": 130, "y": 240 },
+      "size": { "width": 24, "height": 35 },
+      "specifications": {
+        "size": { "value": "4\"", "status": "verified" },
+        "fail_position": { "value": "Fail Closed", "status": "verified" },
+        "service": { "value": "Well Inlet Isolation", "status": "verified" }
+      }
+    },
+    {
+      "id": "el-SDV-1004",
+      "tag": "SDV-1004",
+      "type": "isolation_valve",
+      "label": "SHUTDOWN VALVE (WELL 4)",
+      "position": { "x": 130, "y": 305 },
+      "size": { "width": 24, "height": 35 },
+      "specifications": {
+        "size": { "value": "4\"", "status": "verified" },
+        "fail_position": { "value": "Fail Closed", "status": "verified" },
+        "service": { "value": "Well Inlet Isolation", "status": "verified" }
+      }
+    },
+    {
+      "id": "el-PG-1001",
+      "tag": "PG-1001",
+      "type": "vessel",
+      "label": "PIG RECEIVER / SLUG CATCHER",
+      "position": { "x": 580, "y": 425 },
+      "size": { "width": 340, "height": 130 },
+      "specifications": {
+        "design_pressure": { "value": 90, "unit": "barg", "status": "verified" },
+        "design_temperature": { "value": 120, "unit": "°C", "status": "verified" },
+        "dimensions": { "value": "1200 ID x 8000 LG", "status": "verified" },
+        "service": { "value": "Sour Gas Service (NACE MR0175)", "status": "verified" }
+      },
+      "ports": [
+        { "id": "N1", "name": "Pig Inlet", "type": "inlet", "position": { "x": -170, "y": 0 } },
+        { "id": "N2", "name": "Gas Outlet", "type": "outlet", "position": { "x": 170, "y": -10 } },
+        { "id": "N3", "name": "Liquid Outlet", "type": "outlet", "position": { "x": 70, "y": 65 } },
+        { "id": "N4", "name": "PSV Connection", "type": "outlet", "position": { "x": 60, "y": -65 } },
+        { "id": "N5", "name": "Drain", "type": "outlet", "position": { "x": -100, "y": 65 } },
+        { "id": "N6", "name": "Vent", "type": "outlet", "position": { "x": -85, "y": -65 } },
+        { "id": "N7", "name": "Pig Door", "type": "inlet", "position": { "x": -150, "y": 50 } }
+      ]
+    },
+    {
+      "id": "el-XV-1001",
+      "tag": "XV-1001",
+      "type": "isolation_valve",
+      "label": "ESD BALL VALVE (INLET)",
+      "position": { "x": 270, "y": 425 },
+      "size": { "width": 32, "height": 45 },
+      "specifications": {
+        "size": { "value": "10\"", "status": "verified" },
+        "fail_position": { "value": "Fail Closed", "status": "verified" },
+        "rating": { "value": "ANSI 600", "status": "verified" }
+      }
+    },
+    {
+      "id": "el-XV-1002",
+      "tag": "XV-1002",
+      "type": "isolation_valve",
+      "label": "ESD BALL VALVE (OUTLET)",
+      "position": { "x": 960, "y": 415 },
+      "size": { "width": 32, "height": 45 },
+      "specifications": {
+        "size": { "value": "10\"", "status": "verified" },
+        "fail_position": { "value": "Fail Closed", "status": "verified" },
+        "rating": { "value": "ANSI 600", "status": "verified" }
+      }
+    },
+    {
+      "id": "el-PCV-1001",
+      "tag": "PCV-1001",
+      "type": "control_valve",
+      "label": "PRESSURE CONTROL VALVE",
+      "position": { "x": 1095, "y": 415 },
+      "size": { "width": 32, "height": 45 },
+      "specifications": {
+        "size": { "value": "6\"", "status": "verified" },
+        "fail_position": { "value": "Fail Open", "status": "verified" }
+      }
+    },
+    {
+      "id": "el-LCV-1001",
+      "tag": "LCV-1001",
+      "type": "control_valve",
+      "label": "LEVEL CONTROL VALVE",
+      "position": { "x": 750, "y": 610 },
+      "size": { "width": 32, "height": 45 },
+      "specifications": {
+        "size": { "value": "4\"", "status": "verified" },
+        "fail_position": { "value": "Fail Open", "status": "verified" }
+      }
+    },
+    {
+      "id": "el-BDV-1001",
+      "tag": "BDV-1001",
+      "type": "control_valve",
+      "label": "BLOWDOWN VALVE",
+      "position": { "x": 980, "y": 560 },
+      "size": { "width": 30, "height": 42 },
+      "specifications": {
+        "size": { "value": "4\"", "status": "verified" },
+        "fail_position": { "value": "Fail Open (Normally Closed)", "status": "verified" },
+        "standard": { "value": "API 521", "status": "verified" }
+      }
+    },
+    {
+      "id": "el-PSV-1001",
+      "tag": "PSV-1001",
+      "type": "relief_valve",
+      "label": "SAFETY RELIEF VALVE",
+      "position": { "x": 650, "y": 230 },
+      "size": { "width": 30, "height": 45 },
+      "specifications": {
+        "set_pressure": { "value": 95, "unit": "barg", "status": "verified" },
+        "standard": { "value": "API 520", "status": "verified" }
+      }
+    },
+    {
+      "id": "el-CV-1001",
+      "tag": "CV-1001",
+      "type": "check_valve",
+      "label": "CHECK VALVE",
+      "position": { "x": 835, "y": 415 },
+      "size": { "width": 24, "height": 20 }
+    },
+    {
+      "id": "el-PT-1001",
+      "tag": "PT-1001",
+      "type": "instrument",
+      "label": "PRESSURE TRANSMITTER (DCS)",
+      "position": { "x": 370, "y": 210 },
+      "size": { "width": 36, "height": 36 }
+    },
+    {
+      "id": "el-PT-1002",
+      "tag": "PT-1002",
+      "type": "instrument",
+      "label": "PRESSURE TRANSMITTER (SIS)",
+      "position": { "x": 425, "y": 210 },
+      "size": { "width": 36, "height": 36 }
+    },
+    {
+      "id": "el-SIS-1001",
+      "tag": "SIS LS-1001",
+      "type": "instrument",
+      "label": "SIS LOGIC SOLVER",
+      "position": { "x": 770, "y": 220 },
+      "size": { "width": 80, "height": 40 }
+    }
+  ],
+  "connectors": [
+    {
+      "id": "conn-00101",
+      "line_number": "10\"-PG-00101-A1A",
+      "from_element_id": "manifold-mv-1001",
+      "to_element_id": "el-XV-1001",
+      "line_type": "process_line",
+      "size": "10\"",
+      "spec": "A1A",
+      "points": [{ "x": 45, "y": 425 }, { "x": 255, "y": 425 }]
+    },
+    {
+      "id": "conn-00102",
+      "line_number": "10\"-PG-00102-A1A",
+      "from_element_id": "el-XV-1001",
+      "to_element_id": "el-PG-1001",
+      "line_type": "process_line",
+      "size": "10\"",
+      "spec": "A1A",
+      "points": [{ "x": 285, "y": 425 }, { "x": 410, "y": 425 }]
+    },
+    {
+      "id": "conn-00103",
+      "line_number": "10\"-PG-00103-A1A",
+      "from_element_id": "el-PG-1001",
+      "to_element_id": "el-CV-1001",
+      "line_type": "process_line",
+      "size": "10\"",
+      "spec": "A1A",
+      "points": [{ "x": 750, "y": 415 }, { "x": 820, "y": 415 }]
+    },
+    {
+      "id": "conn-00104",
+      "line_number": "10\"-PG-00104-A1A",
+      "from_element_id": "el-CV-1001",
+      "to_element_id": "el-XV-1002",
+      "line_type": "process_line",
+      "size": "10\"",
+      "spec": "A1A",
+      "points": [{ "x": 850, "y": 415 }, { "x": 945, "y": 415 }]
+    },
+    {
+      "id": "conn-00105",
+      "line_number": "10\"-PG-00105-A1A",
+      "from_element_id": "el-XV-1002",
+      "to_element_id": "el-PCV-1001",
+      "line_type": "process_line",
+      "size": "10\"",
+      "spec": "A1A",
+      "points": [{ "x": 975, "y": 415 }, { "x": 1080, "y": 415 }]
+    },
+    {
+      "id": "conn-00106",
+      "line_number": "6\"-PG-00106-A1A",
+      "from_element_id": "el-PCV-1001",
+      "to_element_id": "hp-separator",
+      "line_type": "process_line",
+      "size": "6\"",
+      "spec": "A1A",
+      "points": [{ "x": 1110, "y": 415 }, { "x": 1210, "y": 415 }]
+    },
+    {
+      "id": "conn-00107",
+      "line_number": "4\"-PG-00107-A1A",
+      "from_element_id": "el-PG-1001",
+      "to_element_id": "el-LCV-1001",
+      "line_type": "process_line",
+      "size": "4\"",
+      "spec": "A1A",
+      "points": [{ "x": 650, "y": 490 }, { "x": 650, "y": 610 }, { "x": 735, "y": 610 }]
+    },
+    {
+      "id": "conn-00108",
+      "line_number": "4\"-PG-00108-A1A",
+      "from_element_id": "el-LCV-1001",
+      "to_element_id": "condensate-oil-system",
+      "line_type": "process_line",
+      "size": "4\"",
+      "spec": "A1A",
+      "points": [{ "x": 765, "y": 610 }, { "x": 980, "y": 610 }]
+    },
+    {
+      "id": "conn-fl-00101",
+      "line_number": "4\"-FL-00101-A1A",
+      "from_element_id": "el-BDV-1001",
+      "to_element_id": "sour-flare-header",
+      "line_type": "process_line",
+      "size": "4\"",
+      "spec": "A1A",
+      "points": [{ "x": 980, "y": 540 }, { "x": 980, "y": 475 }, { "x": 1050, "y": 475 }]
+    },
+    {
+      "id": "conn-fl-00102",
+      "line_number": "4\"-FL-00102-A1A",
+      "from_element_id": "el-PSV-1001",
+      "to_element_id": "sour-flare-header",
+      "line_type": "process_line",
+      "size": "4\"",
+      "spec": "A1A",
+      "points": [{ "x": 650, "y": 210 }, { "x": 650, "y": 80 }, { "x": 760, "y": 80 }]
+    },
+    {
+      "id": "conn-sig-sis-1",
+      "line_number": "SIS-TRIP-XV1001",
+      "from_element_id": "el-SIS-1001",
+      "to_element_id": "el-XV-1001",
+      "line_type": "signal_line",
+      "points": [{ "x": 730, "y": 220 }, { "x": 270, "y": 220 }, { "x": 270, "y": 380 }]
+    },
+    {
+      "id": "conn-sig-sis-2",
+      "line_number": "SIS-TRIP-XV1002",
+      "from_element_id": "el-SIS-1001",
+      "to_element_id": "el-XV-1002",
+      "line_type": "signal_line",
+      "points": [{ "x": 810, "y": 220 }, { "x": 960, "y": 220 }, { "x": 960, "y": 370 }]
+    }
+  ]
+}

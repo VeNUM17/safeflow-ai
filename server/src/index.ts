@@ -23,6 +23,14 @@ app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 // API Routes
 app.use('/api', apiRouter);
 
+// API 404 Handler - Guarantee that all unmatched API requests return JSON, NEVER HTML
+app.use('/api', (req: Request, res: Response) => {
+  res.status(404).json({
+    success: false,
+    error: `API endpoint not found: ${req.method} ${req.originalUrl || req.url}`,
+  });
+});
+
 // Serve frontend in production
 const CLIENT_DIST = path.resolve(__dirname, '../../client/dist');
 app.use(express.static(CLIENT_DIST));

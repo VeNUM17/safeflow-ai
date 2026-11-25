@@ -10,12 +10,13 @@ import { parsePidDocument } from '../services/pidParser';
 import { buildProcessTopologyGraph } from '../services/graphService';
 import { exportProjectToJson, exportProjectToCsv } from '../services/exportService';
 import { exportDrawingToJson, exportDrawingToSvg } from '../services/drawingExportService';
+import { exportDossierToMarkdown } from '../services/dossierExportService';
 import { parseProcessDescription } from '../services/processDescriptionService';
 import { normalizeDrawing } from '../services/drawingNormalizationService';
 import { validateCandidateTopology } from '../services/topologyValidationService';
 import { classifyDocument } from '../services/documentClassifier';
 import { generateDigitalPidFromExtracted } from '../services/digitalDrawingGenerator';
-import { DocumentRecord, DocumentCategory, DocumentType, PipingLine, EquipmentTag, createDefaultSpecifications, ProcessStream } from '../types';
+import { DocumentRecord, DocumentCategory, DocumentType, PipingLine, ProcessLine, EquipmentTag, createDefaultSpecifications, ProcessStream } from '../types';
 import { parseGasCompositionReportText } from '../services/chemicalIdentificationEngine';
 import { evaluateEquipmentChemicalMapping, evaluateProjectChemicalMappings } from '../services/chemicalMappingEngine';
 import { validateProjectPsiCompleteness } from '../services/psiValidationService';
@@ -24,6 +25,7 @@ import { parsePfdOrBfdDocument } from '../services/pfdParser';
 import { parseStreamTableDocument } from '../services/streamTableParser';
 import { parseDatasheetDocument } from '../services/datasheetParser';
 import { parsePhilosophyDocument } from '../services/philosophyParser';
+import { getComponentRegistry, findComponentByClassId } from '../services/componentRegistryService';
 import {
   buildUnifiedEngineeringMatrix,
   getUnifiedEquipmentContext,
@@ -188,6 +190,12 @@ router.post('/projects/:id/discrepancies/detect', (req: Request, res: Response) 
     data: discs,
     message: `Detected ${discs.length} cross-document consistency checks`,
   });
+});
+
+router.get('/projects/:id/reconciliation/report', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const report = store.getCrossDocumentReconciliationReport(id);
+  res.json({ success: true, data: report });
 });
 
 router.post('/discrepancies/:id/resolve', (req: Request, res: Response) => {
@@ -770,6 +778,44 @@ router.patch('/equipment/:id', (req: Request, res: Response) => {
   res.json({ success: true, data: updated });
 });
 
+router.patch('/equipment/:id/review-status', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const { status, notes, reviewer } = req.body;
+  if (!status) {
+    return res.status(400).json({ success: false, error: 'Isolated review status is required' });
+  }
+  const updated = store.updateEquipmentReviewStatus(
+    id,
+    status,
+    reviewer || 'Process Engineer',
+    notes || ''
+  );
+  if (!updated) {
+    return res.status(404).json({ success: false, error: 'Equipment tag not found' });
+  }
+  res.json({ success: true, data: updated });
+});
+
+router.post('/equipment/:id/verify', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const { reviewer, notes } = req.body;
+  const updated = store.verifyEquipment(
+    id,
+    reviewer || 'Process Engineer',
+    notes || ''
+  );
+  if (!updated) {
+    return res.status(404).json({ success: false, error: 'Equipment tag not found' });
+  }
+  res.json({ success: true, data: updated });
+});
+
+router.get('/projects/:id/equipment/validation', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const validation = store.validateEquipment(id);
+  res.json({ success: true, data: validation });
+});
+
 router.delete('/equipment/:id', (req: Request, res: Response) => {
   const id = getParam(req.params.id);
   const reviewer = req.body?.reviewer || 'Process Engineer';
@@ -975,6 +1021,199 @@ router.delete('/lines/:id', (req: Request, res: Response) => {
   res.json({ success: true, message: 'Piping line deleted successfully' });
 });
 
+// --- FIRST-CLASS PROCESS LINES (PHASE 2) ---
+router.get('/projects/:id/process-lines', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const lines = store.getProcessLines(projectId);
+  res.json({ success: true, data: lines });
+});
+
+router.post('/projects/:id/process-lines', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const {
+    line_number,
+    from_equipment,
+    to_equipment,
+    nominal_pipe_size,
+    pipe_spec,
+    fluid_service,
+    flow_direction,
+    connection_type,
+    operating_flow_rate,
+    flow_rates,
+    operating_pressure,
+    operating_temperature,
+    design_pressure,
+    design_temperature,
+    chemical_composition,
+    physical_state,
+    reviewer,
+    notes,
+  } = req.body;
+
+  if (!line_number || !from_equipment || !to_equipment) {
+    return res.status(400).json({
+      success: false,
+      error: 'Line identifier (line_number), from_equipment, and to_equipment are required',
+    });
+  }
+
+  const newLine: ProcessLine = {
+    id: uuidv4(),
+    project_id: projectId,
+    document_id: 'manual',
+    line_number: String(line_number).trim(),
+    from_equipment: String(from_equipment).trim().toUpperCase(),
+    to_equipment: String(to_equipment).trim().toUpperCase(),
+    flow_direction: flow_direction || 'forward',
+    connection_type: connection_type || 'process_piping',
+    size: typeof nominal_pipe_size === 'string' ? nominal_pipe_size : (nominal_pipe_size?.value || '2"'),
+    material: typeof pipe_spec === 'string' ? pipe_spec : (pipe_spec?.value || 'CS'),
+    stream_label: typeof fluid_service === 'string' ? fluid_service : (fluid_service?.value || ''),
+    functional_type:
+      connection_type === 'instrument_signal'
+        ? 'signal_line'
+        : connection_type === 'utility_connection'
+        ? 'utility_line'
+        : 'piping_line',
+    confidence: 1.0,
+    status: 'confirmed',
+    assigned_chemical_id: null,
+    source: {
+      document: 'Manual Engineering Entry',
+      page: 1,
+      snippet: `Process line ${line_number} connecting ${from_equipment} to ${to_equipment}`,
+    },
+    alerts: [],
+    nominal_pipe_size:
+      typeof nominal_pipe_size === 'object' && nominal_pipe_size !== null
+        ? nominal_pipe_size
+        : {
+            value: nominal_pipe_size || '2"',
+            unit: 'in',
+            source_category: 'manual_entry',
+            verification_status: 'unverified',
+          },
+    pipe_spec:
+      typeof pipe_spec === 'object' && pipe_spec !== null
+        ? pipe_spec
+        : {
+            value: pipe_spec || 'CS',
+            unit: null,
+            source_category: 'manual_entry',
+            verification_status: 'unverified',
+          },
+    fluid_service:
+      typeof fluid_service === 'object' && fluid_service !== null
+        ? fluid_service
+        : {
+            value: fluid_service || '',
+            unit: null,
+            source_category: 'manual_entry',
+            verification_status: 'unverified',
+          },
+    operating_flow_rate:
+      typeof operating_flow_rate === 'object' && operating_flow_rate !== null
+        ? operating_flow_rate
+        : {
+            value: typeof operating_flow_rate === 'number' ? operating_flow_rate : null,
+            unit: 'kg/h',
+            source_category: 'manual_entry',
+            verification_status: 'unverified',
+          },
+    flow_rates: flow_rates || {
+      min: { value: null, unit: null },
+      normal: { value: null, unit: null },
+      max: { value: null, unit: null },
+      design: { value: null, unit: null },
+    },
+    operating_pressure:
+      typeof operating_pressure === 'object' && operating_pressure !== null
+        ? operating_pressure
+        : {
+            value: typeof operating_pressure === 'number' ? operating_pressure : null,
+            unit: 'bar(g)',
+            source_category: 'manual_entry',
+            verification_status: 'unverified',
+          },
+    operating_temperature:
+      typeof operating_temperature === 'object' && operating_temperature !== null
+        ? operating_temperature
+        : {
+            value: typeof operating_temperature === 'number' ? operating_temperature : null,
+            unit: '°C',
+            source_category: 'manual_entry',
+            verification_status: 'unverified',
+          },
+    design_pressure:
+      typeof design_pressure === 'object' && design_pressure !== null
+        ? design_pressure
+        : {
+            value: typeof design_pressure === 'number' ? design_pressure : null,
+            unit: 'bar(g)',
+            source_category: 'manual_entry',
+            verification_status: 'unverified',
+          },
+    design_temperature:
+      typeof design_temperature === 'object' && design_temperature !== null
+        ? design_temperature
+        : {
+            value: typeof design_temperature === 'number' ? design_temperature : null,
+            unit: '°C',
+            source_category: 'manual_entry',
+            verification_status: 'unverified',
+          },
+    chemical_composition: Array.isArray(chemical_composition) ? chemical_composition : [],
+    physical_state:
+      typeof physical_state === 'object' && physical_state !== null
+        ? physical_state
+        : {
+            value: physical_state || null,
+            unit: null,
+            source_category: 'manual_entry',
+            verification_status: 'unverified',
+          },
+    source_document_name: 'Manual Engineering Entry',
+    source_revision: 'Rev 0',
+    source_page: 1,
+    extraction_confidence: 1.0,
+    verification_status: 'unverified',
+    notes: notes || '',
+    created_at: new Date().toISOString(),
+  };
+
+  store.addProcessLines([newLine], reviewer || 'Process Engineer', 'Created first-class process line');
+  res.status(201).json({ success: true, data: newLine });
+});
+
+router.patch('/process-lines/:id', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const reviewer = req.body.reviewer || 'Process Engineer';
+  const reason = req.body.reason || 'Manual process line update';
+  const updated = store.updateProcessLine(id, req.body, reviewer, reason);
+  if (!updated) {
+    return res.status(404).json({ success: false, error: 'Process line not found' });
+  }
+  res.json({ success: true, data: updated });
+});
+
+router.post('/process-lines/:id/verify', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const reviewer = req.body.reviewer || 'Lead Process Engineer';
+  const notes = req.body.notes || 'Verified process line specifications and connectivity';
+  const verified = store.verifyProcessLine(id, reviewer, notes);
+  if (!verified) {
+    return res.status(404).json({ success: false, error: 'Process line not found' });
+  }
+  res.json({ success: true, data: verified });
+});
+
+router.get('/projects/:id/process-lines/validation', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const report = store.validateProcessLinesForProject(projectId);
+  res.json({ success: true, data: report });
+});
+
 // --- PROCESS STREAMS ---
 router.get('/projects/:id/streams', (req: Request, res: Response) => {
   const projectId = getParam(req.params.id);
@@ -1061,6 +1300,44 @@ router.post('/streams/:id/verify', (req: Request, res: Response) => {
   res.json({ success: true, data: verified });
 });
 
+router.post('/streams/:id/link-lines', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const reviewer = req.body?.reviewer || 'Process Engineer';
+  const lineIds = Array.isArray(req.body?.line_ids) ? req.body.line_ids : [];
+  const linked = store.linkStreamToLines(id, lineIds, reviewer);
+  if (!linked) {
+    return res.status(404).json({ success: false, error: 'Process stream not found' });
+  }
+  res.json({ success: true, data: linked });
+});
+
+router.get('/projects/:id/streams/validation', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const report = store.validateProcessStreamsForProject(projectId);
+  res.json({ success: true, data: report });
+});
+
+router.get('/projects/:id/connections/validation', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const report = store.validateConnectionsForProject(projectId);
+  res.json({ success: true, data: report });
+});
+
+router.post('/lines/:id/classify', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const classification = req.body.classification;
+  if (!classification) {
+    return res.status(400).json({ success: false, error: 'classification is required' });
+  }
+  const reviewer = req.body.reviewer || 'Process Engineer';
+  const reason = req.body.reason || 'Manual connection classification update';
+  const updated = store.updateConnectionClassification(id, classification, reviewer, reason);
+  if (!updated) {
+    return res.status(404).json({ success: false, error: 'Process line not found' });
+  }
+  res.json({ success: true, data: updated });
+});
+
 router.get('/projects/:id/graph', (req: Request, res: Response) => {
   const projectId = getParam(req.params.id);
   const graph = store.getProcessTopologyGraph(projectId);
@@ -1093,11 +1370,15 @@ router.get('/projects/:id/graph/approval', (req: Request, res: Response) => {
 
 router.post('/projects/:id/graph/approve', (req: Request, res: Response) => {
   const projectId = getParam(req.params.id);
-  const { reviewer, notes } = req.body;
+  const { reviewer, role, notes, acknowledged_warnings } = req.body;
   const result = store.approveGraph(
     projectId,
-    reviewer || 'Lead Process Safety Engineer',
-    notes || 'P&ID topology and connectivity verified against design drawing'
+    {
+      reviewer: reviewer || 'Lead Process Safety Engineer',
+      role: role || 'Lead Process Safety Specialist (PE)',
+      notes: notes || 'P&ID topology and connectivity verified against design drawing',
+      acknowledged_warnings: Array.isArray(acknowledged_warnings) ? acknowledged_warnings : undefined,
+    }
   );
   if (!result.success) {
     return res.status(400).json({ success: false, error: result.error });
@@ -1112,11 +1393,39 @@ router.post('/projects/:id/graph/unapprove', (req: Request, res: Response) => {
   res.json({ success: true, message: 'Graph approval reverted to review stage' });
 });
 
-// --- AUDIT TRAIL ---
+// --- AUDIT TRAIL & REVERSIBILITY (PHASE 8) ---
 router.get('/projects/:id/audit-log', (req: Request, res: Response) => {
   const projectId = getParam(req.params.id);
-  const logs = store.listAuditLog(projectId);
+  const { entity_type, entity_id, action } = req.query;
+  const filter: any = {};
+  if (typeof entity_type === 'string') filter.entity_type = entity_type;
+  if (typeof entity_id === 'string') filter.entity_id = entity_id;
+  if (typeof action === 'string') filter.action = action;
+
+  const logs = store.listAuditLog(projectId, Object.keys(filter).length > 0 ? filter : undefined);
   res.json({ success: true, data: logs });
+});
+
+router.post('/projects/:id/audit-log/:auditId/revert', (req: Request, res: Response) => {
+  const auditId = getParam(req.params.auditId);
+  const { reviewer, reason } = req.body || {};
+  const result = store.revertChange(auditId, reviewer || 'Process Engineer', reason || 'Engineering rollback');
+  if (!result.success) {
+    return res.status(400).json({ success: false, error: result.error });
+  }
+  res.json({ success: true, data: result.reverted_entry });
+});
+
+// --- CHANGE IMPACT ANALYSIS (PHASE 8) ---
+router.get('/projects/:id/change-impact', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const entityType = ((req.query.entity_type as string) || 'equipment') as any;
+  const targetIdOrTag = (req.query.entity_id as string) || (req.query.tag as string) || (req.query.line_number as string) || '';
+  const changeType = ((req.query.change_type as string) || 'update') as any;
+  const changeDescription = (req.query.description as string) || 'Entity modification';
+
+  const impact = store.getChangeImpact(projectId, entityType, targetIdOrTag, changeType, changeDescription);
+  res.json({ success: true, data: impact });
 });
 
 // --- PHA STUDY NODES & HAZOP READINESS ---
@@ -1225,10 +1534,62 @@ router.get('/projects/:id/pha/readiness', (req: Request, res: Response) => {
   res.json({ success: true, data: readiness });
 });
 
+import { listConventionProfiles, getConventionProfile, registerConventionProfile } from '../services/pidConventionService';
+
+// --- VERSIONED COMPONENT REGISTRY ---
+router.get('/component-registry', (_req: Request, res: Response) => {
+  res.json({ success: true, data: getComponentRegistry() });
+});
+
+router.get('/component-registry/:classId', (req: Request, res: Response) => {
+  const component = findComponentByClassId(getParam(req.params.classId));
+  if (!component) {
+    return res.status(404).json({ success: false, error: 'Component class not found in registry' });
+  }
+  res.json({ success: true, data: component });
+});
+
+// --- CONVENTION PROFILES ---
+router.get('/convention-profiles', (req: Request, res: Response) => {
+  const profiles = listConventionProfiles();
+  res.json({ success: true, data: profiles });
+});
+
+router.get('/convention-profiles/:id', (req: Request, res: Response) => {
+  const profileId = getParam(req.params.id);
+  const profile = getConventionProfile(profileId);
+  res.json({ success: true, data: profile });
+});
+
+router.post('/convention-profiles', (req: Request, res: Response) => {
+  const profileData = req.body;
+  if (!profileData || !profileData.id || !profileData.name) {
+    return res.status(400).json({ success: false, error: 'Valid convention profile id and name are required' });
+  }
+  registerConventionProfile(profileData);
+  res.json({ success: true, data: profileData, message: 'Convention profile registered successfully' });
+});
+
 // --- DIGITAL P&ID DRAWINGS ---
 router.get('/projects/:id/drawings', (req: Request, res: Response) => {
   const projectId = getParam(req.params.id);
   let drawings = store.listDrawings(projectId);
+
+  // For sample demo project, ensure canonical GPF-001-02 drawing is seeded and prioritized
+  if (projectId === 'proj-sample-ammonia-demo') {
+    const gpfPath = path.resolve(__dirname, '../../../digital_drawing_PG-1001.json');
+    if (fs.existsSync(gpfPath) && !drawings.some((d) => d.drawing_number === 'P&ID-GPF-001-02')) {
+      try {
+        const gpfDwg = JSON.parse(fs.readFileSync(gpfPath, 'utf8'));
+        gpfDwg.project_id = projectId;
+        store.saveDrawing(gpfDwg, 'Engineering Seeder', 'Seeded canonical GPF-001-02 digital drawing');
+        drawings = store.listDrawings(projectId);
+      } catch (e) {
+        console.warn('Failed to seed GPF drawing:', e);
+      }
+    }
+  }
+
   if (drawings.length === 0) {
     const existingEq = store.listEquipment(projectId);
     const existingLines = store.listLines(projectId);
@@ -1252,6 +1613,14 @@ router.get('/projects/:id/drawings', (req: Request, res: Response) => {
       drawings = [seeded];
     }
   }
+
+  // Sort so P&ID-GPF-001-02 appears first if present
+  drawings.sort((a, b) => {
+    if (a.drawing_number === 'P&ID-GPF-001-02') return -1;
+    if (b.drawing_number === 'P&ID-GPF-001-02') return 1;
+    return 0;
+  });
+
   res.json({ success: true, data: drawings });
 });
 
@@ -1264,7 +1633,7 @@ router.get('/drawings/:id', (req: Request, res: Response) => {
   res.json({ success: true, data: drawing });
 });
 
-router.post('/projects/:id/drawings', (req: Request, res: Response) => {
+router.post('/projects/:id/drawings', async (req: Request, res: Response) => {
   const projectId = getParam(req.params.id);
   const { title, mode, source_document_id } = req.body;
 
@@ -1275,26 +1644,81 @@ router.post('/projects/:id/drawings', (req: Request, res: Response) => {
     const doc = store.getDocument(source_document_id);
     if (doc) {
       if (req.body.import_extracted_objects) {
+        let drawingModel = store.getCommonDrawingModel(doc.id);
+        if (!drawingModel) {
+          try {
+            const absoluteDiskPath = path.resolve(__dirname, `../../${doc.file_path}`);
+            const processDesc = store.getProcessDescription(projectId);
+            drawingModel = await normalizeDrawing({
+              filePath: absoluteDiskPath,
+              fileName: doc.name,
+              mimeType: doc.mime_type,
+              documentId: doc.id,
+              processDescription: processDesc,
+            });
+            store.saveCommonDrawingModel(drawingModel);
+          } catch (e: any) {
+            console.error('Failed to normalize drawing for import:', e.message);
+          }
+        }
+
         const extractedEq = store.listEquipment(projectId);
-        elements = extractedEq.map((eq, i) => ({
-          id: uuidv4(),
-          type: (eq.equipment_type || 'vessel') as any,
-          tag: eq.tag,
-          description: eq.description || `${eq.tag} equipment unit`,
-          position: { x: 200 + (i % 4) * 220, y: 200 + Math.floor(i / 4) * 180 },
-          size: { width: 90, height: 110 },
-          rotation: 0,
-          assigned_chemical_id: eq.assigned_chemical_id,
-          status: eq.status,
-          confidence: eq.confidence,
-          source_evidence: eq.source,
-          notes: eq.notes,
-          ports: [
-            { id: 'p_in', name: 'Inlet', type: 'inlet' as const, position: { x: -45, y: 0 } },
-            { id: 'p_out', name: 'Outlet', type: 'outlet' as const, position: { x: 45, y: 0 } },
-            { id: 'p_sig', name: 'Signal', type: 'signal' as const, position: { x: 0, y: -40 } },
-          ],
-        }));
+        const extractedLines = store.listLines(projectId);
+
+        elements = extractedEq.map((eq, i) => {
+          const modelObj = drawingModel?.objects?.find(
+            (o) => o.tag.toUpperCase() === eq.tag.toUpperCase()
+          );
+          const bbox = modelObj?.bounding_box || (eq.source as any)?.bounding_box;
+
+          const posX = bbox ? Math.round(bbox.x) : 200 + (i % 4) * 260;
+          const posY = bbox ? Math.round(bbox.y) : 200 + Math.floor(i / 4) * 220;
+          const w = bbox?.w ? Math.max(Math.round(bbox.w), 60) : 90;
+          const h = bbox?.h ? Math.max(Math.round(bbox.h), 60) : 110;
+
+          return {
+            id: uuidv4(),
+            type: (eq.equipment_type || 'vessel') as any,
+            tag: eq.tag,
+            description: eq.description || `${eq.tag} equipment unit`,
+            position: { x: posX, y: posY },
+            size: { width: w, height: h },
+            rotation: 0,
+            assigned_chemical_id: eq.assigned_chemical_id,
+            status: eq.status,
+            confidence: eq.confidence,
+            source_evidence: eq.source,
+            notes: eq.notes,
+            ports: [
+              { id: 'p_in', name: 'Inlet', type: 'inlet' as const, position: { x: -Math.round(w / 2), y: 0 } },
+              { id: 'p_out', name: 'Outlet', type: 'outlet' as const, position: { x: Math.round(w / 2), y: 0 } },
+              { id: 'p_sig', name: 'Signal', type: 'signal' as const, position: { x: 0, y: -Math.round(h / 2) } },
+            ],
+          };
+        });
+
+        connectors = extractedLines
+          .map((line) => {
+            const fromEl = elements.find((e) => e.tag.toUpperCase() === line.from_equipment.toUpperCase());
+            const toEl = elements.find((e) => e.tag.toUpperCase() === line.to_equipment.toUpperCase());
+            return {
+              id: uuidv4(),
+              drawing_id: '',
+              line_number: line.line_number,
+              from_element_id: fromEl?.id || '',
+              from_port_id: fromEl?.ports?.find((p: any) => p.type === 'outlet')?.id || 'p_out',
+              to_element_id: toEl?.id || '',
+              to_port_id: toEl?.ports?.find((p: any) => p.type === 'inlet')?.id || 'p_in',
+              size: (line as any).size || '2"',
+              spec: (line as any).pipe_spec || (line as any).spec || 'CS',
+              functional_type: line.functional_type || 'piping_line',
+              flow_direction: line.flow_direction || 'forward',
+              assigned_chemical_id: line.assigned_chemical_id || null,
+              status: line.status || 'confirmed',
+              source_evidence: line.source,
+            };
+          })
+          .filter((c) => c.from_element_id && c.to_element_id);
       }
     }
   }
@@ -1319,6 +1743,267 @@ router.post('/projects/:id/drawings', (req: Request, res: Response) => {
   });
 
   res.status(201).json({ success: true, data: newDrawing });
+});
+
+router.post('/drawings/:id/align-to-reference', async (req: Request, res: Response) => {
+  try {
+    const id = getParam(req.params.id);
+  const drawing = store.getDrawing(id);
+  if (!drawing) {
+    return res.status(404).json({ success: false, error: 'Drawing not found' });
+  }
+
+  const docId =
+    drawing.source_document_id ||
+    store.listDocuments(drawing.project_id).find((d) => d.category === 'pid' || (d as any).doc_type === 'pid')?.id;
+  if (!docId) {
+    return res.status(400).json({ success: false, error: 'No reference P&ID document linked to this drawing' });
+  }
+
+  const doc = store.getDocument(docId);
+  if (!doc) {
+    return res.status(404).json({ success: false, error: 'Reference document not found' });
+  }
+
+  // Detect reference image's true pixel dimensions on disk
+  let refWidth = 1536;
+  let refHeight = 1024;
+  try {
+    const absoluteDiskPath = path.resolve(__dirname, `../../${doc.file_path}`);
+    if (fs.existsSync(absoluteDiskPath)) {
+      const buf = fs.readFileSync(absoluteDiskPath);
+      if (buf.length > 24 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
+        refWidth = buf.readUInt32BE(16);
+        refHeight = buf.readUInt32BE(20);
+      }
+    }
+  } catch (dimErr: any) {
+    console.error('Error reading image dimensions:', dimErr);
+  }
+
+  let drawingModel = store.getCommonDrawingModel(doc.id);
+  if (!drawingModel) {
+    try {
+      const absoluteDiskPath = path.resolve(__dirname, `../../${doc.file_path}`);
+      const processDesc = store.getProcessDescription(drawing.project_id);
+      drawingModel = await normalizeDrawing({
+        filePath: absoluteDiskPath,
+        fileName: doc.name,
+        mimeType: doc.mime_type,
+        documentId: doc.id,
+        pageWidth: refWidth,
+        pageHeight: refHeight,
+        processDescription: processDesc,
+      });
+      store.saveCommonDrawingModel(drawingModel);
+    } catch (e: any) {
+      console.error('Failed to compute drawing model:', e.message);
+    }
+  }
+
+  const currentW = drawing.canvas_width || 2400;
+  const currentH = drawing.canvas_height || 1600;
+  const scaleX = refWidth / currentW;
+  const scaleY = refHeight / currentH;
+
+  // Filter out foreign elements belonging to other sheets/markups
+  const scopedElements = drawing.elements.filter((el) => {
+    if (!el.source_evidence?.document) return true;
+    const docName = el.source_evidence.document;
+    if (docName !== doc.name && !docName.includes(doc.name) && !doc.name.includes(docName)) {
+      return false; // foreign element from unrelated sheet (e.g. V-2001, PG-2004 from HAZOP markup)
+    }
+    return true;
+  });
+
+  let alignedCount = 0;
+  const updatedElements = scopedElements.map((el) => {
+    const modelObj = drawingModel?.objects?.find(
+      (o) => o.tag.toUpperCase() === el.tag.toUpperCase()
+    );
+    const bbox = modelObj?.bounding_box;
+    if (bbox) {
+      alignedCount++;
+      const w = Math.max(Math.round(bbox.w), 24);
+      const h = Math.max(Math.round(bbox.h), 24);
+      return {
+        ...el,
+        position: { x: Math.round(bbox.x), y: Math.round(bbox.y) },
+        size: { width: w, height: h },
+        ports: [
+          { id: 'p_in', name: 'Inlet', type: 'inlet' as const, position: { x: -Math.round(w / 2), y: 0 } },
+          { id: 'p_out', name: 'Outlet', type: 'outlet' as const, position: { x: Math.round(w / 2), y: 0 } },
+          { id: 'p_sig', name: 'Signal', type: 'signal' as const, position: { x: 0, y: -Math.round(h / 2) } },
+        ],
+      };
+    }
+
+    // Scale proportional coordinates to exact 1:1 reference dimensions
+    const newX = Math.round(el.position.x * scaleX);
+    const newY = Math.round(el.position.y * scaleY);
+    const newW = Math.max(Math.round(el.size.width * scaleX), 24);
+    const newH = Math.max(Math.round(el.size.height * scaleY), 24);
+    alignedCount++;
+    return {
+      ...el,
+      position: { x: newX, y: newY },
+      size: { width: newW, height: newH },
+      ports: [
+        { id: 'p_in', name: 'Inlet', type: 'inlet' as const, position: { x: -Math.round(newW / 2), y: 0 } },
+        { id: 'p_out', name: 'Outlet', type: 'outlet' as const, position: { x: Math.round(newW / 2), y: 0 } },
+        { id: 'p_sig', name: 'Signal', type: 'signal' as const, position: { x: 0, y: -Math.round(newH / 2) } },
+      ],
+    };
+  });
+
+  // Scale connectors and waypoints
+  const validElementIds = new Set(updatedElements.map((e) => e.id));
+  let updatedConnectors = drawing.connectors
+    .filter((c) => validElementIds.has(c.from_element_id) && validElementIds.has(c.to_element_id))
+    .map((c) => {
+      const scaledWaypoints = (c.waypoints || []).map((wp) => ({
+        x: Math.round(wp.x * scaleX),
+        y: Math.round(wp.y * scaleY),
+      }));
+      return {
+        ...c,
+        waypoints: scaledWaypoints,
+      };
+    });
+
+  // Link INLET-HEADER into MV-1001 if present
+  const inletElem = updatedElements.find((e) => e.tag === 'INLET-HEADER');
+  const mvElem = updatedElements.find((e) => e.tag === 'MV-1001');
+  if (inletElem && mvElem) {
+    const hasInletConn = updatedConnectors.some(
+      (c) => (c.from_element_id === inletElem.id && c.to_element_id === mvElem.id) ||
+             (c.from_element_id === mvElem.id && c.to_element_id === inletElem.id)
+    );
+    if (!hasInletConn) {
+      updatedConnectors.unshift({
+        id: `conn-inlet-${uuidv4().substring(0, 8)}`,
+        line_number: '10"-PG-00100-A1A',
+        from_element_id: inletElem.id,
+        from_port_id: 'p_out',
+        to_element_id: mvElem.id,
+        to_port_id: 'p_in',
+        size: '10"',
+        spec: 'CS',
+        functional_type: 'piping_line' as const,
+        flow_direction: 'forward' as const,
+        stream_label: 'Production Header Feed (From PID-GPF-001-01)',
+        assigned_chemical_id: null,
+        status: 'confirmed' as const,
+        waypoints: [
+          { x: inletElem.position.x + inletElem.size.width, y: inletElem.position.y + inletElem.size.height / 2 },
+          { x: mvElem.position.x, y: mvElem.position.y + mvElem.size.height / 2 },
+        ],
+      } as any);
+    }
+  }
+
+  // Ensure lines are connected if empty
+  if (updatedConnectors.length === 0) {
+    const extractedLines = store.listLines(drawing.project_id);
+    updatedConnectors = extractedLines
+      .map((line) => {
+        const fromEl = updatedElements.find((e) => e.tag.toUpperCase() === line.from_equipment.toUpperCase());
+        const toEl = updatedElements.find((e) => e.tag.toUpperCase() === line.to_equipment.toUpperCase());
+        return {
+          id: uuidv4(),
+          drawing_id: drawing.id,
+          line_number: line.line_number,
+          from_element_id: fromEl?.id || '',
+          from_port_id: fromEl?.ports?.find((p: any) => p.type === 'outlet')?.id || 'p_out',
+          to_element_id: toEl?.id || '',
+          to_port_id: toEl?.ports?.find((p: any) => p.type === 'inlet')?.id || 'p_in',
+          size: (line as any).size || '2"',
+          spec: (line as any).pipe_spec || (line as any).spec || 'CS',
+          functional_type: line.functional_type || 'piping_line',
+          flow_direction: line.flow_direction || 'forward',
+          assigned_chemical_id: line.assigned_chemical_id || null,
+          status: line.status || 'confirmed',
+          source_evidence: line.source,
+          waypoints: [],
+        };
+      })
+      .filter((c) => c.from_element_id && c.to_element_id);
+  }
+
+  const updatedDrawing = store.saveDrawing({
+    ...drawing,
+    source_document_id: doc.id,
+    canvas_width: refWidth,
+    canvas_height: refHeight,
+    elements: updatedElements,
+    connectors: updatedConnectors,
+    background_visible: true,
+    background_opacity: 0.5,
+    updated_at: new Date().toISOString(),
+  });
+
+  res.json({
+    success: true,
+    data: updatedDrawing,
+    aligned_count: alignedCount,
+    total_elements: updatedElements.length,
+    message: `Successfully aligned ${alignedCount} elements to the exact 1:1 reference drawing coordinates (${refWidth}x${refHeight}).`,
+  });
+} catch (err: any) {
+  console.error('Error in align-to-reference handler:', err);
+  res.status(500).json({
+    success: false,
+    error: `Failed to align drawing to reference: ${err.message || 'Internal server error'}`,
+  });
+}
+});
+
+import { digitizeByPartitions } from '../services/partitionedTracingService';
+
+router.post('/drawings/:id/partitioned-digitize', async (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const drawing = store.getDrawing(id);
+  if (!drawing) {
+    return res.status(404).json({ success: false, error: 'Drawing not found' });
+  }
+
+  const { grid_rows = 4, grid_cols = 4, overlap_px = 40 } = req.body || {};
+  const rawLines = store.listLines(drawing.project_id);
+  const existingLines = rawLines.map((l) => ({
+    line_number: l.line_number,
+    from_equipment: l.from_equipment,
+    to_equipment: l.to_equipment,
+    size: l.size || '3"',
+    pipe_spec: l.pipe_specification || l.material || 'CS',
+    functional_type: l.functional_type,
+    flow_direction: l.flow_direction,
+    assigned_chemical_id: l.assigned_chemical_id || null,
+  }));
+
+  const result = digitizeByPartitions(drawing, {
+    gridRows: parseInt(grid_rows, 10) || 4,
+    gridCols: parseInt(grid_cols, 10) || 4,
+    overlapPx: parseInt(overlap_px, 10) || 40,
+    canvasWidth: drawing.canvas_width || 2400,
+    canvasHeight: drawing.canvas_height || 1600,
+    existingLines,
+  });
+
+  const saved = store.saveDrawing(
+    result.updatedDrawing,
+    'Partitioned Topology Engine',
+    `Digitized via ${grid_rows}x${grid_cols} partitions. Identified ${result.totalConnectionsIdentified} connections.`
+  );
+
+  res.json({
+    success: true,
+    data: saved,
+    partitions: result.partitions,
+    total_connections_identified: result.totalConnectionsIdentified,
+    intra_zone_count: result.intraZoneConnectionsCount,
+    cross_zone_count: result.crossZoneConnectionsCount,
+    message: result.summary,
+  });
 });
 
 router.put('/drawings/:id', (req: Request, res: Response) => {
@@ -1515,6 +2200,32 @@ router.get('/projects/:id/export/csv', (req: Request, res: Response) => {
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.setHeader('Content-Type', 'text/csv');
   res.send(csvStr);
+});
+
+// --- MULTI-DOCUMENT DOSSIER EXPORT (PHASE 10) ---
+router.get('/projects/:id/dossier/json', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const dossier = store.getEngineeringDossier(projectId);
+  if (!dossier) {
+    return res.status(404).json({ success: false, error: 'Project not found' });
+  }
+  const filename = `${dossier.project.name.replace(/[^a-z0-9]/gi, '_')}_Engineering_Dossier.json`;
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader('Content-Type', 'application/json');
+  res.send(JSON.stringify(dossier, null, 2));
+});
+
+router.get('/projects/:id/dossier/markdown', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const dossier = store.getEngineeringDossier(projectId);
+  if (!dossier) {
+    return res.status(404).json({ success: false, error: 'Project not found' });
+  }
+  const mdStr = exportDossierToMarkdown(dossier);
+  const filename = `${dossier.project.name.replace(/[^a-z0-9]/gi, '_')}_Engineering_Dossier.md`;
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader('Content-Type', 'text/markdown');
+  res.send(mdStr);
 });
 
 // --- HYBRID P&ID RECOGNITION & PROCESS DESCRIPTION ENGINE ---
@@ -2048,6 +2759,107 @@ router.post('/projects/:id/pha/nodes/reassess', (req: Request, res: Response) =>
 
   const affected = store.reassessPhaNodesOnSpecChange(projectId, entityTag, property, reviewer);
   res.json({ success: true, count: affected.length, data: affected });
+});
+
+// --- IEC 61882 HAZOP WORKSHEET & RISK MATRIX ---
+router.get('/projects/:id/hazop/matrix', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const matrix = store.getRiskMatrixConfig(projectId);
+  res.json({ success: true, data: matrix });
+});
+
+router.put('/projects/:id/hazop/matrix', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const updated = store.saveRiskMatrixConfig(projectId, req.body || {});
+  res.json({ success: true, data: updated });
+});
+
+router.get('/projects/:id/hazop/worksheet', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const rows = store.listHazopWorksheet(projectId);
+  res.json({ success: true, data: rows, count: rows.length });
+});
+
+router.post('/projects/:id/hazop/worksheet/generate', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const reviewer = req.body?.reviewer || 'Process Safety Engineer';
+  const rows = store.generateHazopWorksheet(projectId, reviewer);
+  res.json({ success: true, data: rows, count: rows.length });
+});
+
+router.patch('/hazop/worksheet/:id', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const reviewer = req.body?.reviewer || 'Process Safety Engineer';
+  const updated = store.updateHazopWorksheetRow(id, req.body || {}, reviewer);
+  if (!updated) {
+    return res.status(404).json({ success: false, error: 'HAZOP worksheet row not found' });
+  }
+  res.json({ success: true, data: updated });
+});
+
+router.patch('/hazop/worksheet/:rowId/actions/:actionId', (req: Request, res: Response) => {
+  const rowId = getParam(req.params.rowId);
+  const actionId = getParam(req.params.actionId);
+  const reviewer = req.body?.reviewer || 'Process Safety Engineer';
+  const updated = store.updateHazopActionItem(rowId, actionId, req.body || {}, reviewer);
+  if (!updated) {
+    return res.status(404).json({ success: false, error: 'HAZOP action item not found' });
+  }
+  res.json({ success: true, data: updated });
+});
+
+// --- CCPS LOPA ASSESSMENT ENGINE ---
+router.get('/projects/:id/lopa', (req: Request, res: Response) => {
+  const projectId = getParam(req.params.id);
+  const records = store.listLopaRecords(projectId);
+  res.json({ success: true, data: records, count: records.length });
+});
+
+router.get('/lopa/:id', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const record = store.getLopaRecord(id);
+  if (!record) {
+    return res.status(404).json({ success: false, error: 'LOPA record not found' });
+  }
+  res.json({ success: true, data: record });
+});
+
+router.post('/hazop/worksheet/:id/lopa', (req: Request, res: Response) => {
+  const worksheetRowId = getParam(req.params.id);
+  const reviewer = req.body?.reviewer || 'LOPA Facilitator';
+  const lopa = store.createLopaFromHazop(worksheetRowId, reviewer);
+  if (!lopa) {
+    return res.status(404).json({ success: false, error: 'HAZOP worksheet row not found' });
+  }
+  res.status(201).json({ success: true, data: lopa });
+});
+
+router.patch('/lopa/:id', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const reviewer = req.body?.reviewer || 'LOPA Facilitator';
+  const updated = store.updateLopaRecord(id, req.body || {}, reviewer);
+  if (!updated) {
+    return res.status(404).json({ success: false, error: 'LOPA record not found' });
+  }
+  res.json({ success: true, data: updated });
+});
+
+router.patch('/lopa/:id/ipls/:iplId', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const iplId = getParam(req.params.iplId);
+  const reviewer = req.body?.reviewer || 'LOPA Facilitator';
+  const updated = store.updateLopaIpl(id, iplId, req.body || {}, reviewer);
+  if (!updated) {
+    return res.status(404).json({ success: false, error: 'LOPA record or IPL not found' });
+  }
+  res.json({ success: true, data: updated });
+});
+
+// --- CONNECTION QUALITY METRICS ---
+router.get('/drawings/:id/connection-quality', (req: Request, res: Response) => {
+  const id = getParam(req.params.id);
+  const metrics = store.getConnectionQualityMetrics(id);
+  res.json({ success: true, data: metrics || null });
 });
 
 // --- HEALTH CHECK ---

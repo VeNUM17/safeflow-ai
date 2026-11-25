@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { DrawingElement, DrawingPort } from '../../types';
 import { P_ID_SYMBOL_LIBRARY, resolveSymbolClassKey } from '../pid-viewer/symbolLibrary';
-import { ClientComponentRegistry, loadComponentRegistry } from '../../utils/componentRegistryClient';
+import { ClientComponentRegistry, getCachedComponentRegistry, loadComponentRegistry } from '../../utils/componentRegistryClient';
 
 interface SymbolRendererProps {
   element: DrawingElement;
@@ -35,19 +35,23 @@ export const SymbolRenderer: React.FC<SymbolRendererProps> = ({
   onStartDragLabel,
 }) => {
   const [isHovered, setIsHovered] = useState<boolean>(false);
-  const [componentRegistry, setComponentRegistry] = useState<ClientComponentRegistry | null>(null);
-  const { id, tag, type, position, size, rotation, ports, status } = element;
-  const w = size.width || 90;
-  const h = size.height || 110;
+  const [componentRegistry, setComponentRegistry] = useState<ClientComponentRegistry | null>(() => getCachedComponentRegistry());
+  const { id, tag, type, position, size, rotation, ports = [], status } = element;
+  const safePorts = ports || [];
+  const symClass = resolveSymbolClassKey(tag, type, componentRegistry?.components, element.component_class_id);
+  const symMeta = P_ID_SYMBOL_LIBRARY[symClass];
+  const w = symClass === 'slug_catcher' ? Math.max(size.width || 0, 480) : (size.width || symMeta?.defaultWidth || 90);
+  const h = symClass === 'slug_catcher' ? Math.max(size.height || 0, 180) : (size.height || symMeta?.defaultHeight || 110);
   const isConfirmed = status === 'confirmed';
 
   useEffect(() => {
+    if (componentRegistry) return;
     let active = true;
     loadComponentRegistry().then((registry) => {
-      if (active) setComponentRegistry(registry);
+      if (active && registry) setComponentRegistry(registry);
     });
     return () => { active = false; };
-  }, []);
+  }, [componentRegistry]);
 
   // Base stroke color based on status and selection
   const strokeColor = isSelected ? '#2563eb' : isConfirmed ? '#0f172a' : '#d97706';
@@ -55,8 +59,6 @@ export const SymbolRenderer: React.FC<SymbolRendererProps> = ({
 
   const renderShape = () => {
     // Check rich P&ID SVG Symbol Library first
-    const symClass = resolveSymbolClassKey(tag, type, componentRegistry?.components, element.component_class_id);
-    const symMeta = P_ID_SYMBOL_LIBRARY[symClass];
     if (symMeta) {
       return symMeta.render({
         width: w,
@@ -414,7 +416,7 @@ export const SymbolRenderer: React.FC<SymbolRendererProps> = ({
       })()}
 
       {/* Interactive Port Connection Dots */}
-      {ports.map((port) => {
+      {safePorts.map((port) => {
         // Calculate port center relative to element origin
         let px = w / 2;
         let py = h / 2;

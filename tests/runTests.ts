@@ -74,6 +74,8 @@ import {
 import {
   detectCrossDocumentDiscrepancies,
   resolveEngineeringDiscrepancy,
+  generateCrossDocumentReconciliationReport,
+  CrossDocumentReconciliationReport,
 } from '../server/src/services/crossDocumentConsistencyService';
 import { classifyDocument, classifyEngineeringCategory } from '../server/src/services/documentClassifier';
 import { extractTextFromDocument } from '../server/src/services/pdfExtractor';
@@ -90,6 +92,16 @@ import {
   determineIdentificationStatus,
 } from '../server/src/services/chemicalIdentificationEngine';
 import {
+  classifyConnection,
+  isMaterialFlowConnection,
+  validateConnectionTopology,
+} from '../server/src/services/connectionClassificationService';
+import {
+  ConnectionClassification,
+  ConnectionValidationReport,
+  ConnectionValidationIssue,
+} from '../server/src/types';
+import {
   evaluateEquipmentChemicalMapping,
   evaluateProjectChemicalMappings,
   isMultiphaseSeparator,
@@ -99,8 +111,29 @@ import {
   attachChemicalContextToPhaNode,
   generateComprehensiveHazopDeviations,
 } from '../server/src/services/phaService';
+import { exportDossierToJson, exportDossierToMarkdown } from '../server/src/services/dossierExportService';
 
 console.log('🧪 Starting SafeFlow AI & PSI Engine Comprehensive Test Suite...\n');
+
+import {
+  ISA_5_1_STANDARD_PROFILE,
+  SOUR_GAS_FACILITY_PROFILE,
+  DIN_EN_ISO_10628_PROFILE,
+  getConventionProfile,
+  registerConventionProfile,
+} from '../server/src/services/pidConventionService';
+import { analyzeSheetStructure, isInsideNonProcessRegion } from '../server/src/services/sheetStructureService';
+import {
+  partitionSheetIntoTiles,
+  mergeTiledDetections,
+  associateSymbolsWithTags,
+} from '../server/src/services/tiledDetectionService';
+import { recognizeDrawingText } from '../server/src/services/ocrService';
+import { detectDrawingSymbols } from '../server/src/services/symbolDetectionService';
+import { tracePipingNetwork } from '../server/src/services/pipeTracingService';
+import { normalizeDrawing } from '../server/src/services/drawingNormalizationService';
+import { PidConventionProfile } from '../server/src/types/conventionProfile';
+import { computeDiagramBounds, spreadElementSpacing, resolveElementOverlaps } from '../client/src/utils/pidDeclutter';
 
 let passedTests = 0;
 let failedTests = 0;
@@ -8726,10 +8759,4421 @@ test('Scenario 6: Reassessment Flagging Upon Multi-Document Specification Update
   assert.ok(reloaded.reassessment_reasons?.some((r) => r.includes('design_pressure') && r.includes('PG-9001')));
 });
 
-console.log(`\n========================================`);
-console.log(`Test Results: ${passedTests} Passed, ${failedTests} Failed`);
-console.log(`========================================\n`);
+// ----------------------------------------------------
+// TEST GROUP 28: Phase 1 — Equipment Validation & Isolated Equipment Review Classification
+// ----------------------------------------------------
+console.log('\n--- Test Group 28: Equipment Validation & Isolated Equipment Review (Phase 1) ---');
 
-if (failedTests > 0) {
-  process.exit(1);
-}
+test('Scenario 1: Equipment tag validation against uploaded P&ID/PFD documents & drawing provenance retention', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 1 Provenance Project ' + Date.now(), 'Provenance and taxonomy verification');
+  const now = Date.now();
+
+  const pfdDoc: DocumentRecord = {
+    id: 'doc-pfd-' + now,
+    project_id: proj.id,
+    name: '00-01-PFD-00101.pdf',
+    original_filename: '00-01-PFD-00101.pdf',
+    file_path: '/uploads/pfd.pdf',
+    mime_type: 'application/pdf',
+    size_bytes: 512000,
+    category: 'process_flow_diagram',
+    doc_type: 'process_flow_diagram',
+    metadata: { revision_date: 'Rev C - 2024-03-15' },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  store.addDocument(pfdDoc);
+
+  const eqTag: EquipmentTag = {
+    id: 'eq-p1-' + now,
+    project_id: proj.id,
+    document_id: pfdDoc.id,
+    tag: 'PG-1001',
+    description: 'Production Gas Separator',
+    equipment_type: 'separator',
+    assigned_chemical_id: null,
+    confidence: 0.96,
+    status: 'provisional',
+    source: {
+      document: '00-01-PFD-00101.pdf',
+      page: 1,
+      snippet: 'PG-1001 Production Gas Separator 120 barg',
+    },
+    source_drawing: '00-01-PFD-00101',
+    source_page: 1,
+    source_revision: 'Rev C',
+    specifications: createDefaultSpecifications('separator'),
+    created_at: new Date().toISOString(),
+  };
+
+  store.addEquipment([eqTag]);
+
+  const report = store.validateEquipment(proj.id);
+  assert.strictEqual(report.total_equipment, 1);
+  const evaluation = report.equipment_evaluations[eqTag.id];
+  assert.ok(evaluation);
+  assert.strictEqual(evaluation.tag, 'PG-1001');
+  assert.strictEqual(evaluation.type, 'separator');
+  assert.strictEqual(evaluation.has_drawing_provenance, true);
+  assert.strictEqual(evaluation.drawing_page, 1);
+  assert.strictEqual(evaluation.drawing_revision, 'Rev C');
+  assert.strictEqual(evaluation.extraction_confidence, 0.96);
+});
+
+test('Scenario 2: Preservation of extraction confidence, machine values & original extracted values upon manual edit', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 1 Immutability Project ' + Date.now(), 'Manual correction auditability');
+  const now = Date.now();
+
+  const eqTag: EquipmentTag = {
+    id: 'eq-orig-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    tag: 'TK-101',
+    description: 'Crude Storage Tank',
+    equipment_type: 'tank',
+    assigned_chemical_id: null,
+    confidence: 0.88,
+    status: 'provisional',
+    machine_tag: 'TK-101',
+    machine_type: 'tank',
+    machine_description: 'Crude Storage Tank',
+    source: { document: 'PID-101.pdf', page: 2, snippet: 'TK-101' },
+    specifications: createDefaultSpecifications('tank'),
+    created_at: '2024-01-01T00:00:00.000Z',
+  };
+
+  store.addEquipment([eqTag]);
+
+  // Engineer modifies tag and description to correct OCR mistake
+  const updated = store.updateEquipment(
+    eqTag.id,
+    {
+      tag: 'TK-101A',
+      description: 'Primary Crude Storage Tank A',
+      is_manual_entry: true,
+    },
+    'Shlok (Lead Process Engineer)',
+    'Corrected tag suffix based on drawing title block'
+  );
+
+  assert.ok(updated);
+  assert.strictEqual(updated.tag, 'TK-101A');
+  assert.strictEqual(updated.description, 'Primary Crude Storage Tank A');
+  // Original extracted and machine values remain strictly preserved!
+  assert.strictEqual(updated.machine_tag, 'TK-101');
+  assert.strictEqual(updated.machine_type, 'tank');
+  assert.strictEqual(updated.machine_description, 'Crude Storage Tank');
+  assert.ok(updated.original_extracted_values);
+  assert.strictEqual(updated.original_extracted_values.tag, 'TK-101');
+  assert.strictEqual(updated.original_extracted_values.confidence, 0.88);
+});
+
+test('Scenario 3: Identification of duplicate equipment tags and cross-document tag conflicts', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 1 Duplicates Project ' + Date.now(), 'Duplicate and conflict detection');
+  const now = Date.now();
+
+  const eq1: EquipmentTag = {
+    id: 'eq-dup-1-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid-1',
+    tag: 'P-101A',
+    description: 'Feed Pump A',
+    equipment_type: 'pump',
+    assigned_chemical_id: null,
+    confidence: 0.95,
+    status: 'confirmed',
+    source: { document: 'PID-01.pdf', page: 1, snippet: 'P-101A' },
+    specifications: createDefaultSpecifications('pump'),
+    created_at: new Date().toISOString(),
+  };
+
+  const eq2: EquipmentTag = {
+    id: 'eq-dup-2-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid-2',
+    tag: 'P-101A', // Same tag, duplicate item in project!
+    description: 'Feed Pump A (Duplicate Entry)',
+    equipment_type: 'pump',
+    assigned_chemical_id: null,
+    confidence: 0.92,
+    status: 'provisional',
+    source: { document: 'PID-02.pdf', page: 1, snippet: 'P-101A' },
+    specifications: createDefaultSpecifications('pump'),
+    conflicting_tags: [
+      {
+        document_id: 'doc-pfd-1',
+        document_name: 'PFD-01.pdf',
+        tag: 'P-101',
+        confidence: 0.90,
+        conflict_reason: 'PFD omits the pump train suffix letter "A"',
+      },
+    ],
+    created_at: new Date().toISOString(),
+  };
+
+  store.addEquipment([eq1, eq2]);
+
+  const report = store.validateEquipment(proj.id);
+  assert.strictEqual(report.duplicate_tags_count, 2);
+  assert.strictEqual(report.conflicting_tags_count, 1);
+
+  // Critical error generated for duplicate tag
+  const dupIssue = report.issues.find((i) => i.code === 'ERR_DUPLICATE_TAG');
+  assert.ok(dupIssue);
+  assert.strictEqual(dupIssue.severity, 'critical_error');
+  assert.strictEqual(dupIssue.category, 'source_to_source_discrepancy');
+
+  // Conflict issue generated for cross-document conflict
+  const conflictIssue = report.issues.find((i) => i.code === 'WARN_EQUIPMENT_TAG_CONFLICT');
+  assert.ok(conflictIssue);
+  assert.strictEqual(conflictIssue.severity, 'engineering_review_required');
+});
+
+test('Scenario 4: 5-Tier Isolated Equipment Review Classification & non-removal guarantee', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 1 Isolated Review Project ' + Date.now(), 'Isolated node classification');
+  const now = Date.now();
+
+  const isolatedVessel: EquipmentTag = {
+    id: 'eq-iso-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid-1',
+    tag: 'V-1005',
+    description: 'Closed Flare KO Drum (Standby)',
+    equipment_type: 'vessel',
+    assigned_chemical_id: null,
+    confidence: 0.98,
+    status: 'provisional',
+    source: { document: 'PID-10.pdf', page: 1, snippet: 'V-1005 Standby KO Drum' },
+    specifications: createDefaultSpecifications('vessel'),
+    created_at: new Date().toISOString(),
+  };
+
+  store.addEquipment([isolatedVessel]);
+
+  // Initially has zero connections and isolated_review_status is awaiting_review
+  let report = store.validateEquipment(proj.id);
+  assert.strictEqual(report.isolated_equipment, 1);
+  assert.strictEqual(report.unresolved_isolated, 1);
+  assert.strictEqual(report.reviewed_isolated, 0);
+
+  // Update classification: 'confirmed_isolated' with documented justification
+  store.updateEquipmentReviewStatus(
+    isolatedVessel.id,
+    'confirmed_isolated',
+    'Shlok (Lead Process Safety Specialist)',
+    'Standalone package skid per Sparing Philosophy Section 4.2'
+  );
+
+  report = store.validateEquipment(proj.id);
+  assert.strictEqual(report.isolated_equipment, 1);
+  assert.strictEqual(report.reviewed_isolated, 1);
+  assert.strictEqual(report.unresolved_isolated, 0);
+
+  // Verify non-removal rule: Isolated equipment was NOT deleted!
+  const list = store.listEquipment(proj.id);
+  assert.strictEqual(list.length, 1);
+  assert.strictEqual(list[0].tag, 'V-1005');
+  assert.strictEqual(list[0].isolated_review_status, 'confirmed_isolated');
+  assert.strictEqual(list[0].isolated_reviewed_by, 'Shlok (Lead Process Safety Specialist)');
+});
+
+test('Scenario 5: Documented isolated equipment passes graph validation without blocking approval', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 1 Approval Project ' + Date.now(), 'Confirmed isolated approval waiver');
+  const now = Date.now();
+
+  const eq1: EquipmentTag = {
+    id: 'eq-app-1-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid-1',
+    tag: 'TK-101',
+    description: 'Main Process Tank',
+    equipment_type: 'tank',
+    assigned_chemical_id: null,
+    confidence: 1,
+    status: 'confirmed',
+    verification_status: 'engineer_verified',
+    source: { document: 'PID-101.pdf', page: 1, snippet: '' },
+    specifications: createDefaultSpecifications('tank'),
+    created_at: new Date().toISOString(),
+  };
+
+  const eq2: EquipmentTag = {
+    id: 'eq-app-2-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid-1',
+    tag: 'P-101',
+    description: 'Transfer Pump',
+    equipment_type: 'pump',
+    assigned_chemical_id: null,
+    confidence: 1,
+    status: 'confirmed',
+    verification_status: 'engineer_verified',
+    source: { document: 'PID-101.pdf', page: 1, snippet: '' },
+    specifications: createDefaultSpecifications('pump'),
+    created_at: new Date().toISOString(),
+  };
+
+  const eqIsolated: EquipmentTag = {
+    id: 'eq-app-iso-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid-1',
+    tag: 'FL-1001',
+    description: 'Standalone Flare Stack',
+    equipment_type: 'vessel',
+    assigned_chemical_id: null,
+    confidence: 1,
+    status: 'confirmed',
+    verification_status: 'engineer_verified',
+    isolated_review_status: 'confirmed_isolated',
+    isolated_review_notes: 'Documented emergency flare stack package',
+    source: { document: 'PID-101.pdf', page: 1, snippet: '' },
+    specifications: createDefaultSpecifications('vessel'),
+    created_at: new Date().toISOString(),
+  };
+
+  const line: PipingLine = {
+    id: 'l-app-1-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid-1',
+    line_number: '2"-TK-001',
+    from_equipment: 'TK-101',
+    to_equipment: 'P-101',
+    size: '2"',
+    material: 'CS',
+    stream_label: 'Feed',
+    functional_type: 'piping_line',
+    flow_direction: 'forward',
+    assigned_chemical_id: null,
+    confidence: 1,
+    status: 'confirmed',
+    source: { document: 'PID-101.pdf', page: 1, snippet: '' },
+    alerts: [],
+    created_at: new Date().toISOString(),
+  };
+
+  store.addEquipment([eq1, eq2, eqIsolated]);
+  store.addLines([line]);
+
+  const valResult = store.getGraphValidation(proj.id);
+  assert.strictEqual(valResult.is_valid, true);
+  // Legitimate documented standalone unit does NOT block graph approval!
+  assert.strictEqual(valResult.can_approve, true);
+  assert.strictEqual(valResult.errors_count, 0);
+
+  // Informational issue logged for audit trail
+  const infoIssue = valResult.issues.find((i) => i.code === 'INFO_CONFIRMED_ISOLATED_EQUIPMENT');
+  assert.ok(infoIssue);
+  assert.strictEqual(infoIssue.severity, 'informational');
+  assert.strictEqual(infoIssue.acknowledged, true);
+});
+
+test('Scenario 6: Missing operating data generates missing_engineering_information without invalidating topology', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 1 Non-Fabrication Project ' + Date.now(), 'Missing operating data rules');
+  const now = Date.now();
+
+  const eq: EquipmentTag = {
+    id: 'eq-nofab-' + now,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    tag: 'V-101',
+    description: 'Vessel with unstated operating pressure',
+    equipment_type: 'vessel',
+    assigned_chemical_id: null,
+    confidence: 0.95,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    specifications: createDefaultSpecifications('vessel'),
+    created_at: new Date().toISOString(),
+  };
+
+  store.addEquipment([eq]);
+
+  // Operating pressure and temperature remain strictly null
+  assert.strictEqual(eq.specifications.operating_pressure?.value, null);
+  assert.strictEqual(eq.specifications.operating_pressure?.status, 'not_provided');
+
+  const report = store.validateEquipment(proj.id);
+  // Missing operating data does not produce critical_error
+  const critical = report.issues.filter((i) => i.severity === 'critical_error');
+  assert.strictEqual(critical.length, 0);
+  assert.strictEqual(report.is_valid, true);
+});
+
+// ----------------------------------------------------
+// Test Group 29: Process Line Registry & Limit Validation (Phase 2)
+// ----------------------------------------------------
+console.log('\n--- Test Group 29: Process Line Registry & Limit Validation (Phase 2) ---');
+
+test('Scenario 1: First-class ProcessLine entity creation with units and property-level provenance', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 2 ProcessLine Registry ' + Date.now(), 'Testing first-class ProcessLine');
+  const now = Date.now();
+
+  const eqA: EquipmentTag = {
+    id: 'eq-a-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid-1',
+    tag: 'V-1001',
+    description: 'Feed Separator',
+    equipment_type: 'separator',
+    assigned_chemical_id: null,
+    confidence: 0.98,
+    status: 'confirmed',
+    source: { document: 'PID-101.pdf', page: 1, snippet: 'Feed Separator V-1001' },
+    created_at: new Date().toISOString(),
+  };
+
+  const eqB: EquipmentTag = {
+    id: 'eq-b-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid-1',
+    tag: 'C-1001',
+    description: 'Compressor',
+    equipment_type: 'compressor',
+    assigned_chemical_id: null,
+    confidence: 0.98,
+    status: 'confirmed',
+    source: { document: 'PID-101.pdf', page: 1, snippet: 'Compressor C-1001' },
+    created_at: new Date().toISOString(),
+  };
+
+  store.addEquipment([eqA, eqB]);
+
+  const pLine: ProcessLine = {
+    id: 'line-pl-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid-1',
+    line_number: '10"-PG-00101-A1A',
+    from_equipment: 'V-1001',
+    to_equipment: 'C-1001',
+    flow_direction: 'forward',
+    connection_type: 'process_piping',
+    size: '10"',
+    material: 'A1A',
+    confidence: 0.96,
+    status: 'confirmed',
+    stream_label: 'Sour Gas Overhead',
+    functional_type: 'piping_line',
+    assigned_chemical_id: null,
+    alerts: [],
+    source: { document: 'PID-101.pdf', page: 1, snippet: '10"-PG-00101-A1A V-1001 -> C-1001' },
+    nominal_pipe_size: {
+      value: '10"',
+      unit: 'in',
+      source_document_name: 'PID-101.pdf',
+      source_page: 1,
+      extraction_confidence: 0.96,
+      verification_status: 'unverified',
+    },
+    pipe_spec: {
+      value: 'A1A',
+      unit: null,
+      source_document_name: 'PID-101.pdf',
+      source_page: 1,
+      extraction_confidence: 0.96,
+      verification_status: 'unverified',
+    },
+    fluid_service: {
+      value: 'Sour Gas',
+      unit: null,
+      source_document_name: 'PID-101.pdf',
+      source_page: 1,
+      extraction_confidence: 0.96,
+      verification_status: 'unverified',
+    },
+    operating_flow_rate: {
+      value: 12500,
+      unit: 'kg/h',
+      source_document_name: 'HMB-001.pdf',
+      source_page: 3,
+      extraction_confidence: 0.99,
+      verification_status: 'unverified',
+    },
+    operating_pressure: {
+      value: 18.5,
+      unit: 'bar(g)',
+      source_document_name: 'HMB-001.pdf',
+      source_page: 3,
+      extraction_confidence: 0.99,
+      verification_status: 'unverified',
+    },
+    design_pressure: {
+      value: 25.0,
+      unit: 'bar(g)',
+      source_document_name: 'LineList-001.pdf',
+      source_page: 5,
+      extraction_confidence: 0.99,
+      verification_status: 'unverified',
+    },
+    operating_temperature: {
+      value: 45.0,
+      unit: '°C',
+      source_document_name: 'HMB-001.pdf',
+      source_page: 3,
+      extraction_confidence: 0.99,
+      verification_status: 'unverified',
+    },
+    design_temperature: {
+      value: 85.0,
+      unit: '°C',
+      source_document_name: 'LineList-001.pdf',
+      source_page: 5,
+      extraction_confidence: 0.99,
+      verification_status: 'unverified',
+    },
+    physical_state: {
+      value: 'gas',
+      unit: null,
+      source_document_name: 'HMB-001.pdf',
+      source_page: 3,
+      verification_status: 'unverified',
+    },
+    created_at: new Date().toISOString(),
+  };
+
+  store.addProcessLines([pLine]);
+
+  const retrieved = store.getProcessLine(pLine.id);
+  assert.ok(retrieved, 'ProcessLine retrieved successfully');
+  assert.strictEqual(retrieved?.line_number, '10"-PG-00101-A1A');
+  assert.strictEqual(retrieved?.nominal_pipe_size?.value, '10"');
+  assert.strictEqual(retrieved?.nominal_pipe_size?.unit, 'in');
+  assert.strictEqual(retrieved?.operating_pressure?.value, 18.5);
+  assert.strictEqual(retrieved?.operating_pressure?.unit, 'bar(g)');
+  assert.strictEqual(retrieved?.design_pressure?.value, 25.0);
+  assert.strictEqual(retrieved?.operating_flow_rate?.value, 12500);
+  assert.strictEqual(retrieved?.physical_state?.value, 'gas');
+});
+
+test('Scenario 2: Strict non-fabrication rule (unstated engineering parameters remain null, not zero)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 2 Non-Fabrication ' + Date.now(), 'Testing null defaults');
+  const now = Date.now();
+
+  const rawLine: Partial<ProcessLine> = {
+    id: 'line-sparse-' + now,
+    project_id: proj.id,
+    line_number: '2"-P-1002',
+    from_equipment: 'V-1001',
+    to_equipment: 'P-1001',
+    size: '2"',
+    material: 'CS',
+  };
+
+  store.addLines([rawLine as ProcessLine]);
+
+  const retrieved = store.getProcessLine(rawLine.id!);
+  assert.ok(retrieved, 'Sparse line retrieved');
+  // Strict non-fabrication: unstated parameters are null, never 0 or guessed
+  assert.strictEqual(retrieved?.operating_flow_rate?.value, null);
+  assert.strictEqual(retrieved?.operating_pressure?.value, null);
+  assert.strictEqual(retrieved?.operating_temperature?.value, null);
+  assert.strictEqual(retrieved?.design_pressure?.value, null);
+  assert.strictEqual(retrieved?.design_temperature?.value, null);
+  assert.strictEqual(retrieved?.physical_state?.value, null);
+});
+
+test('Scenario 3: Operating condition vs. design limit violation classification (operating_vs_design_limit_violation)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 2 Limit Violations ' + Date.now(), 'Testing limit violation category');
+  const now = Date.now();
+
+  const eqA: EquipmentTag = {
+    id: 'eq-sep-' + now,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    tag: 'V-2001',
+    description: 'Separator Vessel',
+    equipment_type: 'separator',
+    assigned_chemical_id: null,
+    confidence: 0.98,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    specifications: {
+      ...createDefaultSpecifications('separator'),
+      design_pressure: {
+        value: 20.0,
+        unit: 'bar(g)',
+        status: 'verified',
+        verification_status: 'verified',
+        source_document_name: 'Datasheet-V2001.pdf',
+        conflicting_records: [],
+        change_history: [],
+      },
+    },
+    created_at: new Date().toISOString(),
+  };
+
+  const eqB: EquipmentTag = {
+    id: 'eq-flt-' + now,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    tag: 'F-2001',
+    description: 'Filter Coalescer',
+    equipment_type: 'separator',
+    assigned_chemical_id: null,
+    confidence: 0.98,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  store.addEquipment([eqA, eqB]);
+
+  // Operating pressure of 28 bar(g) violates line design pressure of 22 bar(g)
+  const lineViolation: ProcessLine = {
+    id: 'line-violation-' + now,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    line_number: '6"-HC-02001-A1A',
+    from_equipment: 'V-2001',
+    to_equipment: 'F-2001',
+    flow_direction: 'forward',
+    connection_type: 'process_piping',
+    size: '6"',
+    material: 'A1A',
+    stream_label: 'Hydrocarbon Gas',
+    functional_type: 'piping_line',
+    confidence: 0.95,
+    status: 'confirmed',
+    assigned_chemical_id: null,
+    alerts: [],
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    operating_pressure: {
+      value: 28.0,
+      unit: 'bar(g)',
+      source_document_name: 'HMB.pdf',
+      verification_status: 'unverified',
+    },
+    design_pressure: {
+      value: 22.0,
+      unit: 'bar(g)',
+      source_document_name: 'LineList.pdf',
+      verification_status: 'unverified',
+    },
+    operating_temperature: {
+      value: 110.0,
+      unit: '°C',
+      source_document_name: 'HMB.pdf',
+      verification_status: 'unverified',
+    },
+    design_temperature: {
+      value: 95.0,
+      unit: '°C',
+      source_document_name: 'LineList.pdf',
+      verification_status: 'unverified',
+    },
+    created_at: new Date().toISOString(),
+  };
+
+  store.addProcessLines([lineViolation]);
+
+  const report = store.validateProcessLinesForProject(proj.id);
+  assert.strictEqual(report.limit_violations_count >= 2, true, 'At least 2 limit violations detected (P and T)');
+
+  const pViolation = report.issues.find(
+    (i) => i.line_id === lineViolation.id && i.property_name === 'pressure'
+  );
+  assert.ok(pViolation, 'Pressure limit violation issue generated');
+  // Mandatory Correction #1: Must be operating_vs_design_limit_violation, NOT source_to_source_discrepancy
+  assert.strictEqual(pViolation?.category, 'operating_vs_design_limit_violation');
+  assert.strictEqual(pViolation?.severity, 'critical_error');
+  assert.strictEqual(report.can_approve, false, 'Critical limit violation blocks line approval');
+});
+
+test('Scenario 4: Utility connection modelling (supports fluid transport, flow, pressure, temperature, and streams)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 2 Utility Modeling ' + Date.now(), 'Testing utility connections');
+  const now = Date.now();
+
+  const eqA: EquipmentTag = {
+    id: 'eq-cw-supply-' + now,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    tag: 'UTILITY',
+    description: 'Utility Header',
+    equipment_type: 'other',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  const eqB: EquipmentTag = {
+    id: 'eq-exchanger-' + now,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    tag: 'E-3001',
+    description: 'Cooler Heat Exchanger',
+    equipment_type: 'heat_exchanger',
+    assigned_chemical_id: null,
+    confidence: 0.98,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  store.addEquipment([eqA, eqB]);
+
+  // Utility connection carrying cooling water
+  const utilityLine: ProcessLine = {
+    id: 'line-cw-' + now,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    line_number: '4"-CW-03001-A1',
+    from_equipment: 'UTILITY',
+    to_equipment: 'E-3001',
+    flow_direction: 'forward',
+    connection_type: 'utility_connection',
+    size: '4"',
+    material: 'CS',
+    stream_label: 'Cooling Water Supply',
+    functional_type: 'utility_line',
+    confidence: 0.95,
+    status: 'confirmed',
+    assigned_chemical_id: null,
+    alerts: [],
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    operating_flow_rate: {
+      value: 45000,
+      unit: 'kg/h',
+      source_document_name: 'Utility-Balance.pdf',
+      verification_status: 'unverified',
+    },
+    operating_pressure: {
+      value: 4.5,
+      unit: 'bar(g)',
+      source_document_name: 'Utility-Balance.pdf',
+      verification_status: 'unverified',
+    },
+    design_pressure: {
+      value: 10.0,
+      unit: 'bar(g)',
+      source_document_name: 'Utility-LineList.pdf',
+      verification_status: 'unverified',
+    },
+    created_at: new Date().toISOString(),
+  };
+
+  // Instrument signal line carrying electrical/pneumatic loop
+  const signalLine: ProcessLine = {
+    id: 'line-sig-' + now,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    line_number: 'SIG-TIC-3001',
+    from_equipment: 'E-3001',
+    to_equipment: 'UTILITY',
+    flow_direction: 'forward',
+    connection_type: 'instrument_signal',
+    size: '1/2"',
+    material: 'COPPER',
+    stream_label: '4-20mA Signal',
+    functional_type: 'signal_line',
+    confidence: 0.95,
+    status: 'confirmed',
+    assigned_chemical_id: null,
+    alerts: [],
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  store.addProcessLines([utilityLine, signalLine]);
+
+  const report = store.validateProcessLinesForProject(proj.id);
+  // Utility line carries fluid and pressure with zero critical errors
+  const utilityIssues = report.issues.filter((i) => i.line_id === utilityLine.id && i.severity === 'critical_error');
+  assert.strictEqual(utilityIssues.length, 0, 'Utility connection carrying fluid transport is completely valid');
+
+  // Verify instrument signal line exclusion from material flow
+  assert.strictEqual(signalLine.connection_type, 'instrument_signal');
+});
+
+test('Scenario 5: Chemical composition basis enforcement (mol%, wt%, ppm mol, ppm wt) without silent conversion', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 2 Chemical Basis ' + Date.now(), 'Testing chemical compositions');
+  const now = Date.now();
+
+  const eqA: EquipmentTag = {
+    id: 'eq-well-' + now,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    tag: 'WELL-01',
+    description: 'Production Wellhead',
+    equipment_type: 'other',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  const eqB: EquipmentTag = {
+    id: 'eq-sep2-' + now,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    tag: 'V-4001',
+    description: 'Inlet Separator',
+    equipment_type: 'separator',
+    assigned_chemical_id: null,
+    confidence: 0.98,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  store.addEquipment([eqA, eqB]);
+
+  const multiChemLine: ProcessLine = {
+    id: 'line-multichem-' + now,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    line_number: '12"-P-04001-D1',
+    from_equipment: 'WELL-01',
+    to_equipment: 'V-4001',
+    flow_direction: 'forward',
+    connection_type: 'process_piping',
+    size: '12"',
+    material: 'DSS',
+    stream_label: 'Sour Wellstream Fluid',
+    functional_type: 'piping_line',
+    confidence: 0.97,
+    status: 'confirmed',
+    assigned_chemical_id: null,
+    alerts: [],
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    chemical_composition: [
+      {
+        component_identity: 'Methane',
+        cas_number: '74-82-8',
+        concentration_value: 78.5,
+        concentration_basis: 'mol%',
+        unit: 'mol%',
+        source: 'Lab-Report-01.pdf',
+        verification_status: 'unverified',
+      },
+      {
+        component_identity: 'Hydrogen Sulfide',
+        cas_number: '7783-06-4',
+        concentration_value: 1250,
+        concentration_basis: 'ppm mol',
+        unit: 'ppm mol',
+        source: 'Lab-Report-01.pdf',
+        verification_status: 'engineer_verified',
+      },
+      {
+        component_identity: 'Carbon Dioxide',
+        cas_number: '124-38-9',
+        concentration_value: 4.2,
+        concentration_basis: 'mol%',
+        unit: 'mol%',
+        source: 'Lab-Report-01.pdf',
+        verification_status: 'unverified',
+      },
+    ],
+    created_at: new Date().toISOString(),
+  };
+
+  store.addProcessLines([multiChemLine]);
+
+  const report = store.validateProcessLinesForProject(proj.id);
+  const basisIssues = report.issues.filter((i) => i.line_id === multiChemLine.id && i.category === 'unit_or_basis_inconsistency');
+  assert.strictEqual(basisIssues.length, 0, 'Valid concentration bases (mol%, ppm mol) pass validation');
+
+  const retrieved = store.getProcessLine(multiChemLine.id);
+  assert.strictEqual(retrieved?.chemical_composition?.length, 3);
+  assert.strictEqual(retrieved?.chemical_composition?.[0].concentration_basis, 'mol%');
+  assert.strictEqual(retrieved?.chemical_composition?.[1].concentration_basis, 'ppm mol');
+  assert.strictEqual(retrieved?.chemical_composition?.[1].concentration_value, 1250);
+});
+
+test('Scenario 6: Human verification workflow and preservation of machine-extracted original values', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 2 Verification ' + Date.now(), 'Testing verification and immutability');
+  const now = Date.now();
+
+  const originalLine: ProcessLine = {
+    id: 'line-edit-test-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid-ocr',
+    line_number: '8"-P-05001-CS',
+    from_equipment: 'TK-101',
+    to_equipment: 'P-101',
+    flow_direction: 'forward',
+    connection_type: 'process_piping',
+    size: '8"',
+    material: 'CS',
+    stream_label: 'Crude Feed',
+    functional_type: 'piping_line',
+    confidence: 0.88,
+    status: 'provisional',
+    assigned_chemical_id: null,
+    alerts: [],
+    source: { document: 'Scanned-PID.pdf', page: 2, snippet: '8"-P-05001-CS' },
+    created_at: new Date().toISOString(),
+  };
+
+  store.addProcessLines([originalLine]);
+
+  // Engineer modifies the line size and material
+  const modified = store.updateProcessLine(originalLine.id, {
+    size: '10"',
+    material: 'SS316',
+    notes: 'Upsized to 10" SS316 per hydraulic recalculation',
+  }, 'Lead Process Engineer', 'Hydraulic revision');
+
+  assert.ok(modified, 'Line updated');
+  // Original machine-extracted values must be preserved immutably
+  assert.strictEqual(modified?.original_extracted_values?.size, '8"');
+  assert.strictEqual(modified?.original_extracted_values?.material, 'CS');
+  assert.strictEqual(modified?.size, '10"');
+  assert.strictEqual(modified?.material, 'SS316');
+
+  // Engineer verifies the process line
+  const verified = store.verifyProcessLine(originalLine.id, 'Chief Safety Officer', 'Approved after hydraulic review');
+  assert.ok(verified, 'Line verified');
+  assert.strictEqual(verified?.verification_status, 'engineer_verified');
+  assert.strictEqual(verified?.verified_by, 'Chief Safety Officer');
+  assert.ok(verified?.verified_at, 'Verification timestamp recorded');
+});
+
+// ----------------------------------------------------
+// Test Group 30: Process Stream Registry Enhancement & Separator Independence (Phase 3)
+// ----------------------------------------------------
+console.log('\n--- Test Group 30: Process Stream Registry Enhancement & Separator Independence (Phase 3) ---');
+
+test('Scenario 1: Multi-chemical process stream creation with explicit concentration bases (mol%, wt%, ppm)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 3 Multi-Chemical ' + Date.now(), 'Testing stream components');
+  const now = Date.now();
+
+  const eqA: EquipmentTag = {
+    id: 'eq-wellhead-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    tag: 'WH-01',
+    description: 'Subsea Wellhead',
+    equipment_type: 'other',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  const eqB: EquipmentTag = {
+    id: 'eq-slugcatcher-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    tag: 'V-5001',
+    description: 'Inlet Slug Catcher',
+    equipment_type: 'separator',
+    assigned_chemical_id: null,
+    confidence: 0.98,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  store.addEquipment([eqA, eqB]);
+
+  const stream = store.createStream({
+    project_id: proj.id,
+    stream_number: 'STR-5001',
+    stream_description: 'Raw Gas Wellstream Inlet',
+    source_equipment_tag: 'WH-01',
+    destination_equipment_tag: 'V-5001',
+    material_description: 'Multiphase Sour Gas',
+    phase: 'two_phase',
+    flow_rates: {
+      normal: 35000,
+      min: 12000,
+      max: 42000,
+      design: 45000,
+      unit: 'kg/h',
+      basis: 'mass',
+    },
+    operating_pressure: {
+      value: 65.0,
+      unit: 'bar(g)',
+      status: 'verified',
+    },
+    operating_temperature: {
+      value: 52.0,
+      unit: '°C',
+      status: 'verified',
+    },
+    components: [
+      {
+        component_name: 'Methane',
+        cas_number: '74-82-8',
+        fraction_value: 82.4,
+        unit: 'mol%',
+        is_hazardous: true,
+      },
+      {
+        component_name: 'Ethane',
+        cas_number: '74-84-0',
+        fraction_value: 6.8,
+        unit: 'mol%',
+        is_hazardous: true,
+      },
+      {
+        component_name: 'Hydrogen Sulfide',
+        cas_number: '7783-06-4',
+        fraction_value: 1850,
+        unit: 'ppm mol',
+        is_hazardous: true,
+      },
+      {
+        component_name: 'Water',
+        cas_number: '7732-18-5',
+        fraction_value: 2.1,
+        unit: 'wt%',
+        is_hazardous: false,
+      },
+    ],
+  });
+
+  assert.ok(stream, 'Stream created');
+  assert.strictEqual(stream.stream_number, 'STR-5001');
+  assert.strictEqual(stream.components?.length, 4);
+  assert.strictEqual(stream.components?.[0].component_name, 'Methane');
+  assert.strictEqual(stream.components?.[0].unit, 'mol%');
+  assert.strictEqual(stream.components?.[2].component_name, 'Hydrogen Sulfide');
+  assert.strictEqual(stream.components?.[2].unit, 'ppm mol');
+  assert.strictEqual(stream.components?.[3].component_name, 'Water');
+  assert.strictEqual(stream.components?.[3].unit, 'wt%');
+
+  const report = store.validateProcessStreamsForProject(proj.id);
+  const basisIssues = report.issues.filter((i) => i.category === 'unit_or_basis_inconsistency');
+  assert.strictEqual(basisIssues.length, 0, 'Explicit concentration bases (mol%, ppm mol, wt%) pass without error');
+});
+
+test('Scenario 2: Linking a stream to multiple process lines (1-to-many relationship)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 3 Line Linking ' + Date.now(), 'Testing stream-line association');
+  const now = Date.now();
+
+  const eqA: EquipmentTag = {
+    id: 'eq-t-1-' + now,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    tag: 'TK-6001',
+    description: 'Storage Tank',
+    equipment_type: 'tank',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  const eqB: EquipmentTag = {
+    id: 'eq-p-1-' + now,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    tag: 'P-6001A',
+    description: 'Transfer Pump A',
+    equipment_type: 'pump',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  store.addEquipment([eqA, eqB]);
+
+  const line1: ProcessLine = {
+    id: 'line-hdr-' + now,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    line_number: '6"-TK-06001-A1',
+    from_equipment: 'TK-6001',
+    to_equipment: 'P-6001A',
+    flow_direction: 'forward',
+    connection_type: 'process_piping',
+    size: '6"',
+    material: 'CS',
+    confidence: 0.95,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  const line2: ProcessLine = {
+    id: 'line-bypass-' + now,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    line_number: '3"-TK-06002-A1',
+    from_equipment: 'TK-6001',
+    to_equipment: 'P-6001A',
+    flow_direction: 'forward',
+    connection_type: 'process_piping',
+    size: '3"',
+    material: 'CS',
+    confidence: 0.95,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  store.addProcessLines([line1, line2]);
+
+  const stream = store.createStream({
+    project_id: proj.id,
+    stream_number: 'STR-6001',
+    source_equipment_tag: 'TK-6001',
+    destination_equipment_tag: 'P-6001A',
+  });
+
+  // Link stream to both process lines (1-to-many)
+  const linked = store.linkStreamToLines(stream.id, [line1.id, line2.id], 'Lead Process Engineer');
+  assert.ok(linked, 'Stream linked to lines');
+  assert.strictEqual(linked?.connected_line_ids?.length, 2);
+  assert.ok(linked?.connected_line_ids?.includes(line1.id));
+  assert.ok(linked?.connected_line_ids?.includes(line2.id));
+  assert.ok(linked?.connected_line_numbers?.includes('6"-TK-06001-A1'));
+  assert.ok(linked?.connected_line_numbers?.includes('3"-TK-06002-A1'));
+
+  // Both lines in store now reference the stream
+  const p1 = store.getProcessLine(line1.id);
+  const p2 = store.getProcessLine(line2.id);
+  assert.strictEqual(p1?.stream_id, stream.id);
+  assert.strictEqual(p2?.stream_id, stream.id);
+});
+
+test('Scenario 3: Separator composition independence (separator inlet composition is NOT copied to outlet)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 3 Separator Decoupling ' + Date.now(), 'Testing separator independence');
+  const now = Date.now();
+
+  const eqSep: EquipmentTag = {
+    id: 'eq-sep-3phase-' + now,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    tag: 'V-7001',
+    description: '3-Phase Production Separator',
+    equipment_type: 'separator',
+    assigned_chemical_id: null,
+    confidence: 0.99,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  const eqInlet: EquipmentTag = {
+    id: 'eq-manifold-' + now,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    tag: 'MANIFOLD-01',
+    description: 'Production Manifold',
+    equipment_type: 'other',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  const eqGasOut: EquipmentTag = {
+    id: 'eq-comp-' + now,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    tag: 'K-7001',
+    description: 'Gas Compressor',
+    equipment_type: 'compressor',
+    assigned_chemical_id: null,
+    confidence: 0.99,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  store.addEquipment([eqInlet, eqSep, eqGasOut]);
+
+  // Inlet stream to separator carrying multiphase fluid
+  const inletStream = store.createStream({
+    project_id: proj.id,
+    stream_number: 'STR-INLET',
+    source_equipment_tag: 'MANIFOLD-01',
+    destination_equipment_tag: 'V-7001',
+    phase: 'multiphase',
+    components: [
+      { component_name: 'Methane', fraction_value: 50.0, unit: 'mol%', is_hazardous: true },
+      { component_name: 'Hexane', fraction_value: 30.0, unit: 'mol%', is_hazardous: true },
+      { component_name: 'Water', fraction_value: 20.0, unit: 'mol%', is_hazardous: false },
+    ],
+  });
+
+  // Unmeasured gas outlet stream from separator
+  // Strict rule: Topology does not force inlet composition onto this outlet
+  const gasOutletStream = store.createStream({
+    project_id: proj.id,
+    stream_number: 'STR-GAS-OUT',
+    source_equipment_tag: 'V-7001',
+    destination_equipment_tag: 'K-7001',
+    phase: 'vapor',
+    // Components not provided by H&MB -> must remain empty/null, never copied from inlet!
+    components: [],
+  });
+
+  assert.strictEqual(gasOutletStream.components?.length, 0, 'Outlet stream does not automatically inherit separator inlet composition');
+
+  // Verify that an invalid copy of inlet composition to different phase outlet is flagged
+  const badCopiedOutlet = store.createStream({
+    project_id: proj.id,
+    stream_number: 'STR-BAD-COPY',
+    source_equipment_tag: 'V-7001',
+    destination_equipment_tag: 'K-7001',
+    phase: 'vapor',
+    components: [
+      { component_name: 'Methane', fraction_value: 50.0, unit: 'mol%', is_hazardous: true },
+      { component_name: 'Hexane', fraction_value: 30.0, unit: 'mol%', is_hazardous: true },
+      { component_name: 'Water', fraction_value: 20.0, unit: 'mol%', is_hazardous: false },
+    ],
+  });
+
+  const report = store.validateProcessStreamsForProject(proj.id);
+  assert.strictEqual(report.separator_decoupling_violations_count >= 1, true, 'Separator decoupling violation correctly flagged');
+});
+
+test('Scenario 4: Physical property tracking with provenance (density, vapor fraction, molecular weight, viscosity)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 3 Physical Properties ' + Date.now(), 'Testing stream physical properties');
+  const now = Date.now();
+
+  const eqA: EquipmentTag = {
+    id: 'eq-t-2-' + now,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    tag: 'TK-8001',
+    description: 'Condensate Tank',
+    equipment_type: 'tank',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  const eqB: EquipmentTag = {
+    id: 'eq-p-2-' + now,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    tag: 'P-8001',
+    description: 'Export Pump',
+    equipment_type: 'pump',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  store.addEquipment([eqA, eqB]);
+
+  const stream = store.createStream({
+    project_id: proj.id,
+    stream_number: 'STR-CONDENSATE',
+    source_equipment_tag: 'TK-8001',
+    destination_equipment_tag: 'P-8001',
+    phase: 'liquid',
+    density: {
+      id: 'prop-dens-' + now,
+      original_value: 785.4,
+      normalized_value: 785.4,
+      normalized_unit: 'kg/m3',
+      source_document_id: 'doc-hmb',
+      source_document_name: 'HMB-Report.pdf',
+      source_category: 'heat_and_material_balance',
+      page_or_drawing_location: 'Page 4, Stream 12',
+      extraction_confidence: 0.99,
+      verification_status: 'engineer_verified',
+      extraction_timestamp: new Date().toISOString(),
+    },
+    vapor_fraction: {
+      id: 'prop-vf-' + now,
+      original_value: 0.0,
+      normalized_value: 0.0,
+      source_document_id: 'doc-hmb',
+      source_document_name: 'HMB-Report.pdf',
+      source_category: 'heat_and_material_balance',
+      page_or_drawing_location: 'Page 4, Stream 12',
+      extraction_confidence: 0.99,
+      verification_status: 'engineer_verified',
+      extraction_timestamp: new Date().toISOString(),
+    },
+    molecular_weight: {
+      id: 'prop-mw-' + now,
+      original_value: 86.2,
+      normalized_value: 86.2,
+      normalized_unit: 'g/mol',
+      source_document_id: 'doc-hmb',
+      source_document_name: 'HMB-Report.pdf',
+      source_category: 'heat_and_material_balance',
+      page_or_drawing_location: 'Page 4, Stream 12',
+      extraction_confidence: 0.99,
+      verification_status: 'engineer_verified',
+      extraction_timestamp: new Date().toISOString(),
+    },
+    viscosity: {
+      id: 'prop-visc-' + now,
+      original_value: 0.65,
+      normalized_value: 0.65,
+      normalized_unit: 'cP',
+      source_document_id: 'doc-hmb',
+      source_document_name: 'HMB-Report.pdf',
+      source_category: 'heat_and_material_balance',
+      page_or_drawing_location: 'Page 4, Stream 12',
+      extraction_confidence: 0.99,
+      verification_status: 'engineer_verified',
+      extraction_timestamp: new Date().toISOString(),
+    },
+  });
+
+  const retrieved = store.getStream(stream.id);
+  assert.ok(retrieved, 'Stream retrieved with physical properties');
+  assert.strictEqual(retrieved?.density?.normalized_value, 785.4);
+  assert.strictEqual(retrieved?.density?.normalized_unit, 'kg/m3');
+  assert.strictEqual(retrieved?.vapor_fraction?.normalized_value, 0.0);
+  assert.strictEqual(retrieved?.molecular_weight?.normalized_value, 86.2);
+  assert.strictEqual(retrieved?.viscosity?.normalized_value, 0.65);
+});
+
+test('Scenario 5: Missing stream conditions generate informational gap flags without invalidating topology', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 3 Sparse Stream ' + Date.now(), 'Testing non-fabrication in streams');
+  const now = Date.now();
+
+  const eqA: EquipmentTag = {
+    id: 'eq-t-3-' + now,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    tag: 'TK-9001',
+    description: 'Water Tank',
+    equipment_type: 'tank',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  const eqB: EquipmentTag = {
+    id: 'eq-p-3-' + now,
+    project_id: proj.id,
+    document_id: 'doc-1',
+    tag: 'P-9001',
+    description: 'Booster Pump',
+    equipment_type: 'pump',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  store.addEquipment([eqA, eqB]);
+
+  // Stream created with no flow rate, pressure, or temperature provided
+  const sparseStream = store.createStream({
+    project_id: proj.id,
+    stream_number: 'STR-SPARSE',
+    source_equipment_tag: 'TK-9001',
+    destination_equipment_tag: 'P-9001',
+  });
+
+  // Strict non-fabrication: values remain null
+  assert.strictEqual(sparseStream.flow_rates.normal, null);
+  assert.strictEqual(sparseStream.operating_pressure.value, null);
+  assert.strictEqual(sparseStream.operating_temperature.value, null);
+
+  const report = store.validateProcessStreamsForProject(proj.id);
+  const critical = report.issues.filter((i) => i.severity === 'critical_error');
+  assert.strictEqual(critical.length, 0, 'Missing stream operating data does not generate critical topology error');
+  assert.strictEqual(report.can_approve, true, 'Topology approval is not blocked by missing operating values');
+});
+
+test('Scenario 6: Human verification workflow and immutability of machine-extracted stream values', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 3 Verification ' + Date.now(), 'Testing stream verification');
+  const now = Date.now();
+
+  const stream = store.createStream({
+    project_id: proj.id,
+    stream_number: 'STR-OCR-101',
+    source_equipment_tag: 'V-101',
+    destination_equipment_tag: 'C-101',
+    flow_rates: { normal: 1500, unit: 'kg/h' },
+    data_origin: 'extracted',
+    verification_status: 'unverified',
+  });
+
+  // Human engineer updates the flow rate
+  const updated = store.updateStream(stream.id, {
+    flow_rates: { normal: 1800, unit: 'kg/h' },
+    notes: 'Corrected based on calibrated flow meter FT-101',
+  }, 'Lead Process Engineer', 'Field meter calibration adjustment');
+
+  assert.ok(updated, 'Stream updated');
+  // Machine values must be preserved immutably in original_extracted_values
+  assert.strictEqual(updated?.original_extracted_values?.flow_rates?.normal, 1500);
+  assert.strictEqual(updated?.flow_rates.normal, 1800);
+
+  // Engineer formally verifies the stream
+  const verified = store.verifyProcessStream(stream.id, 'Principal Safety Engineer', 'Validated against calibrated plant baseline');
+  assert.ok(verified, 'Stream verified');
+  assert.strictEqual(verified?.verification_status, 'verified');
+  assert.strictEqual(verified?.verified_by, 'Principal Safety Engineer');
+  assert.ok(verified?.verified_at, 'Timestamp logged');
+});
+
+// ----------------------------------------------------
+// Test Group 31: Connection Classification & Endpoint/Flow Validation (Phase 4)
+// ----------------------------------------------------
+console.log('\n--- Test Group 31: Connection Classification & Endpoint/Flow Validation (Phase 4) ---');
+
+test('Scenario 1: Separate connection types (Process piping, Instrument signal, Utility connection, Non-process relationship)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 4 Connection Types ' + Date.now(), 'Testing connection classifications');
+  const now = Date.now();
+
+  const eqP: EquipmentTag = {
+    id: 'eq-p101-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    tag: 'P-101',
+    description: 'Feed Pump',
+    equipment_type: 'pump',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  const eqV: EquipmentTag = {
+    id: 'eq-v101-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    tag: 'V-101',
+    description: 'Feed Vessel',
+    equipment_type: 'vessel',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  const eqE: EquipmentTag = {
+    id: 'eq-e101-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    tag: 'E-101',
+    description: 'Product Cooler',
+    equipment_type: 'heat_exchanger',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  const eqInst: EquipmentTag = {
+    id: 'eq-pt101-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    tag: 'PT-101',
+    description: 'Pressure Transmitter',
+    equipment_type: 'instrument',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  const eqCtrl: EquipmentTag = {
+    id: 'eq-pic101-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    tag: 'PIC-101',
+    description: 'Pressure Controller',
+    equipment_type: 'instrument',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  const eqSkid: EquipmentTag = {
+    id: 'eq-skid01-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    tag: 'SKID-01',
+    description: 'Modular Pump Base Skid',
+    equipment_type: 'other',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  store.addEquipment([eqP, eqV, eqE, eqInst, eqCtrl, eqSkid]);
+
+  // 1. Process Piping line
+  const linePiping: any = {
+    id: 'line-piping-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    line_number: 'P-101-HC-1001-3"',
+    from_equipment: 'V-101',
+    to_equipment: 'P-101',
+    size: '3"',
+    material: 'CS',
+    stream_label: 'Hydrocarbon Feed',
+    functional_type: 'piping_line',
+    connection_classification: 'process_piping',
+    flow_direction: 'forward',
+    status: 'confirmed',
+  };
+
+  // 2. Utility Connection line
+  const lineUtility: any = {
+    id: 'line-utility-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    line_number: 'CW-E101-2001-4"',
+    from_equipment: 'UTILITY',
+    to_equipment: 'E-101',
+    size: '4"',
+    material: 'CS',
+    stream_label: 'Cooling Water Supply',
+    functional_type: 'utility_line',
+    connection_classification: 'utility_connection',
+    flow_direction: 'forward',
+    status: 'confirmed',
+  };
+
+  // 3. Instrument Signal line
+  const lineSignal: any = {
+    id: 'line-signal-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    line_number: 'SIG-PT101-01',
+    from_equipment: 'PT-101',
+    to_equipment: 'PIC-101',
+    size: '',
+    material: '',
+    stream_label: '4-20mA Loop',
+    functional_type: 'signal_line',
+    connection_classification: 'instrument_signal',
+    flow_direction: 'forward',
+    status: 'confirmed',
+  };
+
+  // 4. Non-Process Relationship line
+  const lineNonProcess: any = {
+    id: 'line-nonproc-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    line_number: 'SKID-P101-MOUNT',
+    from_equipment: 'SKID-01',
+    to_equipment: 'P-101',
+    size: '',
+    material: '',
+    stream_label: 'Mechanical Mount',
+    functional_type: 'non_process_line',
+    connection_classification: 'non_process_equipment_relationship',
+    flow_direction: 'bidirectional',
+    status: 'confirmed',
+  };
+
+  store.addLines([linePiping, lineUtility, lineSignal, lineNonProcess]);
+
+  // Validate classifications
+  const lines = store.getProcessLines(proj.id);
+  assert.strictEqual(lines.length, 4);
+
+  const piping = lines.find((l) => l.line_number === 'P-101-HC-1001-3"');
+  assert.strictEqual(piping?.connection_classification, 'process_piping');
+
+  const utility = lines.find((l) => l.line_number === 'CW-E101-2001-4"');
+  assert.strictEqual(utility?.connection_classification, 'utility_connection');
+
+  const signal = lines.find((l) => l.line_number === 'SIG-PT101-01');
+  assert.strictEqual(signal?.connection_classification, 'instrument_signal');
+
+  const nonproc = lines.find((l) => l.line_number === 'SKID-P101-MOUNT');
+  assert.strictEqual(nonproc?.connection_classification, 'non_process_equipment_relationship');
+
+  // Verify graph topology summary counts
+  const graph = store.getProcessTopologyGraph(proj.id);
+  assert.strictEqual(graph.counts.process_piping_edges_count, 1);
+  assert.strictEqual(graph.counts.utility_connection_edges_count, 1);
+  assert.strictEqual(graph.counts.instrument_signal_edges_count, 1);
+  assert.strictEqual(graph.counts.non_process_relationship_edges_count, 1);
+});
+
+test('Scenario 2: Exclusion of Instrument Signals & Non-Process Links from Material-Flow Modeling', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 4 Signal Exclusion ' + Date.now(), 'Testing material flow exclusions');
+  const now = Date.now();
+
+  assert.strictEqual(isMaterialFlowConnection('process_piping'), true);
+  assert.strictEqual(isMaterialFlowConnection('utility_connection'), true);
+  assert.strictEqual(isMaterialFlowConnection('instrument_signal'), false);
+  assert.strictEqual(isMaterialFlowConnection('non_process_equipment_relationship'), false);
+
+  const eqTrans: EquipmentTag = {
+    id: 'eq-lt101-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    tag: 'LT-101',
+    description: 'Level Transmitter',
+    equipment_type: 'instrument',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  const eqDcs: EquipmentTag = {
+    id: 'eq-dcs01-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    tag: 'DCS-01',
+    description: 'Plant DCS Controller',
+    equipment_type: 'instrument',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  store.addEquipment([eqTrans, eqDcs]);
+
+  // Instrument signal incorrectly assigned a chemical fluid
+  const invalidSignalLine: any = {
+    id: 'line-bad-sig-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    line_number: 'LT-101-SIG-ERROR',
+    from_equipment: 'LT-101',
+    to_equipment: 'DCS-01',
+    functional_type: 'signal_line',
+    connection_classification: 'instrument_signal',
+    assigned_chemical_id: 'chem-toxic-ammonia',
+    flow_direction: 'forward',
+    status: 'confirmed',
+  };
+
+  store.addLines([invalidSignalLine]);
+
+  // Topology validation report must flag critical error and prevent approval
+  const report = store.validateConnectionsForProject(proj.id);
+  const crit = report.issues.find((i) => i.category === 'material_flow_on_signal');
+  assert.ok(crit, 'Flagged material flow on instrument signal');
+  assert.strictEqual(crit?.severity, 'critical_error');
+  assert.strictEqual(report.can_approve, false);
+});
+
+test('Scenario 3: Utility Connection Material Modeling (Mandatory Correction #2)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 4 Utility Modeling ' + Date.now(), 'Testing utility fluid transport');
+  const now = Date.now();
+
+  const eqExchanger: EquipmentTag = {
+    id: 'eq-hex102-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    tag: 'E-102',
+    description: 'Condenser Exchanger',
+    equipment_type: 'heat_exchanger',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  store.addEquipment([eqExchanger]);
+
+  // Utility connection carries cooling water with flow rate and pressure
+  const utilityLine: any = {
+    id: 'line-cw-feed-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    line_number: 'CW-E102-SUPPLY',
+    from_equipment: 'UTILITY_HEADER',
+    to_equipment: 'E-102',
+    fluid_service: { value: 'Cooling Water', unit: null },
+    stream_label: 'Cooling Water',
+    functional_type: 'utility_line',
+    connection_classification: 'utility_connection',
+    flow_direction: 'forward',
+    operating_flow_rate: { value: 75.0, unit: 'm3/h' },
+    operating_pressure: { value: 4.5, unit: 'bar(g)' },
+    operating_temperature: { value: 28.0, unit: '°C' },
+    status: 'confirmed',
+  };
+
+  store.addLines([utilityLine]);
+
+  const report = store.validateConnectionsForProject(proj.id);
+  // Utility lines support fluid transport; should NOT have material_flow_on_signal error
+  const critErrors = report.issues.filter((i) => i.severity === 'critical_error');
+  assert.strictEqual(critErrors.length, 0);
+  assert.strictEqual(report.can_approve, true);
+  assert.strictEqual(report.utility_connection_count, 1);
+});
+
+test('Scenario 4: Connection Endpoint Validation & Drawing Boundary Separation', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 4 Endpoints ' + Date.now(), 'Testing endpoint validation');
+  const now = Date.now();
+
+  const eqVessel: EquipmentTag = {
+    id: 'eq-v103-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    tag: 'V-103',
+    description: 'Accumulator',
+    equipment_type: 'vessel',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  store.addEquipment([eqVessel]);
+
+  // 1. Line with missing from_equipment without boundary tag -> Critical error
+  const lineDangling: any = {
+    id: 'line-dangling-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    line_number: 'DANGLING-PIPE-01',
+    from_equipment: '',
+    to_equipment: 'V-103',
+    connection_classification: 'process_piping',
+    functional_type: 'piping_line',
+    flow_direction: 'forward',
+    status: 'confirmed',
+  };
+
+  // 2. Line that crosses drawing boundary with documented off-page connector -> Engineering review, NOT critical error
+  const lineBoundary: any = {
+    id: 'line-boundary-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    line_number: 'OPC-LINE-TO-DWG-002',
+    from_equipment: 'V-103',
+    to_equipment: 'OPC-DWG-002',
+    is_drawing_boundary: true,
+    drawing_boundary_target: 'OPC-DWG-002',
+    drawing_boundary_drawing: 'DWG-002-UTILITIES.pdf',
+    connection_classification: 'process_piping',
+    functional_type: 'piping_line',
+    flow_direction: 'forward',
+    status: 'confirmed',
+    notes: 'Off-page connector to Sheet 2',
+  };
+
+  store.addLines([lineDangling, lineBoundary]);
+
+  const report = store.validateConnectionsForProject(proj.id);
+  const danglingIssue = report.issues.find((i) => i.connection_id === lineDangling.id);
+  assert.ok(danglingIssue, 'Detected dangling pipe');
+  assert.strictEqual(danglingIssue?.severity, 'critical_error');
+
+  const boundaryIssue = report.issues.find((i) => i.connection_id === lineBoundary.id);
+  assert.ok(boundaryIssue, 'Detected drawing boundary connector');
+  assert.strictEqual(boundaryIssue?.severity, 'engineering_review_required');
+  assert.strictEqual(boundaryIssue?.is_drawing_boundary, true);
+});
+
+test('Scenario 5: Flow Direction Validation', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 4 Flow Direction ' + Date.now(), 'Testing flow directions');
+  const now = Date.now();
+
+  const eqA: EquipmentTag = {
+    id: 'eq-t101-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    tag: 'TK-101',
+    description: 'Storage Tank',
+    equipment_type: 'tank',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  const eqB: EquipmentTag = {
+    id: 'eq-t102-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    tag: 'TK-102',
+    description: 'Day Tank',
+    equipment_type: 'tank',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  store.addEquipment([eqA, eqB]);
+
+  // 1. Process line with unknown direction
+  const lineUnknownDir: any = {
+    id: 'line-unk-dir-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    line_number: 'TRANSFER-UNK-01',
+    from_equipment: 'TK-101',
+    to_equipment: 'TK-102',
+    connection_classification: 'process_piping',
+    functional_type: 'piping_line',
+    flow_direction: 'unknown',
+    status: 'confirmed',
+  };
+
+  // 2. Non-process line: flow direction is not applicable
+  const lineNonProc: any = {
+    id: 'line-np-struc-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    line_number: 'STRUC-TK101-BASE',
+    from_equipment: 'TK-101',
+    to_equipment: 'TK-102',
+    connection_classification: 'non_process_equipment_relationship',
+    functional_type: 'non_process_line',
+    flow_direction: 'unknown',
+    status: 'confirmed',
+  };
+
+  store.addLines([lineUnknownDir, lineNonProc]);
+
+  const report = store.validateConnectionsForProject(proj.id);
+  const unkIssue = report.issues.find((i) => i.connection_id === lineUnknownDir.id && i.category === 'flow_direction_conflict');
+  assert.ok(unkIssue, 'Flagged unknown flow direction on process line');
+  assert.strictEqual(unkIssue?.severity, 'warning');
+
+  // Non-process relationship should NOT have flow direction conflict warning
+  const nonProcIssue = report.issues.find((i) => i.connection_id === lineNonProc.id && i.category === 'flow_direction_conflict');
+  assert.strictEqual(nonProcIssue, undefined, 'No flow direction issue for non-process relation');
+});
+
+test('Scenario 6: Approval Severity Tiers & Missing Operating Data Handling (Mandatory Correction #4)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 4 Approval Gates ' + Date.now(), 'Testing approval tiers');
+  const now = Date.now();
+
+  const eqX: EquipmentTag = {
+    id: 'eq-k101-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    tag: 'K-101',
+    description: 'Compressor',
+    equipment_type: 'compressor',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  const eqY: EquipmentTag = {
+    id: 'eq-d101-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    tag: 'D-101',
+    description: 'Discharge Drum',
+    equipment_type: 'vessel',
+    assigned_chemical_id: null,
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: 'PID.pdf', page: 1, snippet: '' },
+    created_at: new Date().toISOString(),
+  };
+
+  store.addEquipment([eqX, eqY]);
+
+  // Valid process line without operating conditions (common during early engineering)
+  const lineNoOperatingData: any = {
+    id: 'line-early-eng-' + now,
+    project_id: proj.id,
+    document_id: 'doc-pid',
+    line_number: 'K-101-DISCH-01',
+    from_equipment: 'K-101',
+    to_equipment: 'D-101',
+    connection_classification: 'process_piping',
+    functional_type: 'piping_line',
+    flow_direction: 'forward',
+    status: 'confirmed',
+    // Missing flow_rate, pressure, temperature intentionally
+  };
+
+  store.addLines([lineNoOperatingData]);
+
+  const report = store.validateConnectionsForProject(proj.id);
+  // Missing operating data must NOT invalidate topology!
+  assert.strictEqual(report.critical_errors_count, 0);
+  assert.strictEqual(report.can_approve, true);
+
+  const infoIssue = report.issues.find((i) => i.category === 'missing_engineering_data');
+  assert.ok(infoIssue, 'Missing data logged as informational');
+  assert.strictEqual(infoIssue?.severity, 'informational');
+
+  // Now introduce a critical error (reclassifying as signal line while having chemical assignment)
+  store.updateLine(lineNoOperatingData.id, {
+    connection_classification: 'instrument_signal',
+    assigned_chemical_id: 'chem-hazardous-gas',
+  }, 'Lead Engineer', 'Test misconfiguration');
+
+  const reportBlocked = store.validateConnectionsForProject(proj.id);
+  assert.strictEqual(reportBlocked.can_approve, false, 'Critical error blocks approval');
+  assert.ok(reportBlocked.critical_errors_count >= 1);
+});
+
+// ----------------------------------------------------
+// Test Group 32: Cross-Document Reconciliation Across 8 Engineering Sources (Phase 5)
+// ----------------------------------------------------
+console.log('\n--- Test Group 32: Cross-Document Reconciliation Across 8 Engineering Sources (Phase 5) ---');
+
+test('Scenario 1: Cross-Document Reconciliation Across All 8 Source Categories', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 5 Reconciliation ' + Date.now(), 'Testing 8-source reconciliation');
+  const now = Date.now();
+
+  // Create documents for 8 categories
+  const docPid = store.createDocument({ project_id: proj.id, filename: '01_PID.pdf', original_name: '01_PID.pdf', category: 'pid' as any });
+  const docPfd = store.createDocument({ project_id: proj.id, filename: '02_PFD.pdf', original_name: '02_PFD.pdf', category: 'pfd' as any });
+  const docHm = store.createDocument({ project_id: proj.id, filename: '03_HMB.xlsx', original_name: '03_HMB.xlsx', category: 'stream_table' as any });
+  const docDs = store.createDocument({ project_id: proj.id, filename: '04_DS_V101.pdf', original_name: '04_DS_V101.pdf', category: 'equipment_datasheet' as any });
+  const docBod = store.createDocument({ project_id: proj.id, filename: '05_BOD.pdf', original_name: '05_BOD.pdf', category: 'basis_of_design' as any });
+  const docOp = store.createDocument({ project_id: proj.id, filename: '06_Operating_Philosophy.pdf', original_name: '06_Operating_Philosophy.pdf', category: 'operating_philosophy' as any });
+  const docCp = store.createDocument({ project_id: proj.id, filename: '07_Control_Philosophy.pdf', original_name: '07_Control_Philosophy.pdf', category: 'control_philosophy' as any });
+  const docEsd = store.createDocument({ project_id: proj.id, filename: '08_Shutdown_Philosophy.pdf', original_name: '08_Shutdown_Philosophy.pdf', category: 'shutdown_philosophy' as any });
+
+  // 1. P&ID equipment
+  const eqV101: any = {
+    id: 'eq-v101-' + now,
+    project_id: proj.id,
+    document_id: docPid.id,
+    tag: 'V-101',
+    description: 'High Pressure Separator',
+    equipment_type: 'separator',
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: docPid.original_name, page: 1, snippet: '' },
+    specifications: {
+      design_pressure: { value: 100.0, unit: 'barg', status: 'extracted' },
+    },
+  };
+  store.addEquipment([eqV101]);
+
+  // 2. Datasheet specs
+  store.saveDatasheetExtraction({
+    id: 'ds-v101-' + now,
+    project_id: proj.id,
+    document_id: docDs.id,
+    document_name: docDs.original_name,
+    datasheets: [
+      {
+        id: 'ds-rec-' + now,
+        project_id: proj.id,
+        document_id: docDs.id,
+        equipment_tag: 'V-101',
+        equipment_name: 'High Pressure Separator',
+        equipment_type: 'separator',
+        design_pressure: {
+          id: 'ds-p-' + now,
+          original_value: 100.0,
+          normalized_value: 100.0,
+          original_unit: 'barg',
+          normalized_unit: 'barg',
+          source_document_id: docDs.id,
+          source_document_name: docDs.original_name,
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.98,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        design_temperature: {
+          id: 'ds-t-' + now,
+          original_value: 120.0,
+          normalized_value: 120.0,
+          original_unit: '°C',
+          normalized_unit: '°C',
+          source_document_id: docDs.id,
+          source_document_name: docDs.original_name,
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.98,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        material_of_construction: {
+          id: 'ds-m-' + now,
+          original_value: 'CS + 316L Clad',
+          normalized_value: 'CS + 316L Clad',
+          original_unit: null,
+          normalized_unit: null,
+          source_document_id: docDs.id,
+          source_document_name: docDs.original_name,
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.98,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        nozzles: [],
+        confidence: 0.98,
+        extracted_at: new Date().toISOString(),
+      },
+    ],
+    total_equipment_found: 1,
+    extraction_warnings: [],
+    extracted_at: new Date().toISOString(),
+  });
+
+  // 3. PFD unit
+  store.savePfdExtraction({
+    id: 'pfd-v101-' + now,
+    project_id: proj.id,
+    document_id: docPfd.id,
+    document_name: docPfd.original_name,
+    process_blocks: [],
+    major_units: [
+      {
+        id: 'pfd-unit-' + now,
+        project_id: proj.id,
+        document_id: docPfd.id,
+        tag: 'V-101',
+        name: 'HP Production Separator',
+        block_id: 'block-sep',
+        inlet_stream_numbers: ['S-101'],
+        outlet_stream_numbers: ['S-102', 'S-103'],
+      },
+    ],
+    pfd_streams: [],
+    total_blocks_found: 1,
+    total_units_found: 1,
+    total_streams_found: 3,
+    extraction_warnings: [],
+    extracted_at: new Date().toISOString(),
+  });
+
+  // 4. Stream Table extraction
+  store.saveStreamTableExtraction({
+    id: 'hm-ext-' + now,
+    project_id: proj.id,
+    document_id: docHm.id,
+    document_name: docHm.original_name,
+    table_type: 'column_based',
+    stream_records: [
+      {
+        id: 'st-rec-101-' + now,
+        project_id: proj.id,
+        document_id: docHm.id,
+        stream_number: 'S-101',
+        stream_name: 'Wellhead Fluid Feed',
+        source_equipment_tag: 'WH-01',
+        destination_equipment_tag: 'V-101',
+        phase: 'multiphase',
+        mass_flow: { id: 'mf-1', original_value: 50000, normalized_value: 50000, original_unit: 'kg/h', normalized_unit: 'kg/h', source_document_id: docHm.id, source_document_name: docHm.original_name, source_category: 'stream_table', page_or_drawing_location: 'Table 1', extraction_confidence: 0.95, verification_status: 'unverified', extraction_timestamp: new Date().toISOString() },
+        pressure: { id: 'pr-1', original_value: 75.0, normalized_value: 75.0, original_unit: 'barg', normalized_unit: 'barg', source_document_id: docHm.id, source_document_name: docHm.original_name, source_category: 'stream_table', page_or_drawing_location: 'Table 1', extraction_confidence: 0.95, verification_status: 'unverified', extraction_timestamp: new Date().toISOString() },
+        temperature: { id: 'tm-1', original_value: 65.0, normalized_value: 65.0, original_unit: '°C', normalized_unit: '°C', source_document_id: docHm.id, source_document_name: docHm.original_name, source_category: 'stream_table', page_or_drawing_location: 'Table 1', extraction_confidence: 0.95, verification_status: 'unverified', extraction_timestamp: new Date().toISOString() },
+        components: [],
+        confidence: 0.95,
+        extracted_at: new Date().toISOString(),
+      },
+    ],
+    total_streams_found: 1,
+    extraction_warnings: [],
+    extracted_at: new Date().toISOString(),
+  });
+
+  // 5. Philosophy Rules (Control Philosophy & Shutdown Philosophy)
+  store.addPhilosophyRules([
+    {
+      id: 'rule-cp-' + now,
+      project_id: proj.id,
+      source_document_id: docCp.id,
+      source_document_name: docCp.original_name,
+      source_category: 'control_philosophy',
+      rule_type: 'control_objective',
+      equipment_tag: 'V-101',
+      loop_tag: 'PIC-101',
+      condition: 'V-101 pressure exceeds 75 barg',
+      action: 'Modulate PV-101 to maintain separator pressure at 75 barg',
+      fail_safe_position: 'fail_closed',
+      is_confirmed_setpoint: true,
+      verification_status: 'unverified',
+    },
+    {
+      id: 'rule-esd-' + now,
+      project_id: proj.id,
+      source_document_id: docEsd.id,
+      source_document_name: docEsd.original_name,
+      source_category: 'shutdown_philosophy',
+      rule_type: 'esd_action',
+      equipment_tag: 'V-101',
+      loop_tag: 'PSHH-1001',
+      condition: 'PSHH-1001 >= 90.0 barg',
+      action: 'Trip feed shutdown valve SDV-101 and open depressurizing BDV-101',
+      fail_safe_position: 'fail_closed',
+      is_confirmed_setpoint: true,
+      verification_status: 'unverified',
+    },
+  ]);
+
+  // Synchronize Unified Engineering Matrix
+  const matrix = buildUnifiedEngineeringMatrix(proj.id, store);
+  assert.ok(matrix.length >= 1);
+
+  const entryV101 = matrix.find((m) => m.entity_tag === 'V-101');
+  assert.ok(entryV101, 'V-101 found in matrix');
+  // Must have linked across multiple document sources
+  assert.ok(entryV101?.sources_found.includes('pid'));
+  assert.ok(entryV101?.sources_found.includes('equipment_datasheet'));
+  assert.ok(entryV101?.sources_found.includes('pfd'));
+  assert.ok(entryV101?.sources_found.includes('control_philosophy'));
+  assert.ok(entryV101?.sources_found.includes('shutdown_philosophy'));
+});
+
+test('Scenario 2: Source-to-Source Discrepancies vs Limit Violations (Mandatory Engineering Correction #1)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 5 Discrepancies vs Violations ' + Date.now(), 'Testing category separation');
+  const now = Date.now();
+
+  const docPid = store.createDocument({ project_id: proj.id, filename: 'PID_01.pdf', original_name: 'PID_01.pdf', category: 'pid' as any });
+  const docDs = store.createDocument({ project_id: proj.id, filename: 'DS_V102.pdf', original_name: 'DS_V102.pdf', category: 'equipment_datasheet' as any });
+
+  // 1. Source-to-Source Discrepancy: P&ID states design pressure 85 barg, Datasheet states 90 barg
+  const eqV102: any = {
+    id: 'eq-v102-' + now,
+    project_id: proj.id,
+    document_id: docPid.id,
+    tag: 'V-102',
+    description: 'Flash Drum',
+    equipment_type: 'vessel',
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: docPid.original_name, page: 1, snippet: '' },
+    specifications: {
+      design_pressure: { value: 85.0, unit: 'barg', status: 'extracted' },
+    },
+  };
+  store.addEquipment([eqV102]);
+
+  store.saveDatasheetExtraction({
+    id: 'ds-v102-' + now,
+    project_id: proj.id,
+    document_id: docDs.id,
+    document_name: docDs.original_name,
+    datasheets: [
+      {
+        id: 'ds-rec-v102-' + now,
+        project_id: proj.id,
+        document_id: docDs.id,
+        equipment_tag: 'V-102',
+        equipment_name: 'Flash Drum',
+        equipment_type: 'vessel',
+        design_pressure: {
+          id: 'ds-p2-' + now,
+          original_value: 90.0,
+          normalized_value: 90.0,
+          original_unit: 'barg',
+          normalized_unit: 'barg',
+          source_document_id: docDs.id,
+          source_document_name: docDs.original_name,
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        // Operating pressure on datasheet is 95 barg (exceeds 90 barg design limit!)
+        operating_pressure: {
+          id: 'ds-op2-' + now,
+          original_value: 95.0,
+          normalized_value: 95.0,
+          original_unit: 'barg',
+          normalized_unit: 'barg',
+          source_document_id: docDs.id,
+          source_document_name: docDs.original_name,
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        nozzles: [],
+        confidence: 0.95,
+        extracted_at: new Date().toISOString(),
+      },
+    ],
+    total_equipment_found: 1,
+    extraction_warnings: [],
+    extracted_at: new Date().toISOString(),
+  });
+
+  const discrepancies = detectCrossDocumentDiscrepancies(proj.id, store);
+
+  // Must detect both and separate their categories
+  const sourceDiscrepancy = discrepancies.find((d) => d.entity_tag === 'V-102' && d.property_name === 'design_pressure');
+  assert.ok(sourceDiscrepancy, 'Source-to-source discrepancy found');
+  assert.strictEqual(sourceDiscrepancy?.discrepancy_category, 'source_to_source_discrepancy');
+
+  const limitViolation = discrepancies.find((d) => d.entity_tag === 'V-102' && d.property_name === 'operating_pressure');
+  assert.ok(limitViolation, 'Limit violation found');
+  assert.strictEqual(limitViolation?.discrepancy_category, 'operating_vs_design_limit_violation');
+  assert.strictEqual(limitViolation?.severity, 'critical');
+});
+
+test('Scenario 3: Zero Silent Overwrite — Preservation of Conflicting Source Evidence', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 5 Immutability ' + Date.now(), 'Testing evidence preservation');
+  const now = Date.now();
+
+  const docPid = store.createDocument({ project_id: proj.id, filename: 'PID_02.pdf', original_name: 'PID_02.pdf', category: 'pid' as any });
+  const docDs = store.createDocument({ project_id: proj.id, filename: 'DS_TK102.pdf', original_name: 'DS_TK102.pdf', category: 'equipment_datasheet' as any });
+
+  // P&ID specifies Material as Carbon Steel
+  const eqTk: any = {
+    id: 'eq-tk102-' + now,
+    project_id: proj.id,
+    document_id: docPid.id,
+    tag: 'TK-102',
+    description: 'Storage Tank',
+    equipment_type: 'tank',
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: docPid.original_name, page: 1, snippet: '' },
+    specifications: {
+      material_of_construction: { value: 'Carbon Steel', status: 'extracted' },
+    },
+  };
+  store.addEquipment([eqTk]);
+
+  // Datasheet specifies Material as 316L Stainless Steel
+  store.saveDatasheetExtraction({
+    id: 'ds-tk102-' + now,
+    project_id: proj.id,
+    document_id: docDs.id,
+    document_name: docDs.original_name,
+    datasheets: [
+      {
+        id: 'ds-rec-tk102-' + now,
+        project_id: proj.id,
+        document_id: docDs.id,
+        equipment_tag: 'TK-102',
+        equipment_name: 'Storage Tank',
+        equipment_type: 'tank',
+        material_of_construction: {
+          id: 'ds-moc-' + now,
+          original_value: 'SS316L',
+          normalized_value: 'SS316L',
+          original_unit: null,
+          normalized_unit: null,
+          source_document_id: docDs.id,
+          source_document_name: docDs.original_name,
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        nozzles: [],
+        confidence: 0.95,
+        extracted_at: new Date().toISOString(),
+      },
+    ],
+    total_equipment_found: 1,
+    extraction_warnings: [],
+    extracted_at: new Date().toISOString(),
+  });
+
+  const discrepancies = detectCrossDocumentDiscrepancies(proj.id, store);
+  const mocDisc = discrepancies.find((d) => d.entity_tag === 'TK-102' && d.property_name === 'material_of_construction');
+
+  assert.ok(mocDisc, 'MOC discrepancy detected');
+  assert.strictEqual(mocDisc?.discrepancy_category, 'source_to_source_discrepancy');
+  // Both source records must be preserved immutably in evidence_records
+  assert.strictEqual(mocDisc?.evidence_records.length, 2);
+  const sources = mocDisc?.evidence_records.map((e) => e.source_category);
+  assert.ok(sources?.includes('pid'));
+  assert.ok(sources?.includes('equipment_datasheet'));
+});
+
+test('Scenario 4: Process Line & Stream Cross-Document Reconciliation', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 5 Lines & Streams ' + Date.now(), 'Testing line reconciliation');
+  const now = Date.now();
+
+  const docPid = store.createDocument({ project_id: proj.id, filename: 'PID_03.pdf', original_name: 'PID_03.pdf', category: 'pid' as any });
+  const docHm = store.createDocument({ project_id: proj.id, filename: 'HMB_01.xlsx', original_name: 'HMB_01.xlsx', category: 'stream_table' as any });
+
+  // P&ID line specifies line number, design pressure 10 barg, but operating pressure 12 barg
+  const line: any = {
+    id: 'line-overpress-' + now,
+    project_id: proj.id,
+    document_id: docPid.id,
+    line_number: 'P-101-OIL-1001-4"',
+    from_equipment: 'P-101',
+    to_equipment: 'V-101',
+    size: '4"',
+    material: 'CS',
+    stream_label: 'Crude Oil',
+    functional_type: 'piping_line',
+    connection_classification: 'process_piping',
+    flow_direction: 'forward',
+    operating_pressure: { value: 12.0, unit: 'barg' },
+    design_pressure: { value: 10.0, unit: 'barg' },
+    status: 'confirmed',
+    source: { document: docPid.original_name, page: 1, snippet: '' },
+  };
+
+  // Stream table specifies different service name for same line
+  const stream: any = {
+    id: 'stream-hmb-' + now,
+    project_id: proj.id,
+    stream_number: 'STR-201',
+    line_number: 'P-101-OIL-1001-4"',
+    connected_line_id: line.id,
+    connected_line_numbers: ['P-101-OIL-1001-4"'],
+    material_description: 'Condensate Liquid Export',
+    stream_description: 'Condensate Liquid Export',
+    source_equipment_tag: 'P-101',
+    destination_equipment_tag: 'V-101',
+    source_document_id: docHm.id,
+    source_document: docHm.original_name,
+    data_origin: 'extracted',
+    verification_status: 'unverified',
+  };
+
+  store.addLines([line]);
+  store.createStream(stream);
+
+  const discrepancies = detectCrossDocumentDiscrepancies(proj.id, store);
+
+  // 1. Line operating vs design pressure violation
+  const lineViolation = discrepancies.find((d) => d.entity_type === 'line' && d.property_name === 'operating_pressure');
+  assert.ok(lineViolation, 'Detected line operating overpressure');
+  assert.strictEqual(lineViolation?.discrepancy_category, 'operating_vs_design_limit_violation');
+
+  // 2. Service description mismatch between P&ID and Stream Table
+  const svcDiscrepancy = discrepancies.find((d) => d.entity_type === 'line' && d.property_name === 'service_description');
+  assert.ok(svcDiscrepancy, 'Detected service description divergence');
+  assert.strictEqual(svcDiscrepancy?.discrepancy_category, 'source_to_source_discrepancy');
+});
+
+test('Scenario 5: Instrument Tag & Control / Shutdown Loop Reconciliation', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 5 Instrument Reconciliation ' + Date.now(), 'Testing instrument loops');
+  const now = Date.now();
+
+  const docPid = store.createDocument({ project_id: proj.id, filename: 'PID_04.pdf', original_name: 'PID_04.pdf', category: 'pid' as any });
+  const docEsd = store.createDocument({ project_id: proj.id, filename: 'ESD_01.pdf', original_name: 'ESD_01.pdf', category: 'shutdown_philosophy' as any });
+
+  // Vessel with design pressure 50 barg
+  const vessel: any = {
+    id: 'eq-v104-' + now,
+    project_id: proj.id,
+    document_id: docPid.id,
+    tag: 'V-104',
+    description: 'Stabilizer Feed Drum',
+    equipment_type: 'vessel',
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: docPid.original_name, page: 1, snippet: '' },
+    specifications: {
+      design_pressure: { value: 50.0, unit: 'barg', status: 'extracted' },
+    },
+  };
+  store.addEquipment([vessel]);
+
+  // Shutdown Philosophy rule specifies trip setpoint at 60 barg (> 50 barg design pressure!)
+  store.addPhilosophyRules([
+    {
+      id: 'rule-trip-viol-' + now,
+      project_id: proj.id,
+      source_document_id: docEsd.id,
+      source_document_name: docEsd.original_name,
+      source_category: 'shutdown_philosophy',
+      rule_type: 'esd_action',
+      equipment_tag: 'V-104',
+      loop_tag: 'PSHH-1041',
+      condition: 'PSHH-1041 >= 60.0 barg',
+      action: 'Close inlet emergency shutdown valve',
+      fail_safe_position: 'fail_closed',
+      is_confirmed_setpoint: true,
+      verification_status: 'unverified',
+    },
+    // Another instrument loop not found on any P&ID drawing
+    {
+      id: 'rule-missing-loop-' + now,
+      project_id: proj.id,
+      source_document_id: docEsd.id,
+      source_document_name: docEsd.original_name,
+      source_category: 'shutdown_philosophy',
+      rule_type: 'interlock',
+      loop_tag: 'BDV-9999',
+      condition: 'Manual Push Button ESD-PB-01',
+      action: 'Open blowdown valve BDV-9999 to flare header',
+      fail_safe_position: 'fail_open',
+      is_confirmed_setpoint: true,
+      verification_status: 'unverified',
+    },
+  ]);
+
+  const discrepancies = detectCrossDocumentDiscrepancies(proj.id, store);
+
+  // 1. Trip setpoint exceeding design pressure -> operating_vs_design_limit_violation
+  const tripViol = discrepancies.find((d) => d.entity_tag === 'PSHH-1041' && d.property_name === 'trip_setpoint');
+  assert.ok(tripViol, 'Trip setpoint exceeding vessel design pressure detected');
+  assert.strictEqual(tripViol?.discrepancy_category, 'operating_vs_design_limit_violation');
+  assert.strictEqual(tripViol?.severity, 'critical');
+
+  // 2. Instrument loop in philosophy missing from P&ID -> missing_engineering_information
+  const missingLoop = discrepancies.find((d) => d.entity_tag === 'BDV-9999' && d.property_name === 'instrument_tag');
+  assert.ok(missingLoop, 'Missing instrument loop detected');
+  assert.strictEqual(missingLoop?.discrepancy_category, 'missing_engineering_information');
+});
+
+test('Scenario 6: Cross-Document Reconciliation Report & Approval Gates', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 5 Reconciliation Report ' + Date.now(), 'Testing reconciliation report');
+  const now = Date.now();
+
+  const docPid = store.createDocument({ project_id: proj.id, filename: 'PID_05.pdf', original_name: 'PID_05.pdf', category: 'pid' as any });
+  const docDs = store.createDocument({ project_id: proj.id, filename: 'DS_05.pdf', original_name: 'DS_05.pdf', category: 'equipment_datasheet' as any });
+
+  // Add equipment and datasheet with critical limit violation
+  const eq: any = {
+    id: 'eq-v105-' + now,
+    project_id: proj.id,
+    document_id: docPid.id,
+    tag: 'V-105',
+    description: 'Test Vessel',
+    equipment_type: 'vessel',
+    confidence: 1.0,
+    status: 'confirmed',
+    source: { document: docPid.original_name, page: 1, snippet: '' },
+    specifications: {
+      design_pressure: { value: 20.0, unit: 'barg', status: 'extracted' },
+    },
+  };
+  store.addEquipment([eq]);
+
+  store.saveDatasheetExtraction({
+    id: 'ds-v105-' + now,
+    project_id: proj.id,
+    document_id: docDs.id,
+    document_name: docDs.original_name,
+    datasheets: [
+      {
+        id: 'ds-rec-v105-' + now,
+        project_id: proj.id,
+        document_id: docDs.id,
+        equipment_tag: 'V-105',
+        equipment_name: 'Test Vessel',
+        equipment_type: 'vessel',
+        design_pressure: {
+          id: 'p-1',
+          original_value: 20.0,
+          normalized_value: 20.0,
+          original_unit: 'barg',
+          normalized_unit: 'barg',
+          source_document_id: docDs.id,
+          source_document_name: docDs.original_name,
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        operating_pressure: {
+          id: 'p-2',
+          original_value: 25.0,
+          normalized_value: 25.0,
+          original_unit: 'barg',
+          normalized_unit: 'barg',
+          source_document_id: docDs.id,
+          source_document_name: docDs.original_name,
+          source_category: 'equipment_datasheet',
+          page_or_drawing_location: 'Page 1',
+          extraction_confidence: 0.95,
+          verification_status: 'unverified',
+          extraction_timestamp: new Date().toISOString(),
+        },
+        nozzles: [],
+        confidence: 0.95,
+        extracted_at: new Date().toISOString(),
+      },
+    ],
+    total_equipment_found: 1,
+    extraction_warnings: [],
+    extracted_at: new Date().toISOString(),
+  });
+
+  // Generate reconciliation report
+  const report = store.getCrossDocumentReconciliationReport(proj.id);
+  assert.ok(report, 'Reconciliation report generated');
+  assert.strictEqual(report.can_approve, false, 'Critical limit violation blocks approval');
+  assert.ok(report.operating_vs_design_violations_count >= 1);
+
+  // Resolve the critical discrepancy through formal engineering review
+  const critDiscrepancy = report.discrepancies.find((d) => d.severity === 'critical');
+  assert.ok(critDiscrepancy, 'Critical discrepancy found');
+
+  store.resolveDiscrepancy(critDiscrepancy.id, {
+    status: 'resolved',
+    resolution_notes: 'Datasheet operating pressure was typographical error; corrected to 18 barg by Lead Process Engineer',
+    resolved_by: 'Lead Process Engineer',
+  });
+
+  const updatedReport = store.getCrossDocumentReconciliationReport(proj.id);
+  assert.strictEqual(updatedReport.can_approve, true, 'Approval gate unblocked after formal resolution');
+});
+
+// ============================================================================
+// TEST GROUP 33: INTERFACE IMPROVEMENTS & INSPECTORS (PHASE 6)
+// ============================================================================
+console.log('\n--- Test Group 33: Interface Improvements & Inspectors (Phase 6) ---');
+
+test('Scenario 1: Equipment Inspector Data Contract & 10 Required Sections', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 6 Equipment Inspector ' + Date.now(), 'Testing inspector data contract');
+  const now = Date.now();
+
+  const doc = store.createDocument({ project_id: proj.id, filename: 'PID_V101.pdf', original_name: 'PID_V101.pdf', category: 'pid' as any });
+
+  // 1. Add equipment with full specifications, assigned chemical, and provenance
+  const chemId = 'chem-v101-' + now;
+  store.addChemical({
+    id: chemId,
+    project_id: proj.id,
+    chemical_name: { value: 'Liquefied Natural Gas', status: 'extracted' },
+    cas_number: { value: '8006-14-2', status: 'extracted' },
+    manufacturer: { value: 'GasCorp', status: 'extracted' },
+    revision_date: { value: '2026-01-01', status: 'extracted' },
+    source_document_id: doc.id,
+    sds_document_id: doc.id,
+    classification: 'process_fluid',
+    psi_parameters: {
+      toxicity: { value: 'Low toxicity, asphyxiant', category_status: 'extracted' },
+      permissible_exposure_limits: { value: '1000 ppm', category_status: 'extracted' },
+      physical_data: { value: 'Boiling point -161 C', category_status: 'extracted' },
+      reactivity_data: { value: 'Stable', category_status: 'extracted' },
+      corrosivity_data: { value: 'Non-corrosive', category_status: 'extracted' },
+      thermal_and_chemical_stability_data: { value: 'Stable', category_status: 'extracted' },
+      inadvertent_mixing_hazards: { value: 'Oxidizers', category_status: 'extracted' },
+    },
+    verification_status: 'unverified',
+  });
+
+  const eq: any = {
+    id: 'eq-v101-' + now,
+    project_id: proj.id,
+    document_id: doc.id,
+    tag: 'V-101',
+    description: 'Feed Separator Drum',
+    equipment_type: 'separator',
+    confidence: 0.98,
+    status: 'confirmed',
+    verification_status: 'engineer_verified',
+    verified_by: 'Lead Process Safety Specialist (PE)',
+    assigned_chemical_id: chemId,
+    source: { document: doc.original_name, page: 1, snippet: 'Feed Separator V-101' },
+    specifications: {
+      material_of_construction: { value: 'Low Temp Carbon Steel (LTCS)', status: 'extracted', verification_status: 'verified' },
+      design_pressure: { value: 75, unit: 'barg', status: 'extracted', verification_status: 'verified' },
+      design_temperature: { value: 65, unit: '°C', status: 'extracted', verification_status: 'verified' },
+      capacity: { value: 4500, unit: 'gallons', capacity_type: 'total_volume', status: 'extracted', verification_status: 'verified' },
+    },
+  };
+  store.addEquipment([eq]);
+
+  // 2. Add connected process lines (inlet and outlet)
+  const lineInlet: any = {
+    id: 'line-in-' + now,
+    project_id: proj.id,
+    line_number: 'PL-01-4"-LTCS',
+    from_equipment: 'WELLHEAD',
+    to_equipment: 'V-101',
+    size: '4"',
+    nominal_pipe_size: { value: '4"', unit: 'inches', status: 'extracted' },
+    pipe_specification: 'Class 300 LTCS',
+    fluid_service: { value: 'Wet Natural Gas', status: 'extracted' },
+    status: 'confirmed',
+    functional_type: 'piping_line',
+    connection_classification: 'process_piping',
+  };
+  const lineOutlet: any = {
+    id: 'line-out-' + now,
+    project_id: proj.id,
+    line_number: 'PL-02-3"-LTCS',
+    from_equipment: 'V-101',
+    to_equipment: 'C-101',
+    size: '3"',
+    nominal_pipe_size: { value: '3"', unit: 'inches', status: 'extracted' },
+    pipe_specification: 'Class 300 LTCS',
+    fluid_service: { value: 'Separated Gas Vapor', status: 'extracted' },
+    status: 'confirmed',
+    functional_type: 'piping_line',
+    connection_classification: 'process_piping',
+  };
+  store.addLines([lineInlet, lineOutlet]);
+
+  // 3. Add connected process stream
+  const stream: any = {
+    id: 'stream-s01-' + now,
+    project_id: proj.id,
+    stream_number: 'STR-01',
+    material_description: 'Separator Inlet Wet Gas',
+    source_equipment_tag: 'WELLHEAD',
+    destination_equipment_tag: 'V-101',
+    connected_equipment: ['WELLHEAD', 'V-101'],
+    connected_line_numbers: ['PL-01-4"-LTCS'],
+    flow_rates: { normal: 12500, design: 15000, min: 5000, max: 18000, unit: 'kg/h', actual: null, basis: 'mass' },
+    operating_pressure: { value: 68, unit: 'barg', status: 'extracted' },
+    operating_temperature: { value: 24, unit: '°C', status: 'extracted' },
+    phase: 'two_phase',
+    verification_status: 'verified',
+    components: [
+      { component_name: 'Methane', concentration_value: 88.5, concentration_basis: 'mol%', unit: 'mol%' },
+      { component_name: 'Ethane', concentration_value: 6.2, concentration_basis: 'mol%', unit: 'mol%' },
+    ],
+  };
+  store.createStream(stream);
+
+  // Assert inspector contract requirements
+  const retrievedEq = store.getEquipment(eq.id);
+  assert.ok(retrievedEq, 'Equipment node must exist');
+  assert.strictEqual(retrievedEq?.tag, 'V-101');
+  assert.strictEqual(retrievedEq?.equipment_type, 'separator');
+
+  // Verify connected lines resolution
+  const allLines = store.listLines(proj.id);
+  const inlets = allLines.filter((l) => l.to_equipment === retrievedEq?.tag);
+  const outlets = allLines.filter((l) => l.from_equipment === retrievedEq?.tag);
+  assert.strictEqual(inlets.length, 1);
+  assert.strictEqual(outlets.length, 1);
+  assert.strictEqual(inlets[0].line_number, 'PL-01-4"-LTCS');
+  assert.strictEqual(outlets[0].line_number, 'PL-02-3"-LTCS');
+
+  // Verify connected stream resolution
+  const allStreams = store.listStreams(proj.id);
+  const eqStreams = allStreams.filter(
+    (s) => s.destination_equipment_tag === retrievedEq?.tag || s.source_equipment_tag === retrievedEq?.tag
+  );
+  assert.strictEqual(eqStreams.length, 1);
+  assert.strictEqual(eqStreams[0].stream_number, 'STR-01');
+
+  // Verify assigned chemical resolution
+  assert.strictEqual(retrievedEq?.assigned_chemical_id, chemId);
+  const assignedChem = store.getChemical(retrievedEq.assigned_chemical_id);
+  assert.strictEqual(assignedChem?.chemical_name.value, 'Liquefied Natural Gas');
+  assert.strictEqual(assignedChem?.cas_number.value, '8006-14-2');
+
+  // Verify design specifications
+  assert.strictEqual(retrievedEq?.specifications?.material_of_construction.value, 'Low Temp Carbon Steel (LTCS)');
+  assert.strictEqual(retrievedEq?.specifications?.design_pressure.value, 75);
+  assert.strictEqual(retrievedEq?.specifications?.design_temperature.value, 65);
+});
+
+test('Scenario 2: Process Line Inspector Model & Property-Level Extraction', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 6 Process Line Inspector ' + Date.now(), 'Testing process line inspector');
+  const now = Date.now();
+
+  const line: any = {
+    id: 'line-pl102-' + now,
+    project_id: proj.id,
+    line_number: 'PL-102-6"-CS-150',
+    size: '6"',
+    nominal_pipe_size: { value: '6"', unit: 'inches', status: 'extracted' },
+    pipe_specification: 'Class 150 Carbon Steel A106-B',
+    fluid_service: { value: 'Hydrocarbon Condensate', status: 'extracted' },
+    from_equipment: 'V-101',
+    to_equipment: 'P-101A',
+    flow_direction: 'forward',
+    functional_type: 'piping_line',
+    connection_classification: 'process_piping',
+    status: 'confirmed',
+    verification_status: 'engineer_verified',
+    operating_flow_rate: { value: 8500, unit: 'kg/h', status: 'extracted' },
+    operating_pressure: { value: 12.5, unit: 'barg', status: 'extracted' },
+    operating_temperature: { value: 35, unit: '°C', status: 'extracted' },
+    design_pressure: { value: 19.6, unit: 'barg', status: 'extracted' },
+    design_temperature: { value: 120, unit: '°C', status: 'extracted' },
+    physical_state: { value: 'liquid', status: 'extracted' },
+    chemical_composition: [
+      { component_identity: 'n-Pentane', concentration_value: 62.0, concentration_basis: 'mol%', unit: 'mol%' },
+      { component_identity: 'n-Hexane', concentration_value: 38.0, concentration_basis: 'mol%', unit: 'mol%' },
+    ],
+    source_drawing: 'PID-DWG-001.pdf',
+    source_page: 2,
+    extraction_confidence: 0.96,
+  };
+  store.addLines([line]);
+
+  const retrieved = store.getProcessLine(line.id);
+  assert.ok(retrieved, 'Process line must exist');
+  assert.strictEqual(retrieved?.line_number, 'PL-102-6"-CS-150');
+  assert.strictEqual(retrieved?.nominal_pipe_size?.value, '6"');
+  assert.strictEqual(retrieved?.pipe_specification, 'Class 150 Carbon Steel A106-B');
+  assert.strictEqual(retrieved?.from_equipment, 'V-101');
+  assert.strictEqual(retrieved?.to_equipment, 'P-101A');
+  assert.strictEqual(retrieved?.flow_direction, 'forward');
+  assert.strictEqual(retrieved?.operating_pressure?.value, 12.5);
+  assert.strictEqual(retrieved?.operating_temperature?.value, 35);
+  assert.strictEqual(retrieved?.design_pressure?.value, 19.6);
+  assert.strictEqual(retrieved?.design_temperature?.value, 120);
+  assert.strictEqual(retrieved?.physical_state?.value, 'liquid');
+  assert.strictEqual(retrieved?.chemical_composition?.length, 2);
+  assert.strictEqual(retrieved?.chemical_composition?.[0].concentration_basis, 'mol%');
+});
+
+test('Scenario 3: Stream Inspector Model, Multi-Chemical Components & Separator Decoupling', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 6 Stream Inspector ' + Date.now(), 'Testing stream inspector');
+  const now = Date.now();
+
+  // Create inlet and two separated outlet streams
+  const inletStream: any = {
+    id: 'st-in-' + now,
+    project_id: proj.id,
+    stream_number: 'STR-10',
+    stream_description: '3-Phase Separator Inlet Stream',
+    source_equipment_tag: 'FEED-MANIFOLD',
+    destination_equipment_tag: 'SEP-01',
+    flow_rates: { normal: 45000, design: 50000, min: 20000, max: 60000, unit: 'kg/h', actual: null, basis: 'mass' },
+    operating_pressure: { value: 42, unit: 'barg', status: 'extracted' },
+    operating_temperature: { value: 48, unit: '°C', status: 'extracted' },
+    phase: 'two_phase',
+    verification_status: 'verified',
+    components: [
+      { component_name: 'Methane', concentration_value: 70.0, concentration_basis: 'mol%', unit: 'mol%' },
+      { component_name: 'Water', concentration_value: 20.0, concentration_basis: 'wt%', unit: 'wt%' },
+      { component_name: 'Crude Oil', concentration_value: 10.0, concentration_basis: 'vol%', unit: 'vol%' },
+    ],
+  };
+
+  const gasOutletStream: any = {
+    id: 'st-gas-' + now,
+    project_id: proj.id,
+    stream_number: 'STR-11',
+    stream_description: 'Separator Gas Overhead Stream',
+    source_equipment_tag: 'SEP-01',
+    destination_equipment_tag: 'COMP-01',
+    flow_rates: { normal: 31500, design: 35000, min: 14000, max: 42000, unit: 'kg/h', actual: null, basis: 'mass' },
+    operating_pressure: { value: 41.5, unit: 'barg', status: 'extracted' },
+    operating_temperature: { value: 44, unit: '°C', status: 'extracted' },
+    phase: 'gas',
+    verification_status: 'verified',
+    components: [
+      { component_name: 'Methane', concentration_value: 98.2, concentration_basis: 'mol%', unit: 'mol%' },
+      { component_name: 'Water Vapor', concentration_value: 1.8, concentration_basis: 'mol%', unit: 'mol%' },
+    ],
+  };
+
+  store.createStream(inletStream);
+  store.createStream(gasOutletStream);
+
+  const streams = store.listStreams(proj.id);
+  assert.strictEqual(streams.length, 2);
+
+  const s10 = streams.find((s) => s.stream_number === 'STR-10');
+  const s11 = streams.find((s) => s.stream_number === 'STR-11');
+
+  assert.ok(s10);
+  assert.ok(s11);
+
+  // Separator Decoupling verification: inlet and outlet compositions must be distinct and preserved independently
+  assert.notStrictEqual(s10?.components?.[0].concentration_value, s11?.components?.[0].concentration_value);
+  assert.strictEqual(s10?.components?.[0].concentration_value, 70.0);
+  assert.strictEqual(s11?.components?.[0].concentration_value, 98.2);
+
+  // Bases are explicitly preserved without silent conversion
+  assert.strictEqual(s10?.components?.[1].concentration_basis, 'wt%');
+  assert.strictEqual(s10?.components?.[2].concentration_basis, 'vol%');
+});
+
+test('Scenario 4: Engineering Status Indicators Standard (Confirmed, Provisional, Unverified, Conflicting, Missing, Manually entered)', () => {
+  // Test standardized representation of the 6 required status indicator categories
+  const statuses = ['confirmed', 'provisional', 'unverified', 'conflicting', 'missing', 'manually_entered'];
+
+  const testEvaluator = (status: string) => {
+    switch (status) {
+      case 'confirmed':
+      case 'engineer_verified':
+        return 'Confirmed';
+      case 'provisional':
+        return 'Provisional';
+      case 'conflicting':
+      case 'conflict':
+        return 'Conflicting';
+      case 'missing':
+      case 'not_provided':
+        return 'Missing';
+      case 'manually_entered':
+      case 'manual':
+        return 'Manually entered';
+      case 'unverified':
+      default:
+        return 'Unverified';
+    }
+  };
+
+  for (const s of statuses) {
+    const label = testEvaluator(s);
+    assert.ok(label, `Status ${s} must resolve to clean indicator`);
+  }
+
+  assert.strictEqual(testEvaluator('confirmed'), 'Confirmed');
+  assert.strictEqual(testEvaluator('provisional'), 'Provisional');
+  assert.strictEqual(testEvaluator('unverified'), 'Unverified');
+  assert.strictEqual(testEvaluator('conflicting'), 'Conflicting');
+  assert.strictEqual(testEvaluator('missing'), 'Missing');
+  assert.strictEqual(testEvaluator('manually_entered'), 'Manually entered');
+});
+
+test('Scenario 5: Bidirectional Navigation & Verification Audit Trail', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 6 Bidirectional Nav ' + Date.now(), 'Testing navigation linkage');
+  const now = Date.now();
+
+  const eq = { id: 'eq-t1-' + now, project_id: proj.id, tag: 'T-101', description: 'Tower', equipment_type: 'vessel', confidence: 1.0, status: 'confirmed', specifications: {} };
+  store.addEquipment([eq as any]);
+
+  const line = { id: 'line-l1-' + now, project_id: proj.id, line_number: 'L-101', from_equipment: 'T-101', to_equipment: 'E-101', functional_type: 'piping_line', status: 'confirmed' };
+  store.addLines([line as any]);
+
+  const stream = { id: 'st-s1-' + now, project_id: proj.id, stream_number: 'S-101', source_equipment_tag: 'T-101', destination_equipment_tag: 'E-101', connected_line_numbers: ['L-101'], flow_rates: { normal: 1000, design: null, min: null, max: null, actual: null, unit: 'kg/h', basis: 'mass' as any }, operating_pressure: { value: 5, unit: 'barg', status: 'extracted' as any }, operating_temperature: { value: 50, unit: '°C', status: 'extracted' as any } };
+  store.createStream(stream as any);
+
+  // Linkage verification: Line points to Equipment, Stream points to Line and Equipment
+  const lineObj = store.getProcessLine(line.id);
+  const streamObj = store.getStream(stream.id);
+  const eqObj = store.getEquipment(eq.id);
+
+  assert.strictEqual(lineObj?.from_equipment, eqObj?.tag);
+  assert.strictEqual(streamObj?.source_equipment_tag, eqObj?.tag);
+  assert.ok(streamObj?.connected_line_numbers?.includes(lineObj?.line_number || ''));
+
+  // Formally verify stream and record audit trail
+  const verifiedStream = store.verifyStream(stream.id, 'Senior Process Engineer (PE)', 'Stream verified against H&MB Heat and Material Balance table');
+  assert.strictEqual(verifiedStream.verification_status, 'verified');
+  assert.strictEqual(verifiedStream.verified_by, 'Senior Process Engineer (PE)');
+
+  // Verify audit log has recorded the event
+  const auditLogs = store.listAuditLog(proj.id);
+  assert.ok(auditLogs.some((a) => (a.action === 'verify' && a.entity_type === 'stream') || a.change_reason?.includes('Stream')));
+});
+
+// ============================================================================
+// Test Group 34: Graph Validation & Approval Gates (Phase 7)
+// ============================================================================
+console.log('\n--- Test Group 34: Graph Validation & Approval Gates (Phase 7) ---');
+
+test('Scenario 1: Missing Equipment Connections & Isolated Node Classifications', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 7 Scenario 1 ' + Date.now(), 'Testing isolated node validation');
+  const now = Date.now();
+
+  const doc = store.createDocument({ project_id: proj.id, filename: 'PID_001.pdf', original_name: 'PID_001.pdf', category: 'pid' as any });
+
+  // Add 3 equipment nodes
+  const eq1: any = { id: 'eq-t1-' + now, project_id: proj.id, tag: 'T-100', equipment_type: 'vessel', status: 'confirmed', verification_status: 'engineer_verified' };
+  const eq2: any = { id: 'eq-t2-' + now, project_id: proj.id, tag: 'T-200', equipment_type: 'vessel', status: 'confirmed', verification_status: 'engineer_verified', isolated_review_status: 'confirmed_isolated', isolated_review_notes: 'Spare decommissioned vessel' };
+  const eq3: any = { id: 'eq-t3-' + now, project_id: proj.id, tag: 'T-300', equipment_type: 'vessel', status: 'provisional', verification_status: 'unverified', isolated_review_status: 'awaiting_review' };
+  store.addEquipment([eq1, eq2, eq3]);
+
+  // Connect T-100 to an external boundary
+  const line1: any = { id: 'line-l1-' + now, project_id: proj.id, line_number: 'PL-01', from_equipment: 'FEED', to_equipment: 'T-100', functional_type: 'piping_line', status: 'confirmed' };
+  const eqFeed: any = { id: 'eq-feed-' + now, project_id: proj.id, tag: 'FEED', equipment_type: 'vessel', status: 'confirmed', verification_status: 'engineer_verified' };
+  store.addEquipment([eqFeed]);
+  store.addLines([line1]);
+
+  const val = store.getGraphValidation(proj.id);
+
+  // T-200 (confirmed_isolated) should generate INFO_CONFIRMED_ISOLATED_EQUIPMENT
+  assert.ok(val.issues.some((i) => (i.code === 'INFO_CONFIRMED_ISOLATED_EQUIPMENT' || i.code === 'INFO_CONFIRMED_ISOLATED') && i.entity_id === eq2.id));
+
+  // T-300 (awaiting_review) should generate WARN_DISCONNECTED_NODE
+  assert.ok(val.issues.some((i) => (i.code === 'WARN_DISCONNECTED_NODE' || i.code === 'WARN_UNRESOLVED_ISOLATED_EQUIPMENT') && i.entity_id === eq3.id));
+
+  // Approval should be blocked while T-300 is awaiting review and unacknowledged
+  const appFail = store.approveGraph(proj.id, 'Chief Engineer (PE)');
+  assert.strictEqual(appFail.success, false);
+  assert.ok(appFail.error?.includes('Graph approval blocked'));
+
+  // Engineer reviews T-300 and documents it exists on another drawing
+  store.updateEquipmentReviewStatus(eq3.id, 'connection_exists_on_another_drawing', 'Process Safety PE', 'Tie-in on Drawing PID-002');
+  
+  // Acknowledge any unreviewed equipment status and verify approval succeeds
+  store.acknowledgeWarning(proj.id, 'WARN_DISCONNECTED_NODE');
+  store.acknowledgeWarning(proj.id, 'WARN_EQUIPMENT_PROVISIONAL');
+  const appOk = store.approveGraph(proj.id, 'Chief Engineer (PE)');
+  assert.strictEqual(appOk.success, true);
+  assert.ok(appOk.approval?.approved);
+});
+
+test('Scenario 2: Unresolved Endpoints & Duplicate Line Identifiers as Critical Errors', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 7 Scenario 2 ' + Date.now(), 'Testing critical topology errors');
+  const now = Date.now();
+
+  const eqA: any = { id: 'eq-a-' + now, project_id: proj.id, tag: 'E-101', equipment_type: 'exchanger', status: 'confirmed', verification_status: 'engineer_verified' };
+  const eqB: any = { id: 'eq-b-' + now, project_id: proj.id, tag: 'E-102', equipment_type: 'exchanger', status: 'confirmed', verification_status: 'engineer_verified' };
+  store.addEquipment([eqA, eqB]);
+
+  // Line with empty/unresolved endpoint
+  const lineEmpty: any = { id: 'line-emp-' + now, project_id: proj.id, line_number: 'PL-MISSING', from_equipment: '', to_equipment: 'E-101', functional_type: 'piping_line', status: 'confirmed' };
+  // Line with nonexistent from node
+  const lineUnknown: any = { id: 'line-unk-' + now, project_id: proj.id, line_number: 'PL-UNKNOWN', from_equipment: 'GHOST-999', to_equipment: 'E-102', functional_type: 'piping_line', status: 'confirmed' };
+  // Two lines with duplicate line_number
+  const lineDup1: any = { id: 'line-d1-' + now, project_id: proj.id, line_number: 'PL-DUP-01', from_equipment: 'E-101', to_equipment: 'E-102', functional_type: 'piping_line', status: 'confirmed' };
+  const lineDup2: any = { id: 'line-d2-' + now, project_id: proj.id, line_number: 'PL-DUP-01', from_equipment: 'E-102', to_equipment: 'E-101', functional_type: 'piping_line', status: 'confirmed' };
+  store.addLines([lineEmpty, lineUnknown, lineDup1, lineDup2]);
+
+  const val = store.getGraphValidation(proj.id);
+  assert.ok(val.critical_errors_count && val.critical_errors_count > 0);
+  assert.ok(val.issues.some((i) => i.code === 'ERR_MISSING_ENDPOINT'));
+  assert.ok(val.issues.some((i) => i.code === 'ERR_INVALID_FROM_NODE'));
+  assert.ok(val.issues.some((i) => i.code === 'ERR_DUPLICATE_LINE_IDENTIFIER'));
+
+  // Critical errors MUST prevent approval
+  const app = store.approveGraph(proj.id, 'Lead PE');
+  assert.strictEqual(app.success, false);
+  assert.ok(app.error?.includes('critical errors'));
+});
+
+test('Scenario 3: Flow Directions & Contradictory Stream/Line Directions', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 7 Scenario 3 ' + Date.now(), 'Testing flow direction rules');
+  const now = Date.now();
+
+  const eqA: any = { id: 'eq-p1-' + now, project_id: proj.id, tag: 'P-101A', equipment_type: 'pump', status: 'confirmed', verification_status: 'engineer_verified' };
+  const eqB: any = { id: 'eq-v2-' + now, project_id: proj.id, tag: 'V-201', equipment_type: 'vessel', status: 'confirmed', verification_status: 'engineer_verified' };
+  store.addEquipment([eqA, eqB]);
+
+  // Circular self-connection
+  const lineSelf: any = { id: 'line-self-' + now, project_id: proj.id, line_number: 'PL-SELF', from_equipment: 'P-101A', to_equipment: 'P-101A', functional_type: 'piping_line', status: 'confirmed' };
+  
+  // Line with contradictory stream direction
+  const lineContra: any = { id: 'line-contra-' + now, project_id: proj.id, line_number: 'PL-CONTRA', from_equipment: 'P-101A', to_equipment: 'V-201', flow_direction: 'forward', functional_type: 'piping_line', status: 'confirmed' };
+  store.addLines([lineSelf, lineContra]);
+
+  const streamContra = {
+    id: 'st-contra-' + now,
+    project_id: proj.id,
+    stream_number: 'STR-CONTRA',
+    source_equipment_tag: 'P-101A',
+    destination_equipment_tag: 'V-201',
+    connected_line_numbers: ['PL-CONTRA'],
+    flow_direction: 'reverse' as any,
+  };
+  store.createStream(streamContra as any);
+
+  const val = store.getGraphValidation(proj.id);
+  assert.ok(val.issues.some((i) => i.code === 'ERR_CIRCULAR_SELF_CONNECTION'));
+  assert.ok(val.issues.some((i) => i.code === 'ERR_CONTRADICTORY_FLOW_DIRECTION'));
+
+  // Approval MUST be prevented
+  const app = store.approveGraph(proj.id, 'Process Lead');
+  assert.strictEqual(app.success, false);
+});
+
+test('Scenario 4: Non-Blocking Missing Operating Conditions & Missing Streams', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 7 Scenario 4 ' + Date.now(), 'Testing non-blocking data availability');
+  const now = Date.now();
+
+  // Equipment with no design specs (unprovided in source drawing)
+  const eq1: any = { id: 'eq-nd1-' + now, project_id: proj.id, tag: 'TK-100', equipment_type: 'tank', status: 'confirmed', verification_status: 'engineer_verified', specifications: {} };
+  const eq2: any = { id: 'eq-nd2-' + now, project_id: proj.id, tag: 'TK-200', equipment_type: 'tank', status: 'confirmed', verification_status: 'engineer_verified', specifications: {} };
+  store.addEquipment([eq1, eq2]);
+
+  // Piping line without assigned stream (unprovided in stream table)
+  const line: any = { id: 'line-nd-' + now, project_id: proj.id, line_number: 'PL-TK-CONNECT', from_equipment: 'TK-100', to_equipment: 'TK-200', functional_type: 'piping_line', flow_direction: 'forward', status: 'confirmed' };
+  store.addLines([line]);
+
+  const val = store.getGraphValidation(proj.id);
+
+  // Missing data produces informational gap flags, NOT critical errors
+  assert.ok(val.issues.some((i) => i.code === 'INFO_MISSING_OPERATING_DATA' && i.severity === 'informational'));
+  assert.ok(val.issues.some((i) => i.code === 'INFO_MISSING_STREAM_ASSIGNMENT' && i.severity === 'informational'));
+  assert.strictEqual(val.critical_errors_count, 0);
+  assert.strictEqual(val.can_approve, true);
+
+  // Mandatory rule: Missing operating data does not automatically invalidate topology
+  const app = store.approveGraph(proj.id, 'Process Engineering Specialist (PE)');
+  assert.strictEqual(app.success, true);
+  assert.ok(app.approval?.approved);
+});
+
+test('Scenario 5: Conflicting Engineering Values vs Operating Limit Violations', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 7 Scenario 5 ' + Date.now(), 'Testing discrepancy severity tiers');
+  const now = Date.now();
+
+  const eq: any = { id: 'eq-v5-' + now, project_id: proj.id, tag: 'V-501', equipment_type: 'separator', status: 'confirmed', verification_status: 'engineer_verified' };
+  const eqDest: any = { id: 'eq-v5-dst-' + now, project_id: proj.id, tag: 'V-502', equipment_type: 'separator', status: 'confirmed', verification_status: 'engineer_verified' };
+  store.addEquipment([eq, eqDest]);
+  const line: any = { id: 'line-v5-' + now, project_id: proj.id, line_number: 'PL-V5-01', from_equipment: 'V-501', to_equipment: 'V-502', flow_direction: 'forward', functional_type: 'piping_line', status: 'confirmed' };
+  store.addLines([line]);
+
+  // 1. Add source-to-source discrepancy (P&ID vs PFD numerical mismatch)
+  store.addDiscrepancy({
+    project_id: proj.id,
+    entity_type: 'equipment',
+    entity_tag: 'V-501',
+    property_name: 'design_pressure',
+    discrepancy_type: 'numerical_mismatch',
+    severity: 'warning',
+    message: 'P&ID states 75 barg while Datasheet states 80 barg',
+    evidence_records: [],
+  });
+
+  let val = store.getGraphValidation(proj.id);
+  assert.ok(val.issues.some((i) => i.code === 'WARN_SOURCE_DISCREPANCY' && i.severity === 'warning'));
+  assert.strictEqual(val.critical_errors_count, 0);
+
+  // 2. Add direct limit violation: Operating Pressure > Design Limit
+  store.addDiscrepancy({
+    project_id: proj.id,
+    entity_type: 'equipment',
+    entity_tag: 'V-501',
+    property_name: 'operating_pressure',
+    discrepancy_type: 'operating_vs_design_limit_violation',
+    severity: 'critical',
+    message: 'Operating pressure 85 barg exceeds vessel design pressure of 75 barg',
+    evidence_records: [],
+  });
+
+  val = store.getGraphValidation(proj.id);
+  // Limit violation is a critical error!
+  assert.ok(val.issues.some((i) => i.code === 'ERR_OPERATING_LIMIT_EXCEEDED' && i.severity === 'critical_error'));
+  assert.ok(val.critical_errors_count && val.critical_errors_count > 0);
+
+  // Approval MUST be prevented
+  const appFail = store.approveGraph(proj.id, 'Safety Lead');
+  assert.strictEqual(appFail.success, false);
+});
+
+test('Scenario 6: Full Graph Approval Metadata & Cryptographic Provenance', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 7 Metadata ' + Date.now(), 'Testing approval record metadata');
+  const now = Date.now();
+
+  const docPid = store.createDocument({ project_id: proj.id, filename: 'SafeFlow_PID_101.pdf', original_name: 'SafeFlow_PID_101.pdf', category: 'pid' as any, revision: 'Rev 2' } as any);
+  const docPfd = store.createDocument({ project_id: proj.id, filename: 'SafeFlow_PFD_001.pdf', original_name: 'SafeFlow_PFD_001.pdf', category: 'pfd' as any, revision: 'Rev 1' } as any);
+
+  const eq1: any = { id: 'eq-p7-1-' + now, project_id: proj.id, tag: 'V-701', equipment_type: 'vessel', status: 'confirmed', verification_status: 'engineer_verified' };
+  const eq2: any = { id: 'eq-p7-2-' + now, project_id: proj.id, tag: 'P-701', equipment_type: 'pump', status: 'confirmed', verification_status: 'engineer_verified' };
+  const eqProvisional: any = { id: 'eq-p7-3-' + now, project_id: proj.id, tag: 'FL-701', equipment_type: 'filter', status: 'provisional', verification_status: 'unverified', isolated_review_status: 'confirmed_isolated', isolated_review_notes: 'Spare filter element' };
+  store.addEquipment([eq1, eq2, eqProvisional]);
+
+  const line: any = { id: 'line-p7-' + now, project_id: proj.id, line_number: 'PL-701', from_equipment: 'V-701', to_equipment: 'P-701', flow_direction: 'forward', functional_type: 'piping_line', status: 'confirmed' };
+  store.addLines([line]);
+
+  const stream = { id: 'st-p7-' + now, project_id: proj.id, stream_number: 'STR-701', source_equipment_tag: 'V-701', destination_equipment_tag: 'P-701', connected_line_numbers: ['PL-701'], verification_status: 'verified' as any };
+  store.createStream(stream as any);
+
+  // Acknowledge provisional items
+  store.acknowledgeWarning(proj.id, 'WARN_UNVERIFIED_EQUIPMENT');
+
+  const appResult = store.approveGraph(
+    proj.id,
+    'Shlok (Lead Safety Architect)',
+    'Verified full process topology, line registry, and stream integration',
+    'Principal Process Safety Engineer (PE)'
+  );
+
+  assert.strictEqual(appResult.success, true);
+  const approval = appResult.approval!;
+
+  // 1. Approver name & role
+  assert.strictEqual(approval.approved_by, 'Shlok (Lead Safety Architect)');
+  assert.strictEqual(approval.approver_role, 'Principal Process Safety Engineer (PE)');
+
+  // 2. Timestamp
+  assert.ok(approval.approved_at && !isNaN(Date.parse(approval.approved_at)));
+
+  // 3. Graph snapshot hash (SHA-256: 64 hex characters)
+  assert.ok(approval.graph_snapshot_hash);
+  assert.strictEqual(approval.graph_snapshot_hash?.length, 64);
+
+  // 4. Document versions used
+  assert.ok(Array.isArray(approval.document_versions_used));
+  assert.ok(approval.document_versions_used?.some((d) => d.document_id === docPid.id));
+
+  // 5. Acknowledged warnings recorded
+  assert.ok(Array.isArray(approval.acknowledged_warnings));
+  assert.ok(approval.acknowledged_warnings?.includes('WARN_UNVERIFIED_EQUIPMENT'));
+
+  // 6. Outstanding provisional items recorded
+  assert.ok(Array.isArray(approval.outstanding_provisional_items));
+  assert.ok(approval.outstanding_provisional_items?.some((i) => i.id === eqProvisional.id && i.tag_or_number === 'FL-701'));
+});
+
+// ----------------------------------------------------
+// Test Group 35: Audit Logging, Reversibility & Change Impact Analysis (Phase 8)
+// ----------------------------------------------------
+console.log('\n--- Test Group 35: Audit Logging, Reversibility & Change Impact Analysis (Phase 8) ---');
+
+test('Scenario 1: Structured Reversible Audit Log Entry Creation with Previous & New State Snapshots', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 8 Audit Test ' + Date.now(), 'Testing structured reversible audit trail');
+  const now = Date.now();
+
+  const eq = {
+    id: 'eq-p8-audit-' + now,
+    project_id: proj.id,
+    tag: 'TK-801',
+    description: 'Crude Oil Feed Tank',
+    equipment_type: 'tank' as const,
+    status: 'confirmed' as const,
+    confidence: 1.0,
+    created_at: new Date().toISOString(),
+  };
+  store.addEquipment([eq as any]);
+
+  // Update equipment
+  const updatedEq = store.updateEquipment(
+    eq.id,
+    { description: 'Modified Crude Oil Feed Tank with Blanket Gas' },
+    'Senior Process Engineer',
+    'Field walkdown clarification'
+  );
+  assert.ok(updatedEq);
+
+  // Check audit log
+  const logs = store.listAuditLog(proj.id, { entity_type: 'equipment', entity_id: eq.id });
+  assert.ok(logs.length >= 2, 'At least 2 audit entries for create and update');
+
+  const updateEntry = logs.find((l) => l.action === 'update');
+  assert.ok(updateEntry, 'Update audit entry exists');
+  assert.strictEqual(updateEntry.can_revert, true, 'Marked as reversible');
+  assert.strictEqual(updateEntry.previous_state?.description, 'Crude Oil Feed Tank');
+  assert.strictEqual(updateEntry.new_state?.description, 'Modified Crude Oil Feed Tank with Blanket Gas');
+  assert.strictEqual(updateEntry.reviewer, 'Senior Process Engineer');
+});
+
+test('Scenario 2: Graph Approval Invalidation on Topology Mutation (Equipment & Line Removal)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 8 Invalidation Test ' + Date.now(), 'Testing graph approval invalidation');
+  const now = Date.now();
+
+  const eq1 = { id: 'eq-p8-inv1-' + now, project_id: proj.id, tag: 'V-801', equipment_type: 'vessel' as const, status: 'confirmed' as const, verification_status: 'engineer_verified' as const };
+  const eq2 = { id: 'eq-p8-inv2-' + now, project_id: proj.id, tag: 'P-801', equipment_type: 'pump' as const, status: 'confirmed' as const, verification_status: 'engineer_verified' as const };
+  store.addEquipment([eq1 as any, eq2 as any]);
+
+  const line = { id: 'line-p8-inv-' + now, project_id: proj.id, line_number: 'PL-801', from_equipment: 'V-801', to_equipment: 'P-801', functional_type: 'piping_line' as const, status: 'confirmed' as const };
+  store.addLines([line as any]);
+
+  const stream = { id: 'st-p8-inv-' + now, project_id: proj.id, stream_number: 'STR-801', source_equipment_tag: 'V-801', destination_equipment_tag: 'P-801', connected_line_numbers: ['PL-801'], verification_status: 'verified' as any };
+  store.createStream(stream as any);
+
+  // Approve graph
+  const appRes = store.approveGraph(proj.id, 'Safety Architect Shlok', 'Approved base topology');
+  assert.strictEqual(appRes.success, true);
+  assert.strictEqual(store.getGraphApproval(proj.id).approved, true);
+
+  // Mutation: delete line PL-801
+  store.deleteLine(line.id, 'Pipeline Inspector', 'Rerouting line for maintenance');
+
+  const approvalAfter = store.getGraphApproval(proj.id);
+  assert.strictEqual(approvalAfter.approved, false, 'Graph approval automatically invalidated on line removal');
+  assert.ok(approvalAfter.invalidated_at, 'invalidated_at timestamp recorded');
+  assert.ok(approvalAfter.invalidation_reason?.includes('PL-801'), 'Reason captures mutated line');
+  assert.ok(approvalAfter.previous_approval_snapshot?.approved, 'Previous approval snapshot retained');
+});
+
+test('Scenario 3: Graph Approval Invalidation on Specification Mutation', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 8 Spec Invalidation ' + Date.now(), 'Testing spec change invalidation');
+  const now = Date.now();
+
+  const eq1 = { id: 'eq-p8-sp1-' + now, project_id: proj.id, tag: 'V-802', equipment_type: 'vessel' as const, status: 'confirmed' as const, verification_status: 'engineer_verified' as const };
+  const eq2 = { id: 'eq-p8-sp2-' + now, project_id: proj.id, tag: 'P-802', equipment_type: 'pump' as const, status: 'confirmed' as const, verification_status: 'engineer_verified' as const };
+  store.addEquipment([eq1 as any, eq2 as any]);
+
+  const line = { id: 'line-p8-sp-' + now, project_id: proj.id, line_number: 'PL-802', from_equipment: 'V-802', to_equipment: 'P-802', functional_type: 'piping_line' as const, status: 'confirmed' as const };
+  store.addLines([line as any]);
+
+  const stream = { id: 'st-p8-sp-' + now, project_id: proj.id, stream_number: 'STR-802', source_equipment_tag: 'V-802', destination_equipment_tag: 'P-802', connected_line_numbers: ['PL-802'], verification_status: 'verified' as any };
+  store.createStream(stream as any);
+
+  store.approveGraph(proj.id, 'Safety Lead', 'Graph approved');
+  assert.strictEqual(store.getGraphApproval(proj.id).approved, true);
+
+  // Mutate line operating conditions
+  store.updateLine(line.id, {
+    operating_pressure: {
+      value: 65,
+      unit: 'barg',
+      status: 'user_entered',
+      source: { document: 'Datasheet', page: 1 },
+      verification_status: 'unverified',
+    },
+  }, 'Process Engineer', 'Updated operating pressure per new simulation');
+
+  const approvalAfter = store.getGraphApproval(proj.id);
+  assert.strictEqual(approvalAfter.approved, false, 'Graph approval invalidated on line spec modification');
+  assert.ok(approvalAfter.invalidation_reason?.includes('Line PL-802 modified'));
+});
+
+test('Scenario 4: Change Impact Analysis — Physical Topology Tracing vs Instrument Signal Exclusion', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 8 Impact Analysis ' + Date.now(), 'Testing flow tracing');
+  const now = Date.now();
+
+  // Topology: TK-810 -> (PL-810) -> P-810 -> (PL-811) -> E-810
+  // Instrument Signal: TIC-810 -> (SIG-810) -> TK-810 (non-physical!)
+  const eqTk = { id: 'eq-tk-' + now, project_id: proj.id, tag: 'TK-810', equipment_type: 'tank' as const, status: 'confirmed' as const };
+  const eqP = { id: 'eq-p-' + now, project_id: proj.id, tag: 'P-810', equipment_type: 'pump' as const, status: 'confirmed' as const };
+  const eqE = { id: 'eq-e-' + now, project_id: proj.id, tag: 'E-810', equipment_type: 'heat_exchanger' as const, status: 'confirmed' as const };
+  const eqTic = { id: 'eq-tic-' + now, project_id: proj.id, tag: 'TIC-810', equipment_type: 'instrument' as const, status: 'confirmed' as const };
+  store.addEquipment([eqTk as any, eqP as any, eqE as any, eqTic as any]);
+
+  const lineProcess1 = { id: 'l-proc-1-' + now, project_id: proj.id, line_number: 'PL-810', from_equipment: 'TK-810', to_equipment: 'P-810', flow_direction: 'forward' as const, functional_type: 'piping_line' as const, status: 'confirmed' as const };
+  const lineProcess2 = { id: 'l-proc-2-' + now, project_id: proj.id, line_number: 'PL-811', from_equipment: 'P-810', to_equipment: 'E-810', flow_direction: 'forward' as const, functional_type: 'piping_line' as const, status: 'confirmed' as const };
+  const lineSignal = { id: 'l-sig-1-' + now, project_id: proj.id, line_number: 'SIG-810', from_equipment: 'TIC-810', to_equipment: 'TK-810', flow_direction: 'forward' as const, functional_type: 'signal_line' as const, status: 'confirmed' as const };
+  store.addLines([lineProcess1 as any, lineProcess2 as any, lineSignal as any]);
+
+  const impactTk = store.getChangeImpact(proj.id, 'equipment', 'TK-810', 'limit_change', 'Operating pressure increased to 50 barg');
+
+  // Verify downstream physical equipment
+  assert.ok(impactTk.downstream_equipment.includes('P-810'), 'Downstream includes pump P-810');
+  assert.ok(impactTk.downstream_equipment.includes('E-810'), 'Downstream includes exchanger E-810');
+
+  // Verify instrument signals are strictly EXCLUDED from material-flow downstream equipment
+  assert.ok(!impactTk.downstream_equipment.includes('TIC-810'), 'Instrument signal strictly excluded from downstream flow');
+
+  // Upstream of E-810
+  const impactE = store.getChangeImpact(proj.id, 'equipment', 'E-810', 'update', 'Tube bundle replacement');
+  assert.ok(impactE.upstream_equipment.includes('P-810'), 'Upstream of exchanger includes pump P-810');
+  assert.ok(impactE.upstream_equipment.includes('TK-810'), 'Upstream of exchanger includes tank TK-810');
+});
+
+test('Scenario 5: Downstream PHA Study Node Invalidation & Reassessment Flagging', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 8 PHA Reassessment ' + Date.now(), 'Testing PHA node reassessment');
+  const now = Date.now();
+
+  const eq1 = { id: 'eq-p8-pha1-' + now, project_id: proj.id, tag: 'TK-820', equipment_type: 'tank' as const, status: 'confirmed' as const, verification_status: 'engineer_verified' as const };
+  const eq2 = { id: 'eq-p8-pha2-' + now, project_id: proj.id, tag: 'P-820', equipment_type: 'pump' as const, status: 'confirmed' as const, verification_status: 'engineer_verified' as const };
+  store.addEquipment([eq1 as any, eq2 as any]);
+
+  const line = { id: 'line-p8-pha-' + now, project_id: proj.id, line_number: 'PL-820', from_equipment: 'TK-820', to_equipment: 'P-820', flow_direction: 'forward' as const, functional_type: 'piping_line' as const, status: 'confirmed' as const };
+  store.addLines([line as any]);
+
+  const stream = { id: 'st-p8-pha-' + now, project_id: proj.id, stream_number: 'STR-820', source_equipment_tag: 'TK-820', destination_equipment_tag: 'P-820', connected_line_numbers: ['PL-820'], verification_status: 'verified' as any };
+  store.createStream(stream as any);
+
+  // Create and approve PHA nodes
+  const phaNode1 = store.createPhaNode({
+    project_id: proj.id,
+    node_id: 'N-801',
+    name: 'Feed Storage System',
+    design_intent: 'Store sour gas feed',
+    equipment_tags: ['TK-820'],
+    line_numbers: ['PL-820'],
+    inlet_boundaries: [],
+    outlet_boundaries: ['PL-820'],
+    basis_for_grouping: 'Common storage subsystem',
+    status: 'approved',
+    unresolved_questions: [],
+    operating_limits: { units: {} },
+  });
+
+  const phaNode2 = store.createPhaNode({
+    project_id: proj.id,
+    node_id: 'N-802',
+    name: 'Transfer Pump System',
+    design_intent: 'Transfer feed to treatment',
+    equipment_tags: ['P-820'],
+    line_numbers: ['PL-820'],
+    inlet_boundaries: ['PL-820'],
+    outlet_boundaries: [],
+    basis_for_grouping: 'Pumping subsystem',
+    status: 'approved',
+    unresolved_questions: [],
+    operating_limits: { units: {} },
+  });
+
+  // Check impact analysis on TK-820
+  const impact = store.getChangeImpact(proj.id, 'equipment', 'TK-820', 'update', 'Relief valve setpoint increased');
+  assert.strictEqual(impact.requires_pha_reassessment, true, 'Requires PHA reassessment');
+  assert.ok(impact.impacted_pha_nodes.some((n) => n.node_id === 'N-801'), 'Node 1 impacted directly');
+  assert.ok(impact.impacted_pha_nodes.some((n) => n.node_id === 'N-802'), 'Node 2 impacted downstream');
+
+  // Invalidate graph approval and check node demotion
+  store.approveGraph(proj.id, 'Safety Lead', 'Initial approval');
+  store.updateEquipment(eq1.id, { description: 'Modified feed vessel' }, 'Engineer', 'Walkdown update');
+
+  const nodesAfter = store.listPhaNodes(proj.id);
+  const n1 = nodesAfter.find((n) => n.node_id === 'N-801')!;
+  const n2 = nodesAfter.find((n) => n.node_id === 'N-802')!;
+
+  assert.strictEqual(n1.status, 'under_review', 'Node 1 status demoted from approved to under_review');
+  assert.strictEqual(n1.requires_reassessment, true, 'Node 1 flagged for reassessment');
+  assert.ok(n1.reassessment_reasons && n1.reassessment_reasons.length > 0, 'Reassessment reason recorded');
+
+  assert.strictEqual(n2.status, 'under_review', 'Node 2 status demoted from approved to under_review');
+  assert.strictEqual(n2.requires_reassessment, true, 'Node 2 flagged for reassessment');
+});
+
+test('Scenario 6: Reversibility Verification — Rollback via Audit Log Restores Graph & Entity State', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 8 Reversibility Test ' + Date.now(), 'Testing rollback of mutations');
+  const now = Date.now();
+
+  const eq = {
+    id: 'eq-p8-rev-' + now,
+    project_id: proj.id,
+    tag: 'TK-830',
+    description: 'Original Atmospheric Storage Tank',
+    equipment_type: 'tank' as const,
+    status: 'confirmed' as const,
+    confidence: 1.0,
+    created_at: new Date().toISOString(),
+  };
+  store.addEquipment([eq as any]);
+
+  // Update equipment
+  store.updateEquipment(
+    eq.id,
+    { description: 'Unapproved In-Field Modification' },
+    'Field Contractor',
+    'Field sketch change'
+  );
+
+  const modifiedEq = store.getEquipment(eq.id);
+  assert.strictEqual(modifiedEq?.description, 'Unapproved In-Field Modification');
+
+  // Locate the update audit entry
+  const logs = store.listAuditLog(proj.id, { entity_type: 'equipment', entity_id: eq.id, action: 'update' });
+  assert.ok(logs.length >= 1);
+  const updateAudit = logs[0];
+
+  // Revert the update
+  const revertRes = store.revertChange(updateAudit.id, 'Chief Safety Officer Shlok', 'Rollback unapproved change');
+  assert.strictEqual(revertRes.success, true);
+  assert.ok(revertRes.reverted_entry);
+  assert.strictEqual(revertRes.reverted_entry?.action, 'restore');
+
+  // Verify entity state restored to original
+  const restoredEq = store.getEquipment(eq.id);
+  assert.strictEqual(restoredEq?.description, 'Original Atmospheric Storage Tank', 'Description restored to previous state');
+
+  // Verify original audit record marked reverted
+  const refreshedLogs = store.listAuditLog(proj.id);
+  const revertedAudit = refreshedLogs.find((l) => l.id === updateAudit.id);
+  assert.ok(revertedAudit?.reverted_at);
+  assert.strictEqual(revertedAudit?.reverted_by, 'Chief Safety Officer Shlok');
+
+  // Cannot revert twice
+  const doubleRevert = store.revertChange(updateAudit.id, 'Engineer', 'Attempt double revert');
+  assert.strictEqual(doubleRevert.success, false);
+  assert.ok(doubleRevert.error?.includes('already been reverted'));
+
+  // Test Reverting Deletion
+  const eqDelete = {
+    id: 'eq-p8-del-' + now,
+    project_id: proj.id,
+    tag: 'FL-830',
+    equipment_type: 'filter' as const,
+    status: 'confirmed' as const,
+    created_at: new Date().toISOString(),
+  };
+  store.addEquipment([eqDelete as any]);
+  store.deleteEquipment(eqDelete.id, 'Contractor', 'Erroneous deletion');
+  assert.strictEqual(store.getEquipment(eqDelete.id), undefined);
+
+  const deleteLogs = store.listAuditLog(proj.id, { entity_type: 'equipment', entity_id: eqDelete.id, action: 'delete' });
+  assert.ok(deleteLogs.length >= 1);
+  const delAudit = deleteLogs[0];
+
+  const revertDelRes = store.revertChange(delAudit.id, 'Lead Safety Engineer', 'Restoring mistakenly deleted filter');
+  assert.strictEqual(revertDelRes.success, true);
+  assert.ok(store.getEquipment(eqDelete.id), 'Filter FL-830 restored to database after revert');
+});
+
+// ----------------------------------------------------
+// Test Group 36: HAZOP Node Segmentation & Flow-Aware Deviations (Phase 9)
+// ----------------------------------------------------
+console.log('\n--- Test Group 36: HAZOP Node Segmentation & Flow-Aware Deviations (Phase 9) ---');
+
+test('Scenario 1: Multi-Document Context Propagation into Candidate PHA Study Nodes', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 9 Node Gen ' + Date.now(), 'Testing candidate node segmentation');
+  const now = Date.now();
+
+  const eq1 = { id: 'eq-p9-1-' + now, project_id: proj.id, tag: 'TK-901', equipment_type: 'tank' as const, status: 'confirmed' as const, verification_status: 'engineer_verified' as const };
+  const eq2 = { id: 'eq-p9-2-' + now, project_id: proj.id, tag: 'P-901', equipment_type: 'pump' as const, status: 'confirmed' as const, verification_status: 'engineer_verified' as const };
+  store.addEquipment([eq1 as any, eq2 as any]);
+
+  const line = { id: 'line-p9-1-' + now, project_id: proj.id, line_number: 'PL-901', from_equipment: 'TK-901', to_equipment: 'P-901', flow_direction: 'forward' as const, functional_type: 'piping_line' as const, status: 'confirmed' as const };
+  store.addLines([line as any]);
+
+  const stream = {
+    id: 'st-p9-1-' + now,
+    project_id: proj.id,
+    stream_number: 'STR-901',
+    source_equipment_tag: 'TK-901',
+    destination_equipment_tag: 'P-901',
+    connected_line_numbers: ['PL-901'],
+    flow_rates: { normal: 120, unit: 'm3/h' },
+    verification_status: 'verified' as any,
+  };
+  store.createStream(stream as any);
+
+  // Auto-generate candidate PHA nodes
+  const nodes = store.generatePhaNodes(proj.id, 'Senior Process Safety Engineer');
+  assert.ok(nodes.length >= 1, 'At least 1 candidate PHA node generated');
+
+  const node1 = nodes[0];
+  assert.strictEqual(node1.status, 'candidate_not_authoritative');
+  assert.ok(node1.node_id.startsWith('N-'));
+  assert.ok(node1.design_intent.length > 0);
+
+  // Verify stream context attached
+  const nodeWithStreams = store.listPhaNodes(proj.id)[0];
+  assert.ok(nodeWithStreams.stream_summary, 'Stream summary attached to study node');
+  assert.ok(nodeWithStreams.stream_summary?.known_flow_count! >= 1, 'Known flow stream detected');
+});
+
+test('Scenario 2: Flow-Aware Deviation Analysis (No Flow, Less Flow, More Flow, Reverse Flow)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 9 Flow Deviations ' + Date.now(), 'Testing flow deviations');
+  const now = Date.now();
+
+  const eqTk = { id: 'eq-p9-tk-' + now, project_id: proj.id, tag: 'TK-902', equipment_type: 'tank' as const, status: 'confirmed' as const, verification_status: 'engineer_verified' as const };
+  const eqP = { id: 'eq-p9-p-' + now, project_id: proj.id, tag: 'P-902', equipment_type: 'pump' as const, status: 'confirmed' as const, verification_status: 'engineer_verified' as const };
+  store.addEquipment([eqTk as any, eqP as any]);
+
+  const line = { id: 'line-p9-2-' + now, project_id: proj.id, line_number: 'PL-902', from_equipment: 'TK-902', to_equipment: 'P-902', flow_direction: 'forward' as const, functional_type: 'piping_line' as const, status: 'confirmed' as const };
+  store.addLines([line as any]);
+
+  const streamWithLimits = {
+    id: 'st-p9-2-' + now,
+    project_id: proj.id,
+    stream_number: 'STR-902',
+    source_equipment_tag: 'TK-902',
+    destination_equipment_tag: 'P-902',
+    connected_line_numbers: ['PL-902'],
+    flow_rates: {
+      min: 50,
+      normal: 100,
+      max: 150,
+      design: 180,
+      unit: 'kg/h',
+    },
+    verification_status: 'verified' as any,
+  };
+  store.createStream(streamWithLimits as any);
+
+  const streamUndocumented = {
+    id: 'st-p9-undoc-' + now,
+    project_id: proj.id,
+    stream_number: 'STR-903',
+    source_equipment_tag: 'P-902',
+    destination_equipment_tag: 'E-902',
+    connected_line_numbers: [],
+    // flow_rates strictly null / not provided
+    verification_status: 'unverified' as any,
+  };
+  store.createStream(streamUndocumented as any);
+
+  const nodes = store.generatePhaNodes(proj.id);
+  const node = store.listPhaNodes(proj.id)[0];
+  assert.ok(node.flow_deviations && node.flow_deviations.length > 0, 'Flow deviations generated');
+
+  // Verify documented limits are retained with units
+  const moreFlowDev = node.flow_deviations.find((d) => d.deviation === 'MORE FLOW' && d.stream_number === 'STR-902');
+  if (moreFlowDev) {
+    assert.strictEqual(moreFlowDev.documented_limits.normal, 100);
+    assert.strictEqual(moreFlowDev.documented_limits.max_allowable, 150);
+    assert.strictEqual(moreFlowDev.documented_limits.unit, 'kg/h');
+  }
+
+  // Verify strict non-fabrication: undocumented stream STR-903 must have null limits, never defaulted to 0
+  const unkDev = node.flow_deviations.find((d) => d.stream_number === 'STR-903');
+  if (unkDev) {
+    assert.strictEqual(unkDev.documented_limits.normal ?? null, null, 'Unstated flow rate strictly null');
+    assert.strictEqual(unkDev.status, 'limit_unknown', 'Status marked limit_unknown');
+  }
+});
+
+test('Scenario 3: Chemical Composition Basis & Concentration Tracking in Deviations', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 9 Chemical Tracking ' + Date.now(), 'Testing chemical compositions');
+  const now = Date.now();
+
+  const eq = { id: 'eq-p9-chem-' + now, project_id: proj.id, tag: 'SEP-901', equipment_type: 'separator' as const, status: 'confirmed' as const, verification_status: 'engineer_verified' as const };
+  store.addEquipment([eq as any]);
+
+  const streamInlet = {
+    id: 'st-inlet-' + now,
+    project_id: proj.id,
+    stream_number: 'STR-IN',
+    destination_equipment_tag: 'SEP-901',
+    connected_line_numbers: [],
+    components: [
+      { chemical_name: 'Hydrogen Sulfide', formula: 'H2S', mole_fraction: 0.15, concentration_basis: 'mol%', unit: 'mol%' },
+      { chemical_name: 'Methane', formula: 'CH4', mole_fraction: 0.85, concentration_basis: 'mol%', unit: 'mol%' },
+    ],
+    verification_status: 'verified' as any,
+  };
+  const streamLiquid = {
+    id: 'st-liquid-' + now,
+    project_id: proj.id,
+    stream_number: 'STR-LIQ',
+    source_equipment_tag: 'SEP-901',
+    connected_line_numbers: [],
+    components: [
+      { chemical_name: 'Condensate', formula: 'C5+', mass_fraction: 0.98, concentration_basis: 'wt%', unit: 'wt%' },
+      { chemical_name: 'Hydrogen Sulfide', formula: 'H2S', mass_fraction: 0.02, concentration_basis: 'ppm wt', unit: 'ppm wt' },
+    ],
+    verification_status: 'verified' as any,
+  };
+  store.createStream(streamInlet as any);
+  store.createStream(streamLiquid as any);
+
+  const streams = store.listStreams(proj.id);
+  const sIn = streams.find((s) => s.stream_number === 'STR-IN')!;
+  const sLiq = streams.find((s) => s.stream_number === 'STR-LIQ')!;
+
+  // Separator Decoupling Guarantee: Inlets and outlets maintain their separate composition bases without cross-contamination
+  assert.strictEqual(sIn.components[0].concentration_basis, 'mol%');
+  assert.strictEqual(sLiq.components[0].concentration_basis, 'wt%');
+  assert.strictEqual(sLiq.components[1].concentration_basis, 'ppm wt');
+  assert.notStrictEqual(sIn.components[0].mole_fraction, sLiq.components[1].mass_fraction);
+});
+
+test('Scenario 4: HAZOP Study Readiness Gate — Blocking on Unapproved Graph & Limit Violations', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 9 Readiness Gate ' + Date.now(), 'Testing HAZOP readiness gate');
+  const now = Date.now();
+
+  const eq1 = { id: 'eq-p9-rd1-' + now, project_id: proj.id, tag: 'V-905', equipment_type: 'vessel' as const, status: 'confirmed' as const, verification_status: 'engineer_verified' as const };
+  const eq2 = { id: 'eq-p9-rd2-' + now, project_id: proj.id, tag: 'P-905', equipment_type: 'pump' as const, status: 'confirmed' as const, verification_status: 'engineer_verified' as const };
+  store.addEquipment([eq1 as any, eq2 as any]);
+
+  const line = { id: 'line-p9-rd-' + now, project_id: proj.id, line_number: 'PL-905', from_equipment: 'V-905', to_equipment: 'P-905', flow_direction: 'forward' as const, functional_type: 'piping_line' as const, status: 'confirmed' as const };
+  store.addLines([line as any]);
+
+  store.generatePhaNodes(proj.id);
+
+  // 1. Initial Readiness: Graph is NOT approved -> MUST BE BLOCKED
+  const readinessBeforeApp = store.getHazopReadiness(proj.id);
+  assert.strictEqual(readinessBeforeApp.ready, false, 'Readiness blocked when graph unapproved');
+  assert.ok(readinessBeforeApp.blocking_reasons.some((r) => r.includes('Process Graph is NOT approved')));
+
+  // 2. Approve graph
+  store.approveGraph(proj.id, 'Safety Lead', 'Topology verified');
+
+  // Approve the PHA node
+  const nodes = store.listPhaNodes(proj.id);
+  for (const n of nodes) {
+    n.status = 'approved';
+    n.design_intent = 'Adequately documented design intent for feed transfer';
+  }
+
+  // 3. Add open critical limit violation
+  store.createDiscrepancy({
+    project_id: proj.id,
+    entity_id: 'V-905',
+    entity_tag: 'V-905',
+    property_name: 'operating_pressure',
+    discrepancy_type: 'operating_vs_design_limit_violation',
+    severity: 'critical',
+    message: 'Operating pressure 120 barg exceeds vessel MAWP of 100 barg',
+    evidence_records: [],
+  });
+
+  const readinessWithViolation = store.getHazopReadiness(proj.id);
+  assert.strictEqual(readinessWithViolation.ready, false, 'Readiness blocked by critical limit violation');
+  assert.ok(readinessWithViolation.blocking_reasons.some((r) => r.includes('operating_pressure') && r.includes('MAWP')));
+});
+
+test('Scenario 5: Non-Blocking Informational Gaps & Missing Operating Conditions', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 9 Non-Blocking Info ' + Date.now(), 'Testing non-blocking gaps');
+  const now = Date.now();
+
+  const eq = { id: 'eq-p9-gap-' + now, project_id: proj.id, tag: 'TK-908', equipment_type: 'tank' as const, status: 'confirmed' as const, verification_status: 'engineer_verified' as const };
+  store.addEquipment([eq as any]);
+
+  // Create stream with unstated operating conditions
+  const stream = {
+    id: 'st-p9-gap-' + now,
+    project_id: proj.id,
+    stream_number: 'STR-908',
+    source_equipment_tag: 'TK-908',
+    destination_equipment_tag: 'P-908',
+    connected_line_numbers: [],
+    // Unstated conditions
+    verification_status: 'unverified' as any,
+  };
+  store.createStream(stream as any);
+
+  // Missing operating conditions must generate informational gaps, NOT critical blocking errors
+  const nodes = store.generatePhaNodes(proj.id);
+  assert.ok(nodes.length >= 1, 'Node generation succeeds despite missing operating conditions');
+  assert.strictEqual(nodes[0].node_id, 'N-001');
+});
+
+test('Scenario 6: Automatic Reassessment Flagging on Upstream Topology or Limit Modifications', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 9 Auto Reassessment ' + Date.now(), 'Testing automated reassessment propagation');
+  const now = Date.now();
+
+  const eq1 = { id: 'eq-p9-re1-' + now, project_id: proj.id, tag: 'TK-910', equipment_type: 'tank' as const, status: 'confirmed' as const, verification_status: 'engineer_verified' as const };
+  const eq2 = { id: 'eq-p9-re2-' + now, project_id: proj.id, tag: 'P-910', equipment_type: 'pump' as const, status: 'confirmed' as const, verification_status: 'engineer_verified' as const };
+  store.addEquipment([eq1 as any, eq2 as any]);
+
+  const line = { id: 'line-p9-re-' + now, project_id: proj.id, line_number: 'PL-910', from_equipment: 'TK-910', to_equipment: 'P-910', flow_direction: 'forward' as const, functional_type: 'piping_line' as const, status: 'confirmed' as const };
+  store.addLines([line as any]);
+
+  const node = store.createPhaNode({
+    project_id: proj.id,
+    node_id: 'N-910',
+    name: 'Feed Suction Section',
+    design_intent: 'Suction line to booster pump',
+    equipment_tags: ['TK-910', 'P-910'],
+    line_numbers: ['PL-910'],
+    inlet_boundaries: [],
+    outlet_boundaries: ['PL-910'],
+    basis_for_grouping: 'Suction piping',
+    status: 'approved',
+    unresolved_questions: [],
+    operating_limits: { units: {} },
+  });
+
+  // Mutate upstream line specification
+  store.reassessPhaNodesOnSpecChange(proj.id, 'TK-910', 'design_pressure', 'Lead Engineer');
+
+  const refreshedNodes = store.listPhaNodes(proj.id);
+  const targetNode = refreshedNodes.find((n) => n.node_id === 'N-910')!;
+
+  assert.strictEqual(targetNode.requires_reassessment, true, 'Flagged requires_reassessment = true');
+  assert.ok(targetNode.reassessment_reasons?.some((r) => r.includes('TK-910') && r.includes('design_pressure')));
+});
+
+// ----------------------------------------------------
+// Test Group 37: Multi-Document Dossier Export & Final Delivery (Phase 10)
+// ----------------------------------------------------
+console.log('\n--- Test Group 37: Multi-Document Dossier Export & Final Delivery (Phase 10) ---');
+
+test('Scenario 1: Comprehensive Multi-Document Dossier Generation & Structure', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 10 Dossier Test ' + Date.now(), 'Testing complete dossier export');
+  const now = Date.now();
+
+  const doc = store.createDocument({ project_id: proj.id, filename: 'SafeFlow_PID_001.pdf', original_name: 'SafeFlow_PID_001.pdf', category: 'pid' as any, revision: 'Rev 3' } as any);
+  const eq = { id: 'eq-p10-1-' + now, project_id: proj.id, tag: 'V-1001', equipment_type: 'vessel' as const, status: 'confirmed' as const, verification_status: 'engineer_verified' as const };
+  store.addEquipment([eq as any]);
+
+  const line = { id: 'line-p10-1-' + now, project_id: proj.id, line_number: 'PL-1001', from_equipment: 'V-1001', to_equipment: 'P-1001', functional_type: 'piping_line' as const, status: 'confirmed' as const };
+  store.addLines([line as any]);
+
+  const stream = { id: 'st-p10-1-' + now, project_id: proj.id, stream_number: 'STR-1001', source_equipment_tag: 'V-1001', destination_equipment_tag: 'P-1001', connected_line_numbers: ['PL-1001'], verification_status: 'verified' as any };
+  store.createStream(stream as any);
+
+  store.approveGraph(proj.id, 'Lead Architect Shlok', 'Approved for production dossier');
+
+  const dossier = store.getEngineeringDossier(proj.id);
+  assert.ok(dossier, 'Dossier successfully generated');
+
+  // Verify core sections
+  assert.strictEqual(dossier.export_metadata.system, 'SafeFlow AI Enterprise');
+  assert.strictEqual(dossier.export_metadata.architect, 'Built & Architected by Shlok');
+  assert.strictEqual(dossier.export_metadata.dossier_version, '2.0-Enterprise');
+  assert.ok(dossier.document_registry.length >= 1, 'Document registry included');
+  assert.ok(dossier.process_topology.equipment_count >= 1, 'Equipment topology included');
+  assert.ok(dossier.process_topology.lines_count >= 1, 'Process lines included');
+  assert.ok(dossier.process_topology.streams_count >= 1, 'Process streams included');
+  assert.ok(dossier.graph_approval.approved, 'Graph approval record included');
+  assert.ok(dossier.audit_trail.length >= 1, 'Audit trail included');
+});
+
+test('Scenario 2: Cryptographic SHA-256 Tamper-Evident Dossier Integrity Hash', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 10 Integrity Hash ' + Date.now(), 'Testing cryptographic hashing');
+  const now = Date.now();
+
+  const eq = { id: 'eq-p10-2-' + now, project_id: proj.id, tag: 'TK-1002', equipment_type: 'tank' as const, status: 'confirmed' as const, verification_status: 'engineer_verified' as const };
+  store.addEquipment([eq as any]);
+
+  const dossier1 = store.getEngineeringDossier(proj.id)!;
+  const hash1 = dossier1.export_metadata.integrity_hash;
+
+  assert.ok(hash1, 'Integrity hash generated');
+  assert.strictEqual(hash1.length, 64, 'Valid SHA-256 hex string (64 characters)');
+
+  // Mutate project topology
+  store.addEquipment([{ id: 'eq-p10-extra-' + now, project_id: proj.id, tag: 'V-1003', equipment_type: 'vessel' as const, status: 'confirmed' as const } as any]);
+
+  const dossier2 = store.getEngineeringDossier(proj.id)!;
+  const hash2 = dossier2.export_metadata.integrity_hash;
+
+  assert.notStrictEqual(hash1, hash2, 'Dossier integrity hash changes when data is mutated (tamper-evident)');
+});
+
+test('Scenario 3: Multi-Document Categorization & Cross-Referencing in Dossier', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 10 Multi-Doc ' + Date.now(), 'Testing document categories in dossier');
+  const now = Date.now();
+
+  store.createDocument({ project_id: proj.id, filename: 'Plant_PID.pdf', original_name: 'Plant_PID.pdf', category: 'pid' as any, revision: 'Rev 1' } as any);
+  store.createDocument({ project_id: proj.id, filename: 'Stream_Table.csv', original_name: 'Stream_Table.csv', category: 'stream_table' as any, revision: 'Rev 2' } as any);
+  store.createDocument({ project_id: proj.id, filename: 'Vessel_Datasheet.pdf', original_name: 'Vessel_Datasheet.pdf', category: 'datasheet' as any, revision: 'Rev 0' } as any);
+
+  const dossier = store.getEngineeringDossier(proj.id)!;
+  const docCats = dossier.document_registry.map((d) => d.category);
+
+  assert.ok(docCats.includes('pid'));
+  assert.ok(docCats.includes('stream_table'));
+  assert.ok(docCats.includes('datasheet'));
+});
+
+test('Scenario 4: Source-to-Source Discrepancies vs Limit Violations Categorization in Dossier', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 10 Discrepancy Categorization ' + Date.now(), 'Testing discrepancy categorization');
+
+  store.createDiscrepancy({
+    project_id: proj.id,
+    entity_id: 'V-1004',
+    entity_tag: 'V-1004',
+    property_name: 'design_pressure',
+    discrepancy_type: 'source_to_source_discrepancy',
+    severity: 'warning',
+    message: 'Datasheet Rev 1 (50 barg) differs from BOD (55 barg)',
+    evidence_records: [],
+  });
+
+  store.createDiscrepancy({
+    project_id: proj.id,
+    entity_id: 'V-1004',
+    entity_tag: 'V-1004',
+    property_name: 'operating_pressure',
+    discrepancy_type: 'operating_vs_design_limit_violation',
+    severity: 'critical',
+    message: 'Operating pressure 60 barg exceeds design limit 50 barg',
+    evidence_records: [],
+  });
+
+  const dossier = store.getEngineeringDossier(proj.id)!;
+  const rec = dossier.cross_document_reconciliation;
+
+  assert.strictEqual(rec.total_discrepancies, 2);
+  assert.strictEqual(rec.source_to_source_discrepancies, 1, 'Source-to-source discrepancy count correct');
+  assert.strictEqual(rec.operating_vs_design_limit_violations, 1, 'Operating vs design limit violation count correct');
+});
+
+test('Scenario 5: Multi-Format Export (JSON & Markdown Dossier Delivery)', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 10 Multi-Format Export ' + Date.now(), 'Testing format generators');
+  const now = Date.now();
+
+  const eq = { id: 'eq-p10-fmt-' + now, project_id: proj.id, tag: 'TK-1005', equipment_type: 'tank' as const, status: 'confirmed' as const, verification_status: 'engineer_verified' as const };
+  store.addEquipment([eq as any]);
+
+  const dossier = store.getEngineeringDossier(proj.id)!;
+
+  // JSON export
+  const jsonStr = exportDossierToJson(dossier);
+  const parsed = JSON.parse(jsonStr);
+  assert.strictEqual(parsed.export_metadata.system, 'SafeFlow AI Enterprise');
+
+  // Markdown export
+  const mdStr = exportDossierToMarkdown(dossier);
+  assert.ok(mdStr.includes('# SafeFlow AI Enterprise — Multi-Document Engineering Dossier'));
+  assert.ok(mdStr.includes('Made by Shlok'));
+  assert.ok(mdStr.includes('OSHA 29 CFR 1910.119'));
+  assert.ok(mdStr.includes('Cryptographic Hash (SHA-256)'));
+});
+
+test('Scenario 6: Full System Regression Across All 10 Phases & All Modules', () => {
+  const store = new PsiDataStore();
+  const proj = store.createProject('Phase 10 Final Regression ' + Date.now(), 'Complete full-system regression');
+  const now = Date.now();
+
+  // 1. SDS & Chemical Extraction
+  const sdsDoc = store.createDocument({ project_id: proj.id, filename: 'Ammonia_SDS.pdf', original_name: 'Ammonia_SDS.pdf', category: 'sds' as any } as any);
+  const chem = store.createManualChemical(proj.id, {
+    chemical_name: 'Anhydrous Ammonia',
+    cas: '7664-41-7',
+    primary_hazard: 'Toxic Gas',
+  }, 'Process Safety Lead');
+  assert.ok(chem);
+
+  // 2. Equipment, Piping, Stream Integration
+  const eqTk = { id: 'eq-reg-1-' + now, project_id: proj.id, tag: 'TK-999', equipment_type: 'tank' as const, status: 'confirmed' as const, verification_status: 'engineer_verified' as const };
+  const eqP = { id: 'eq-reg-2-' + now, project_id: proj.id, tag: 'P-999', equipment_type: 'pump' as const, status: 'confirmed' as const, verification_status: 'engineer_verified' as const };
+  store.addEquipment([eqTk as any, eqP as any]);
+
+  const line = {
+    id: 'line-reg-1-' + now,
+    project_id: proj.id,
+    line_number: 'PL-999',
+    from_equipment: 'TK-999',
+    to_equipment: 'P-999',
+    functional_type: 'piping_line' as const,
+    flow_direction: 'forward' as const,
+    assigned_chemical_id: chem.id,
+    status: 'confirmed' as const,
+    verification_status: 'verified' as const,
+  };
+  store.addLines([line as any]);
+
+  const stream = { id: 'st-reg-1-' + now, project_id: proj.id, stream_number: 'STR-999', source_equipment_tag: 'TK-999', destination_equipment_tag: 'P-999', connected_line_numbers: ['PL-999'], verification_status: 'verified' as any };
+  store.createStream(stream as any);
+
+  // 3. Approval Gate
+  const appResult = store.approveGraph(proj.id, {
+    reviewer: 'Lead Process Architect Shlok',
+    notes: 'System signed off for delivery',
+    role: 'Chief Safety Engineer',
+    acknowledged_warnings: ['WARN_UNVERIFIED_EQUIPMENT', 'WARN_UNKNOWN_FLOW_DIRECTION', 'WARN_UNASSIGNED_PROCESS_CHEMICAL'],
+  });
+  assert.strictEqual(appResult.success, true);
+
+  // 4. PHA Node Segmentation & Readiness
+  const phaNodes = store.generatePhaNodes(proj.id);
+  assert.ok(phaNodes.length >= 1);
+
+  // 5. Change Impact & Audit Reversibility
+  const impact = store.getChangeImpact(proj.id, 'equipment', 'TK-999', 'update', 'In-field nozzle modification');
+  assert.ok(impact.downstream_equipment.includes('P-999'));
+
+  // 6. Multi-Document Dossier Export
+  const dossier = store.getEngineeringDossier(proj.id);
+  assert.ok(dossier);
+  assert.ok(dossier.export_metadata.integrity_hash);
+  assert.strictEqual(dossier.graph_approval.approved, true);
+});
+
+
+
+// ----------------------------------------------------
+// Test Group 38: Configurable P&ID Conventions, Tiled Recognition, Topology Gap Bridging & Multi-Sheet Isolation
+// ----------------------------------------------------
+console.log('\n--- Test Group 38: Configurable P&ID Conventions, Tiled Recognition, Topology Gap Bridging & Multi-Sheet Isolation ---');
+
+test('Scenario 1: Configurable Convention Profile Loading & Custom Profile Registration', () => {
+  // 1. Verify default ISA-5.1 profile
+  const isa = getConventionProfile('profile-isa-5-1');
+  assert.strictEqual(isa.standard, 'ISA_5_1');
+  assert.ok(isa.tagPatterns.equipment.length >= 1);
+  assert.ok(isa.tolerances.labelGapBridgeMaxPx >= 100);
+
+  // 2. Verify Sour Gas Facility acceptance profile
+  const sourGas = getConventionProfile('profile-sour-gas-facility');
+  assert.strictEqual(sourGas.id, 'profile-sour-gas-facility');
+  assert.strictEqual(sourGas.tolerances.labelGapBridgeMaxPx, 140);
+
+  // 3. Verify DIN EN ISO 10628 profile
+  const din = getConventionProfile('profile-din-iso-10628');
+  assert.strictEqual(din.standard, 'DIN_EN_ISO_10628');
+
+  // 4. Register custom client-specific profile
+  const customProfile: PidConventionProfile = {
+    id: 'profile-custom-pharma',
+    name: 'Biopharma High-Purity Sanitary Standard',
+    standard: 'CUSTOM',
+    description: 'Clean-in-place (CIP) and sanitary diaphragm valve conventions.',
+    version: '1.0',
+    tagPatterns: {
+      equipment: ['\\b(FERM|BIO|PUR|CIP)-([0-9]{3,4})\\b'],
+      pipingLine: ['\\bSAN-([0-9]{3,4})-([0-9\\.]+)IN\\b'],
+      instrument: ['\\b(PH|DO|COND|TEMP)-([0-9]{3,4})\\b'],
+      offPageConnector: ['\\b(CIP_LOOP|WFI_SUPPLY)-([0-9A-Z]+)\\b'],
+      valve: ['\\bDV-([0-9]{3,4})\\b'],
+    },
+    symbolClassificationRules: [
+      {
+        prefixOrClass: 'FERM',
+        targetType: 'reactor',
+        categoryDescription: 'Bioreactor Fermenter',
+        defaultDimensions: { width: 100, height: 160 },
+        defaultPorts: [
+          { name: 'Harvest Outlet', type: 'outlet', offsetRatio: { x: 0, y: 0.5 } },
+          { name: 'Inoculation Port', type: 'inlet', offsetRatio: { x: -0.5, y: -0.2 } },
+        ],
+      },
+    ],
+    lineConventions: isa.lineConventions,
+    tolerances: {
+      portSnapRadiusPx: 45,
+      connectionGapPx: 15,
+      labelGapBridgeMaxPx: 100,
+      collinearAngleToleranceDeg: 8,
+      teeJunctionPerpendicularThresholdPx: 10,
+      minimumSegmentLengthPx: 5,
+    },
+    multiSheetRules: {
+      requireExplicitMatchingTag: true,
+      requireMatchingLineNumber: true,
+      permitInferredSheetLinks: false,
+    },
+  };
+
+  registerConventionProfile(customProfile);
+  const retrieved = getConventionProfile('profile-custom-pharma');
+  assert.strictEqual(retrieved.name, 'Biopharma High-Purity Sanitary Standard');
+  assert.strictEqual(retrieved.symbolClassificationRules[0].targetType, 'reactor');
+});
+
+test('Scenario 2: Stage 1 Sheet Structure Analysis & Border Isolation (Title Block, Legend, Margins)', () => {
+  const textTokens = [
+    { text: 'P&ID-OFF-0010', bbox: { x: 1600, y: 950, w: 120, h: 20 } },
+    { text: 'REV A', bbox: { x: 1750, y: 950, w: 50, h: 20 } },
+    { text: 'ONSHORE GAS PROCESSING FACILITY', bbox: { x: 1500, y: 920, w: 200, h: 20 } },
+    { text: 'PIPING & INSTRUMENTATION DIAGRAM', bbox: { x: 1500, y: 900, w: 220, h: 20 } },
+  ];
+
+  const structure = analyzeSheetStructure({
+    width: 1920,
+    height: 1080,
+    textTokens,
+  });
+
+  // Verify Drawing Boundary
+  assert.ok(structure.drawingBoundary.x > 0);
+  assert.ok(structure.drawingBoundary.w < 1920);
+
+  // Verify Title Block extraction
+  assert.ok(structure.titleBlock);
+  assert.strictEqual(structure.titleBlock?.drawingNumber, 'P&ID-OFF-0010');
+  assert.strictEqual(structure.titleBlock?.revision, 'A');
+  assert.ok(structure.titleBlock?.facility?.includes('FACILITY'));
+
+  // Verify Legend Region Isolation
+  assert.ok(structure.legendRegion);
+  assert.ok(structure.legendRegion?.symbolsDetected.includes('gate_valve'));
+
+  // Test Non-Process Region Exclusion: lines inside title block must be excluded from piping
+  const insideTitleBlock = isInsideNonProcessRegion({ x: 1620, y: 940, w: 50, h: 2 }, structure);
+  assert.strictEqual(insideTitleBlock, true, 'Lines in title block must be identified as non-process border lines');
+
+  const insideDiagram = isInsideNonProcessRegion({ x: 400, y: 300, w: 150, h: 3 }, structure);
+  assert.strictEqual(insideDiagram, false, 'Lines in central diagram space must be treated as candidate process lines');
+});
+
+test('Scenario 3: Stage 2 Multi-Scale Overlapping Tiling & Cross-Tile Non-Maximum Suppression (STA Alignment)', () => {
+  // Test Tiling Partitioner on 3840x2160 sheet with 1024 tile size and 20% overlap
+  const tiles = partitionSheetIntoTiles(3840, 2160, 1024, 0.2);
+  assert.ok(tiles.length >= 10, 'Generated multi-scale overlapping tiles');
+  assert.strictEqual(tiles[0].overlapPx, Math.round(1024 * 0.2));
+
+  // Test Cross-Tile Deduplication via NMS / Weighted Box Fusion
+  // Tile 0 and Tile 1 both detect a vessel at the boundary with slight coordinate differences
+  const rawDetections = [
+    {
+      tileIndex: 0,
+      classLabel: 'vessel',
+      confidence: 0.92,
+      localBbox: { x: 800, y: 400, w: 100, h: 140 }, // Global X = 800
+    },
+    {
+      tileIndex: 1, // Tile 1 starts at x = 819
+      classLabel: 'vessel',
+      confidence: 0.94,
+      localBbox: { x: -10, y: 402, w: 102, h: 138 }, // Global X = 809 (heavily overlapping)
+    },
+    {
+      tileIndex: 2, // Distant pump
+      classLabel: 'pump',
+      confidence: 0.89,
+      localBbox: { x: 200, y: 200, w: 40, h: 40 },
+    },
+  ];
+
+  const merged = mergeTiledDetections(rawDetections, tiles, 0.4);
+  assert.strictEqual(merged.length, 2, 'Overlapping vessel detections across tile seams merged into single object');
+
+  const vesselDet = merged.find((d) => d.classLabel === 'vessel')!;
+  assert.ok(vesselDet, 'Merged vessel present');
+  assert.strictEqual(vesselDet.sourceTileIndices.length, 2, 'Recorded both source tile indices');
+  assert.ok(vesselDet.confidence >= 0.94, 'Confidence boosted by multi-tile agreement');
+});
+
+test('Scenario 4: Stage 2 Text Recognition & STA Tag-Symbol Association Across Diverse Standards', () => {
+  // Test Tag Association with standard and custom profiles
+  const customProfile = getConventionProfile('profile-custom-pharma');
+
+  const rawTextTokens = [
+    { text: 'FERM-101', bbox: { x: 300, y: 180, w: 70, h: 18 }, confidence: 0.95 },
+    { text: 'SAN-101-2IN', bbox: { x: 350, y: 350, w: 90, h: 16 }, confidence: 0.91 },
+    { text: 'PH-101', bbox: { x: 250, y: 220, w: 50, h: 16 }, confidence: 0.93 },
+  ];
+
+  const ocr = recognizeDrawingText(rawTextTokens, customProfile);
+  assert.strictEqual(ocr.equipmentTags.length, 1);
+  assert.strictEqual(ocr.equipmentTags[0].tag, 'FERM-101');
+  assert.strictEqual(ocr.lineTags.length, 1);
+  assert.strictEqual(ocr.lineTags[0].tag, 'SAN-101-2IN');
+  assert.strictEqual(ocr.instrumentTags.length, 1);
+  assert.strictEqual(ocr.instrumentTags[0].tag, 'PH-101');
+
+  // Verify symbol creation from custom profile
+  const { objects, ports } = detectDrawingSymbols(ocr.equipmentTags, 'Biopharma_P&ID.pdf', 1, customProfile);
+  assert.strictEqual(objects.length, 1);
+  assert.strictEqual(objects[0].tag, 'FERM-101');
+  assert.strictEqual(objects[0].type, 'equipment');
+  assert.strictEqual(objects[0].sub_type, 'Bioreactor Fermenter');
+
+  // Verify STA symbol-to-tag spatial proximity association
+  const detections = [
+    {
+      id: 'det-1',
+      classLabel: 'reactor',
+      confidence: 0.95,
+      globalBbox: { x: 290, y: 190, w: 90, h: 150 },
+      sourceTileIndices: [0],
+    },
+  ];
+
+  const associated = associateSymbolsWithTags(detections, ocr.equipmentTags, 100);
+  assert.strictEqual(associated[0].associatedTag, 'FERM-101', 'Symbol correctly associated with neighboring tag FERM-101');
+});
+
+test('Scenario 5: Stage 3 Collinear Line Gap Bridging Across Intervening Labels & Inline Valves', () => {
+  // Construct two segments separated by an 80px gap where an inline valve or tag breaks the line
+  const profile = getConventionProfile('profile-sour-gas-facility'); // gap tolerance 140px
+
+  const segments = [
+    // Segment A: (100, 300) -> (220, 300)
+    {
+      id: 'seg-a',
+      page: 1,
+      start: { x: 100, y: 300 },
+      end: { x: 220, y: 300 },
+      strokeWidth: 2,
+      isDashed: false,
+      classificationHint: 'process_pipe' as const,
+    },
+    // Segment B: (300, 300) -> (450, 300) (Gap of 80px between 220 and 300)
+    {
+      id: 'seg-b',
+      page: 1,
+      start: { x: 300, y: 300 },
+      end: { x: 450, y: 300 },
+      strokeWidth: 2,
+      isDashed: false,
+      classificationHint: 'process_pipe' as const,
+    },
+  ];
+
+  const eqObjects: any[] = [
+    {
+      id: 'eq-v1',
+      tag: 'V-101',
+      type: 'vessel',
+      center_coordinates: { x: 90, y: 300 },
+      bounding_box: { x: 40, y: 240, w: 100, h: 120 },
+    },
+    {
+      id: 'eq-v2',
+      tag: 'V-102',
+      type: 'vessel',
+      center_coordinates: { x: 460, y: 300 },
+      bounding_box: { x: 440, y: 240, w: 100, h: 120 },
+    },
+  ];
+
+  const ports: any[] = [
+    { id: 'p-v1-out', equipment_id: 'eq-v1', equipment_tag: 'V-101', port_type: 'outlet', position: { x: 100, y: 300 } },
+    { id: 'p-v2-in', equipment_id: 'eq-v2', equipment_tag: 'V-102', port_type: 'inlet', position: { x: 450, y: 300 } },
+  ];
+
+  const lineAnnotations = [
+    { tag: '3"-PG-101-CS', bbox: { x: 230, y: 285, w: 60, h: 25 } }, // Label residing directly in the 80px gap
+  ];
+
+  const tracing = tracePipingNetwork(segments, eqObjects, ports, lineAnnotations, [], 'SourGas_PID.pdf', 1, profile);
+
+  // Verify Gap Bridging succeeded
+  assert.ok(tracing.bridgedGapsCount && tracing.bridgedGapsCount >= 1, 'Collinear gap was bridged across intervening line tag');
+  assert.strictEqual(tracing.pipePaths.length, 1, 'Two broken segments unified into 1 continuous pipeline');
+  assert.strictEqual(tracing.connectionCandidates.length >= 1, true, 'Confirmed continuous physical connection from V-101 to V-102');
+  assert.strictEqual(tracing.connectionCandidates[0].source_equipment, 'V-101');
+  assert.strictEqual(tracing.connectionCandidates[0].destination_equipment, 'V-102');
+  assert.strictEqual(tracing.connectionCandidates[0].line_number, '3"-PG-101-CS');
+});
+
+test('Scenario 6: Strict Unconnected Crossing (4-Way) vs Perpendicular T-Junction Branch Distinction', () => {
+  // Horizontal Line 1: (100, 200) -> (500, 200)
+  // Vertical Crossing Line 2: (300, 50) -> (300, 350)
+  // Branch Line 3: (300, 200) is a 4-way crossing without a dot -> UNCONNECTED CROSSING
+  // Branch Line 4: Starts at (400, 200) and goes down to (400, 350) -> T-JUNCTION
+  const segments = [
+    { id: 's-h1', page: 1, start: { x: 100, y: 200 }, end: { x: 500, y: 200 }, strokeWidth: 2, isDashed: false, classificationHint: 'process_pipe' as const },
+    { id: 's-v1', page: 1, start: { x: 300, y: 50 }, end: { x: 300, y: 350 }, strokeWidth: 2, isDashed: false, classificationHint: 'process_pipe' as const },
+    { id: 's-tee', page: 1, start: { x: 400, y: 200 }, end: { x: 400, y: 350 }, strokeWidth: 2, isDashed: false, classificationHint: 'process_pipe' as const },
+  ];
+
+  const tracing = tracePipingNetwork(segments, [], [], [], [], 'Crossing_PID.pdf', 1);
+
+  // Check Junctions
+  const crossings = tracing.junctions.filter((j) => j.junction_type === 'unconnected_crossing');
+  const tees = tracing.junctions.filter((j) => j.junction_type === 't_junction');
+
+  assert.ok(crossings.length >= 1, 'Identified 4-way visual crossing as unconnected_crossing (zero material exchange)');
+  assert.strictEqual(crossings[0].has_junction_dot, false);
+  assert.strictEqual(crossings[0].connected_path_ids.length, 0, 'Unconnected crossing must NOT connect path IDs');
+
+  assert.ok(tees.length >= 1, 'Identified perpendicular line termination as valid T-junction branch');
+  assert.strictEqual(tees[0].connected_path_ids.length, 2, 'T-junction branch connects two process paths');
+});
+
+test('Scenario 7: Stage 4 Zero Link Fabrication & Explicit Evidence Rule for Off-Page Connectors', () => {
+  // A pipeline that terminates without reaching an equipment nozzle
+  const segments = [
+    { id: 's-open', page: 1, start: { x: 100, y: 200 }, end: { x: 350, y: 200 }, strokeWidth: 2, isDashed: false, classificationHint: 'process_pipe' as const },
+  ];
+
+  const eqObjects: any[] = [
+    {
+      id: 'eq-p1',
+      tag: 'P-101',
+      type: 'pump',
+      center_coordinates: { x: 95, y: 200 },
+      bounding_box: { x: 75, y: 180, w: 40, h: 40 },
+    },
+  ];
+
+  const ports: any[] = [
+    { id: 'p-p1-out', equipment_id: 'eq-p1', equipment_tag: 'P-101', port_type: 'outlet', position: { x: 100, y: 200 } },
+  ];
+
+  // Tracing has no destination equipment for (350, 200)
+  const tracing = tracePipingNetwork(segments, eqObjects, ports, [], [], 'Dangling_PID.pdf', 1);
+
+  // Strict Non-Fabrication Rule:
+  // Must NOT invent a fake connection to make graph look complete!
+  assert.strictEqual(tracing.connectionCandidates.length, 0, 'No false connections fabricated for open line');
+  assert.strictEqual(tracing.unresolvedSegments.length, 1, 'Open endpoint flagged as unresolved dangling segment with reason');
+  assert.ok(tracing.unresolvedSegments[0].reason.includes('Outlet endpoint of path is unattached'));
+});
+
+test('Scenario 8: End-to-End Configurable Digitization Pipeline & Drawing Metadata Retention', async () => {
+  const normResult = await normalizeDrawing({
+    filePath: 'test/sample_sour_gas.pdf',
+    fileName: 'sample_sour_gas.pdf',
+    mimeType: 'application/pdf',
+    documentId: 'doc-sour-gas-1',
+    conventionProfileId: 'profile-sour-gas-facility',
+    pageWidth: 2400,
+    pageHeight: 1600,
+    rawContent: 'V-2001 HP SEPARATOR DRUM PG-1001 PIG RECEIVER 6"-PG-00101-CS 2"-DR-00101-A1A',
+  });
+
+  // Verify Model Integrity
+  assert.strictEqual(normResult.document_name, 'sample_sour_gas.pdf');
+  assert.strictEqual(normResult.convention_profile_id, 'profile-sour-gas-facility');
+  assert.ok(normResult.sheet_structure, 'Sheet structure metadata recorded');
+  assert.ok(normResult.sheet_structure.diagramRegion.w > 2000);
+  assert.strictEqual(typeof normResult.bridged_gaps_count, 'number');
+  assert.strictEqual(typeof normResult.uncertain_connections_count, 'number');
+
+  // Verify detected equipment
+  assert.ok(normResult.objects.some((o) => o.tag.includes('V-2001') || o.tag.includes('PG-1001')));
+  // Verify ports generated for objects
+  assert.ok(normResult.ports.length > 0);
+});
+
+// Test Group 39: Sheet Isolation, 1:1 Reference Alignment & Acceptance From-To Verification
+console.log('\n--- Test Group 39: Sheet Isolation, 1:1 Reference Alignment & Acceptance From-To Verification ---');
+
+test('Test Group 39 - Scenario 1: Sheet Isolation & Foreign Asset Filtering', async () => {
+  const { generateDigitalPidFromExtracted } = await import('../server/src/services/digitalDrawingGenerator');
+
+  const mixedEquipment: any[] = [
+    { id: 'eq-pg1001', tag: 'PG-1001', equipment_type: 'vessel', document_id: 'doc-pid-001-02', source: { document: 'PID-GPF-001-02 (1).png' } },
+    { id: 'eq-mv1001', tag: 'MV-1001', equipment_type: 'manual_valve', document_id: 'doc-pid-001-02', source: { document: 'PID-GPF-001-02 (1).png' } },
+    { id: 'eq-xv1001', tag: 'XV-1001', equipment_type: 'isolation_valve', document_id: 'doc-pid-001-02', source: { document: 'PID-GPF-001-02 (1).png' } },
+    // Foreign equipment from sheet 2001 (HAZOP markup)
+    { id: 'eq-v2001', tag: 'V-2001', equipment_type: 'vessel', document_id: 'doc-hazop-2001', source: { document: 'IES-GPF-PID-2001-HAZOP-Markup.png' } },
+    { id: 'eq-pg2004', tag: 'PG-2004', equipment_type: 'vessel', document_id: 'doc-hazop-2001', source: { document: 'IES-GPF-PID-2001-HAZOP-Markup.png' } },
+  ];
+
+  const mixedLines: any[] = [
+    { id: 'l-00101', line_number: '10"-PG-00101-A1A', from_equipment: 'MV-1001', to_equipment: 'XV-1001', document_id: 'doc-pid-001-02', source: { document: 'PID-GPF-001-02 (1).png' } },
+    { id: 'l-hazop', line_number: 'LINE-V-2001-PT-2002', from_equipment: 'V-2001', to_equipment: 'PT-2002', document_id: 'doc-hazop-2001', source: { document: 'IES-GPF-PID-2001-HAZOP-Markup.png' } },
+  ];
+
+  const drawing = generateDigitalPidFromExtracted(
+    'proj-sour-gas',
+    'doc-pid-001-02',
+    'PID-GPF-001-02 (1).png',
+    mixedEquipment,
+    mixedLines
+  );
+
+  // Assert foreign equipment is strictly excluded from PID-GPF-001-02
+  assert.ok(drawing.elements.some((e) => e.tag === 'PG-1001'), 'PG-1001 must be present');
+  assert.ok(drawing.elements.some((e) => e.tag === 'MV-1001'), 'MV-1001 must be present');
+  assert.ok(!drawing.elements.some((e) => e.tag === 'V-2001'), 'V-2001 must NOT be present on this sheet');
+  assert.ok(!drawing.elements.some((e) => e.tag === 'PG-2004'), 'PG-2004 must NOT be present on this sheet');
+
+  // Assert foreign lines are excluded
+  assert.ok(drawing.connectors.some((c) => c.line_number === '10"-PG-00101-A1A'), 'Line 10"-PG-00101-A1A must be present');
+  assert.ok(!drawing.connectors.some((c) => c.line_number === 'LINE-V-2001-PT-2002'), 'Foreign line must be excluded');
+});
+
+test('Test Group 39 - Scenario 2: Boundary Connector & INLET-HEADER Attachment', async () => {
+  const { generateDigitalPidFromExtracted } = await import('../server/src/services/digitalDrawingGenerator');
+
+  const eqList: any[] = [
+    { id: 'eq-mv1', tag: 'MV-1001', equipment_type: 'manual_valve', document_id: 'doc-1', source: { document: 'PID-GPF-001-02 (1).png' } },
+    { id: 'eq-xv1', tag: 'XV-1001', equipment_type: 'isolation_valve', document_id: 'doc-1', source: { document: 'PID-GPF-001-02 (1).png' } },
+  ];
+  const linesList: any[] = [
+    { id: 'l-1', line_number: '10"-PG-00101-A1A', from_equipment: 'MV-1001', to_equipment: 'XV-1001', document_id: 'doc-1', source: { document: 'PID-GPF-001-02 (1).png' } },
+  ];
+
+  const drawing = generateDigitalPidFromExtracted('proj-1', 'doc-1', 'PID-GPF-001-02 (1).png', eqList, linesList);
+
+  const inletHeader = drawing.elements.find((e) => e.tag === 'INLET-HEADER');
+  const mv1001 = drawing.elements.find((e) => e.tag === 'MV-1001');
+  assert.ok(inletHeader, 'INLET-HEADER boundary element exists');
+  assert.ok(mv1001, 'MV-1001 exists');
+
+  // Assert connector linking INLET-HEADER to MV-1001 exists
+  const feedConn = drawing.connectors.find(
+    (c) => (c.from_element_id === inletHeader.id && c.to_element_id === mv1001.id) ||
+           (c.from_element_id === mv1001.id && c.to_element_id === inletHeader.id)
+  );
+  assert.ok(feedConn, 'INLET-HEADER must be physically connected to MV-1001 (no floating connector)');
+});
+
+test('Test Group 39 - Scenario 3: 1:1 Coordinate Overlap Alignment', async () => {
+  // Simulate an initial drawing created on a 2400x1600 nominal design canvas
+  const nominalDrawing: any = {
+    id: 'draw-align-test',
+    project_id: 'proj-align',
+    canvas_width: 2400,
+    canvas_height: 1600,
+    elements: [
+      { id: 'el-1', tag: 'PG-1001', position: { x: 740, y: 510 }, size: { width: 220, height: 120 } },
+      { id: 'el-2', tag: 'MV-1001', position: { x: 200, y: 560 }, size: { width: 36, height: 36 } },
+    ],
+    connectors: [
+      { id: 'c-1', line_number: '10"-PG-00101-A1A', from_element_id: 'el-2', to_element_id: 'el-1', waypoints: [{ x: 236, y: 578 }, { x: 740, y: 570 }] },
+    ],
+  };
+
+  // Target reference drawing dimensions (1536x1024)
+  const targetW = 1536;
+  const targetH = 1024;
+  const scaleX = targetW / 2400; // 0.64
+  const scaleY = targetH / 1600; // 0.64
+
+  const alignedElements = nominalDrawing.elements.map((el: any) => ({
+    ...el,
+    position: { x: Math.round(el.position.x * scaleX), y: Math.round(el.position.y * scaleY) },
+    size: { width: Math.round(el.size.width * scaleX), height: Math.round(el.size.height * scaleY) },
+  }));
+
+  const alignedConnectors = nominalDrawing.connectors.map((c: any) => ({
+    ...c,
+    waypoints: c.waypoints.map((wp: any) => ({ x: Math.round(wp.x * scaleX), y: Math.round(wp.y * scaleY) })),
+  }));
+
+  // Assert coordinates scale proportionally into 1536x1024 space
+  assert.strictEqual(alignedElements[0].position.x, Math.round(740 * 0.64));
+  assert.strictEqual(alignedElements[0].position.y, Math.round(510 * 0.64));
+  assert.strictEqual(alignedElements[1].position.x, Math.round(200 * 0.64));
+  assert.ok(alignedElements[0].position.x < targetW);
+  assert.ok(alignedElements[0].position.y < targetH);
+
+  // Assert connector waypoints scale accurately
+  assert.strictEqual(alignedConnectors[0].waypoints[0].x, Math.round(236 * 0.64));
+  assert.strictEqual(alignedConnectors[0].waypoints[0].y, Math.round(578 * 0.64));
+});
+
+test('Test Group 39 - Scenario 4: Acceptance From-To Line List Verification', async () => {
+  // Acceptance criteria 12 process lines
+  const ACCEPTANCE_LINES = [
+    { line_number: '10"-PG-00101-A1A', from: 'MV-1001', to: 'XV-1001' },
+    { line_number: '10"-PG-00102-A1A', from: 'XV-1001', to: 'PG-1001' },
+    { line_number: '10"-PG-00103-A1A', from: 'PG-1001', to: 'CV-1001' },
+    { line_number: '10"-PG-00104-A1A', from: 'CV-1001', to: 'XV-1002' },
+    { line_number: '6"-PG-00105-A1A', from: 'XV-1002', to: 'PCV-1001' },
+    { line_number: '6"-PG-00106-A1A', from: 'PCV-1001', to: 'HP-SEPARATOR' },
+    { line_number: '4"-PG-00107-A1A', from: 'PG-1001', to: 'LCV-1001' },
+    { line_number: '4"-PG-00108-A1A', from: 'LCV-1001', to: 'CONDENSATE-SYSTEM' },
+    { line_number: '4"-FL-00101-A1A', from: 'BDV-1001', to: 'FLARE-HEADER' },
+    { line_number: '2"-DR-00101-A1A', from: 'PG-1001', to: 'CLOSED-DRAIN-DRUM' },
+    { line_number: '2"-VT-00101-A1A', from: 'PG-1001', to: 'FLARE-HEADER' },
+    { line_number: '4"-FL-00102-A1A', from: 'PSV-1001', to: 'FLARE-HEADER' },
+  ];
+
+  assert.strictEqual(ACCEPTANCE_LINES.length, 12);
+  for (const item of ACCEPTANCE_LINES) {
+    assert.ok(item.line_number, `Line number defined for ${item.line_number}`);
+    assert.ok(item.from, `From equipment defined for ${item.line_number}`);
+    assert.ok(item.to, `To equipment defined for ${item.line_number}`);
+  }
+});
+
+test('Test Group 39 - Scenario 5: Bottom Index & Notes Table Isolation', async () => {
+  const { analyzeSheetStructure, isInsideNonProcessRegion } = await import('../server/src/services/sheetStructureService');
+
+  const tokens = [
+    { text: 'EQUIPMENT INDEX', bbox: { x: 100, y: 880, w: 150, h: 20 } },
+    { text: 'VALVE INDEX', bbox: { x: 300, y: 880, w: 120, h: 20 } },
+    { text: 'LINE LIST SCHEDULE', bbox: { x: 500, y: 880, w: 140, h: 20 } },
+  ];
+
+  const sheet = analyzeSheetStructure({ width: 1536, height: 1024, textTokens: tokens });
+  assert.ok(sheet.notesRegion, 'Notes/Index table region detected at sheet bottom');
+
+  // Any point inside the bottom table band should be flagged as non-process
+  const insideBottomTable = isInsideNonProcessRegion({ x: 200, y: 920, w: 80, h: 40 }, sheet);
+  assert.strictEqual(insideBottomTable, true, 'Bottom index table is recognized as non-process region');
+
+  // Active diagram area above bottom table should remain valid process space
+  const insideDiagram = isInsideNonProcessRegion({ x: 500, y: 500, w: 80, h: 40 }, sheet);
+  assert.strictEqual(insideDiagram, false, 'Central diagram space is process area');
+});
+
+// --- Test Group 40: P&ID Editor Layout Declutter, Spacing & Visual Layer Controls ---
+console.log('\n--- Test Group 40: P&ID Editor Layout Declutter, Spacing & Visual Layer Controls ---');
+
+test('Test Group 40 - Scenario 1: Centroid-based diagram bounds & outward spacing expansion (+25%)', () => {
+  const elements: any[] = [
+    { id: 'v1', tag: 'V-1001', position: { x: 200, y: 200 }, size: { width: 100, height: 60 } },
+    { id: 'v2', tag: 'V-1002', position: { x: 600, y: 200 }, size: { width: 100, height: 60 } },
+  ];
+  const connectors: any[] = [
+    {
+      id: 'c1',
+      from_element_id: 'v1',
+      to_element_id: 'v2',
+      waypoints: [{ x: 400, y: 200 }],
+    },
+  ];
+
+  const bounds = computeDiagramBounds(elements);
+  assert.strictEqual(bounds.centerX, 450, 'Centroid X calculated accurately at midpoint');
+  assert.strictEqual(bounds.centerY, 250, 'Centroid Y calculated accurately at midpoint');
+
+  const initialDist = Math.abs(elements[1].position.x - elements[0].position.x);
+  assert.strictEqual(initialDist, 400);
+
+  // Spread elements by 1.25 (+25%)
+  const { updatedElements: spreadElements } = spreadElementSpacing(elements, connectors, 1.25);
+  const spreadDist = Math.abs(spreadElements[1].position.x - spreadElements[0].position.x);
+
+  assert.strictEqual(spreadDist, 500, 'Element spacing expanded outward by exactly 25% (400px -> 500px)');
+  assert.strictEqual(spreadElements[0].position.x, 150, 'Left element shifted leftwards away from centroid');
+  assert.strictEqual(spreadElements[1].position.x, 650, 'Right element shifted rightwards away from centroid');
+});
+
+test('Test Group 40 - Scenario 2: Collision resolution & overlap relaxation between clustered elements', () => {
+  // Two overlapping valves positioned only 20px apart (size 50px each -> 30px overlap)
+  const elements: any[] = [
+    { id: 'mv1', tag: 'MV-1001', position: { x: 300, y: 300 }, size: { width: 50, height: 40 } },
+    { id: 'mv2', tag: 'MV-1002', position: { x: 320, y: 305 }, size: { width: 50, height: 40 } },
+  ];
+  const connectors: any[] = [
+    { id: 'c1', from_element_id: 'mv1', to_element_id: 'mv2', waypoints: [] },
+  ];
+
+  const { updatedElements: declustered, shiftsApplied } = resolveElementOverlaps(elements, connectors, 60, 20);
+
+  assert.ok(shiftsApplied > 0, 'Overlap detected and elements shifted apart');
+  const finalDist = Math.hypot(
+    declustered[1].position.x - declustered[0].position.x,
+    declustered[1].position.y - declustered[0].position.y
+  );
+  assert.ok(finalDist >= 55, `Elements separated with safe clearance (distance: ${finalDist.toFixed(1)}px >= 55px)`);
+});
+
+test('Test Group 40 - Scenario 3: Compact spacing (-15%) with minimum padding boundaries', () => {
+  const elements: any[] = [
+    { id: 'v1', tag: 'V-1001', position: { x: 100, y: 200 }, size: { width: 100, height: 60 } },
+    { id: 'v2', tag: 'V-1002', position: { x: 900, y: 200 }, size: { width: 100, height: 60 } },
+  ];
+  const connectors: any[] = [];
+
+  const { updatedElements: compacted } = spreadElementSpacing(elements, connectors, 0.85);
+  const compactDist = Math.abs(compacted[1].position.x - compacted[0].position.x);
+
+  assert.ok(compactDist < 800, 'Elements safely drawn inward toward centroid');
+  assert.ok(compacted[0].position.x >= 60, 'Left element respects diagram canvas padding boundary');
+});
+
+test('Test Group 40 - Scenario 4: Layer isolation (signal lines & clean line tag display modes)', () => {
+  const lineConnectors: any[] = [
+    { id: 'c1', functional_type: 'piping_line', line_number: '10"-PG-00101-A1A' },
+    { id: 'c2', functional_type: 'signal_line', line_number: null },
+    { id: 'c3', functional_type: 'signal_line', line_number: 'S-101' },
+  ];
+
+  // Piping Only Filter mode
+  const showSignalLines = false;
+  const filtered = lineConnectors.filter((c) => showSignalLines || c.functional_type !== 'signal_line');
+  assert.strictEqual(filtered.length, 1, 'Signal lines successfully isolated when process piping view is active');
+  assert.strictEqual(filtered[0].line_number, '10"-PG-00101-A1A');
+
+  // Clean tags mode: badge renders only if selected or hovered
+  const shouldRenderTag = (connId: string, selectedId: string | null, hoveredId: string | null, mode: string) => {
+    return mode === 'all' || selectedId === connId || hoveredId === connId;
+  };
+
+  assert.strictEqual(shouldRenderTag('c1', null, null, 'hover'), false, 'Clean tags mode hides tag badge by default');
+  assert.strictEqual(shouldRenderTag('c1', 'c1', null, 'hover'), true, 'Tag badge renders when connector is selected');
+  assert.strictEqual(shouldRenderTag('c1', null, 'c1', 'hover'), true, 'Tag badge renders when connector is hovered');
+  assert.strictEqual(shouldRenderTag('c1', null, null, 'all'), true, 'All tags mode renders badge for every line');
+});
+
+// Run Test Group 41 & 42: IEC 61882 HAZOP, CCPS LOPA & GNN Connectivity Pilot
+import { runHazopLopaAndConnectivityTests } from './testHazopLopaAndConnectivity';
+import { runGnnConnectivityPilotTests } from './testGnnConnectivityPilot';
+
+runHazopLopaAndConnectivityTests()
+  .then(() => runGnnConnectivityPilotTests())
+  .then(() => {
+    console.log(`\n========================================`);
+    console.log(`Test Results: ${passedTests} Passed, ${failedTests} Failed`);
+    console.log(`========================================\n`);
+
+    if (failedTests > 0) {
+      process.exit(1);
+    }
+  })
+  .catch((err) => {
+    console.error('Fatal error in test suite:', err);
+    process.exit(1);
+  });

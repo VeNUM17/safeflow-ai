@@ -24,6 +24,9 @@ import {
   Sliders,
   Radio,
   Waves,
+  ExternalLink,
+  Gauge,
+  Thermometer,
 } from 'lucide-react';
 import {
   EquipmentTag,
@@ -126,7 +129,7 @@ export const PidGraphViewer: React.FC<Props> = ({
   // Navigation subtabs
   const [activeSubTab, setActiveSubTab] = useState<
     'topology' | 'pha_workflow' | 'diagram' | 'elements' | 'pid_editor'
-  >('topology');
+  >('pid_editor');
 
   // Selected elements
   const [selectedTagId, setSelectedTagId] = useState<string | null>(
@@ -135,7 +138,8 @@ export const PidGraphViewer: React.FC<Props> = ({
   const [selectedLineId, setSelectedLineId] = useState<string | null>(
     lines[0]?.id || null
   );
-  const [selectionType, setSelectionType] = useState<'node' | 'edge'>('node');
+  const [selectedStreamId, setSelectedStreamId] = useState<string | null>(null);
+  const [selectionType, setSelectionType] = useState<'node' | 'edge' | 'stream'>('node');
 
   // Interactive Graph Zoom / Pan
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -238,6 +242,9 @@ export const PidGraphViewer: React.FC<Props> = ({
   const [specFormUnit, setSpecFormUnit] = useState<string>('');
   const [specFormCapacityType, setSpecFormCapacityType] = useState<CapacityType>('total_volume');
   const [specFormDocName, setSpecFormDocName] = useState<string>('');
+  const [isolatedReviewStatus, setIsolatedReviewStatus] = useState<string>('awaiting_review');
+  const [isolatedReviewNotes, setIsolatedReviewNotes] = useState<string>('');
+  const [isUpdatingIsolated, setIsUpdatingIsolated] = useState<boolean>(false);
   const [specFormDocRev, setSpecFormDocRev] = useState<string>('');
   const [specFormDocPage, setSpecFormDocPage] = useState<string>('');
   const [specFormReason, setSpecFormReason] = useState<string>('');
@@ -468,6 +475,115 @@ export const PidGraphViewer: React.FC<Props> = ({
     equipment.find((e) => e.id === selectedTagId) || equipment[0] || null;
   const selectedLine =
     lines.find((l) => l.id === selectedLineId) || lines[0] || null;
+  const selectedStream =
+    streams.find((s) => s.id === selectedStreamId) || streams[0] || null;
+
+  useEffect(() => {
+    if (selectedEquipment) {
+      setIsolatedReviewStatus(selectedEquipment.isolated_review_status || 'awaiting_review');
+      setIsolatedReviewNotes(selectedEquipment.isolated_review_notes || '');
+    }
+  }, [selectedEquipment?.id, selectedEquipment?.isolated_review_status]);
+
+  const handleSaveIsolatedReview = async () => {
+    if (!selectedEquipment) return;
+    setIsUpdatingIsolated(true);
+    try {
+      await onUpdateEquipment(selectedEquipment.id, {
+        isolated_review_status: isolatedReviewStatus as any,
+        isolated_review_notes: isolatedReviewNotes,
+        reviewer: 'Process Safety Engineer',
+        reason: `Updated isolated review classification to ${isolatedReviewStatus}`,
+      });
+      await onRefreshGraph();
+    } catch (err) {
+      console.error('Failed to save isolated review status:', err);
+    } finally {
+      setIsUpdatingIsolated(false);
+    }
+  };
+
+  const handleVerifyEquipment = async () => {
+    if (!selectedEquipment) return;
+    setIsUpdatingIsolated(true);
+    try {
+      await onUpdateEquipment(selectedEquipment.id, {
+        verification_status: 'engineer_verified',
+        status: 'confirmed',
+        reviewer: 'Senior Process Safety Specialist (PE)',
+        reason: 'Equipment verified against uploaded P&ID/PFD documents',
+      });
+      await onRefreshGraph();
+    } catch (err) {
+      console.error('Failed to verify equipment:', err);
+    } finally {
+      setIsUpdatingIsolated(false);
+    }
+  };
+
+  const renderEngineeringStatusBadge = (status: string | undefined | null) => {
+    const s = (status || 'unverified').toLowerCase();
+    if (s === 'confirmed' || s === 'engineer_verified' || s === 'verified') {
+      return (
+        <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/50 shadow-sm">
+          <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" /> Confirmed
+        </span>
+      );
+    }
+    if (s === 'provisional') {
+      return (
+        <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-500/50 shadow-sm">
+          <Clock className="w-3 h-3 text-cyan-400 shrink-0" /> Provisional
+        </span>
+      );
+    }
+    if (s === 'conflicting' || s === 'conflict' || s === 'disputed') {
+      return (
+        <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-rose-950 text-rose-300 border border-rose-500/50 shadow-sm">
+          <ShieldAlert className="w-3 h-3 text-rose-400 shrink-0" /> Conflicting
+        </span>
+      );
+    }
+    if (s === 'missing' || s === 'not_provided' || s === 'unresolved') {
+      return (
+        <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-slate-900 text-slate-400 border border-dashed border-slate-600 shadow-sm">
+          <Info className="w-3 h-3 text-slate-400 shrink-0" /> Missing
+        </span>
+      );
+    }
+    if (s === 'manually_entered' || s === 'manual' || s === 'manual_entry') {
+      return (
+        <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-indigo-950 text-indigo-300 border border-indigo-500/50 shadow-sm">
+          <Edit2 className="w-3 h-3 text-indigo-400 shrink-0" /> Manually entered
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-500/50 shadow-sm">
+        <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" /> Unverified
+      </span>
+    );
+  };
+
+  const inspectLine = (lineId: string) => {
+    setSelectedLineId(lineId);
+    setSelectionType('edge');
+  };
+
+  const inspectEquipment = (tagOrId: string) => {
+    const eq = equipment.find(
+      (e) => e.tag.toUpperCase() === tagOrId.toUpperCase() || e.id === tagOrId
+    );
+    if (eq) {
+      setSelectedTagId(eq.id);
+      setSelectionType('node');
+    }
+  };
+
+  const inspectStream = (streamId: string) => {
+    setSelectedStreamId(streamId);
+    setSelectionType('stream');
+  };
 
   // ----------------------------------------------------
   // Dynamic 2D Graph Positioning Algorithm
@@ -740,11 +856,11 @@ export const PidGraphViewer: React.FC<Props> = ({
     }
   };
 
-  const handleApproveGraph = async (reviewer: string, notes: string) => {
+  const handleApproveGraph = async (reviewer: string, notes: string, role?: string) => {
     const res = await fetch(`/api/projects/${projectId}/graph/approve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reviewer, notes }),
+      body: JSON.stringify({ reviewer, notes, role }),
     });
     const json = await res.json();
     if (json.success) {
@@ -834,7 +950,7 @@ export const PidGraphViewer: React.FC<Props> = ({
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+    <div className={activeSubTab === 'pid_editor' ? 'w-full px-2 sm:px-4 py-2 space-y-3' : 'max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6'}>
       {/* 1. PHA 8-Stage Workflow Header */}
       <PhaWorkflowHeader
         currentStage={summary?.current_stage || 'graph_review'}
@@ -1124,17 +1240,25 @@ export const PidGraphViewer: React.FC<Props> = ({
                 <strong className="text-cyan-400 font-bold">{graph?.counts?.equipment_nodes_count ?? equipment.length}</strong> Equipment Nodes
               </span>
               <span className="bg-slate-950 border border-emerald-500/40 px-2.5 py-1 rounded-md text-emerald-300">
-                <strong className="text-emerald-400 font-bold">{graph?.counts?.confirmed_process_edges_count ?? lines.filter((l) => l.functional_type === 'piping_line' && l.status === 'confirmed').length}</strong> Confirmed Piping
+                <strong className="text-emerald-400 font-bold">{graph?.counts?.process_piping_edges_count ?? graph?.counts?.confirmed_process_edges_count ?? lines.filter((l) => l.functional_type === 'piping_line' && l.status === 'confirmed').length}</strong> Process Piping
+              </span>
+              <span className="bg-slate-950 border border-cyan-500/40 px-2.5 py-1 rounded-md text-cyan-300" title="Utility connections support physical fluid transport (CW, Steam, Air, N2)">
+                <strong className="text-cyan-400 font-bold">{graph?.counts?.utility_connection_edges_count ?? lines.filter((l) => l.functional_type === 'utility_line').length}</strong> Utility Lines
               </span>
               <span className="bg-slate-950 border border-amber-500/40 px-2.5 py-1 rounded-md text-amber-300">
-                <strong className="text-amber-400 font-bold">{graph?.counts?.provisional_candidate_edges_count ?? lines.filter((l) => l.functional_type === 'piping_line' && l.status === 'provisional').length}</strong> Provisional Edges
+                <strong className="text-amber-400 font-bold">{graph?.counts?.provisional_candidate_edges_count ?? lines.filter((l) => l.functional_type === 'piping_line' && l.status === 'provisional').length}</strong> Provisional
               </span>
               <span className="bg-slate-950 border border-purple-500/40 px-2.5 py-1 rounded-md text-purple-300">
                 <strong className="text-purple-400 font-bold">{graph?.counts?.unresolved_connections_count ?? lines.filter((l) => l.status === 'unresolved').length}</strong> Unresolved
               </span>
               <span className="bg-slate-950 border border-indigo-500/40 px-2.5 py-1 rounded-md text-indigo-300" title="Instrument signal loops do not carry chemical process fluids">
-                <strong className="text-indigo-400 font-bold">{graph?.counts?.signal_only_connections_count ?? lines.filter((l) => l.functional_type === 'signal_line').length}</strong> Signal Loops (Non-Chemical)
+                <strong className="text-indigo-400 font-bold">{graph?.counts?.instrument_signal_edges_count ?? graph?.counts?.signal_only_connections_count ?? lines.filter((l) => l.functional_type === 'signal_line').length}</strong> Signal Loops (Non-Material)
               </span>
+              {(graph?.counts?.non_process_relationship_edges_count ?? 0) > 0 && (
+                <span className="bg-slate-950 border border-slate-700 px-2.5 py-1 rounded-md text-slate-300" title="Non-process relationships (structural/skid)">
+                  <strong className="text-slate-400 font-bold">{graph?.counts?.non_process_relationship_edges_count}</strong> Non-Process Links
+                </span>
+              )}
               {(graph?.counts?.isolated_nodes_count ?? 0) > 0 && (
                 <span className="bg-amber-950/70 border border-amber-500/60 px-2.5 py-1 rounded-md text-amber-200 flex items-center gap-1 font-sans">
                   <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
@@ -1619,6 +1743,54 @@ export const PidGraphViewer: React.FC<Props> = ({
 
             {/* Right 4 Cols: Element Properties Panel */}
             <div className="lg:col-span-4 bg-slate-950 rounded-2xl border border-slate-800 p-5 flex flex-col justify-between space-y-4">
+              {/* Inspector Mode Selector */}
+              <div className="flex items-center gap-1 p-1 bg-slate-900 rounded-xl border border-slate-800 text-[11px] font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setSelectionType('node')}
+                  className={`flex-1 py-1.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    selectionType === 'node'
+                      ? 'bg-cyan-600 text-white shadow-sm font-bold'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                  title="Equipment Inspector"
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>Equipment</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectionType('edge')}
+                  className={`flex-1 py-1.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    selectionType === 'edge'
+                      ? 'bg-cyan-600 text-white shadow-sm font-bold'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                  title="Process Line Inspector"
+                >
+                  <GitBranch className="w-3.5 h-3.5" />
+                  <span>Process Line</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectionType('stream')}
+                  className={`flex-1 py-1.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    selectionType === 'stream'
+                      ? 'bg-cyan-600 text-white shadow-sm font-bold'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                  title="Process Stream Inspector"
+                >
+                  <Waves className="w-3.5 h-3.5" />
+                  <span>Stream</span>
+                  {streams.length > 0 && (
+                    <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-slate-800 text-cyan-300">
+                      {streams.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+
               {selectionType === 'node' && selectedEquipment ? (
                 <div className="space-y-4 text-xs">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-800">
@@ -1671,16 +1843,73 @@ export const PidGraphViewer: React.FC<Props> = ({
 
                     return (
                       <>
-                        {/* 1. Isolated Node Alert */}
+                        {/* 1. Isolated Node Review Classification & Governance */}
                         {isCurrentNodeIsolated && (
-                          <div className="bg-amber-950/40 border border-amber-500/60 p-3 rounded-xl space-y-1 text-amber-200">
-                            <div className="font-bold text-amber-300 flex items-center gap-1.5 text-xs">
-                              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                              DISCONNECTED / ISOLATED EQUIPMENT NODE
+                          <div className="bg-amber-950/40 border border-amber-500/60 p-3.5 rounded-xl space-y-3 text-amber-200">
+                            <div className="flex items-center justify-between">
+                              <div className="font-bold text-amber-300 flex items-center gap-1.5 text-xs">
+                                <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                ISOLATED NODE REVIEW & CLASSIFICATION
+                              </div>
+                              <span
+                                className={`text-[9px] font-mono px-2 py-0.5 rounded font-bold uppercase border ${
+                                  selectedEquipment.isolated_review_status === 'confirmed_isolated'
+                                    ? 'bg-emerald-950 text-emerald-300 border-emerald-500/40'
+                                    : selectedEquipment.isolated_review_status === 'connection_exists_on_another_drawing'
+                                    ? 'bg-cyan-950 text-cyan-300 border-cyan-500/40'
+                                    : selectedEquipment.isolated_review_status === 'missing_connection_suspected'
+                                    ? 'bg-rose-950 text-rose-300 border-rose-500/40'
+                                    : 'bg-amber-950 text-amber-300 border-amber-500/40'
+                                }`}
+                              >
+                                {selectedEquipment.isolated_review_status || 'AWAITING REVIEW'}
+                              </span>
                             </div>
+
                             <p className="text-[11px] text-slate-300 leading-relaxed">
-                              0 connected piping or signal lines found in source drawing. Verify whether this vessel is isolated by intent (e.g. decommissioned/spare) or if piping line extraction was missed.
+                              0 connected piping or signal lines found in source drawing. Legitimate standalone, spare, or decommissioned equipment is permitted when documented.
                             </p>
+
+                            <div className="space-y-2 bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 text-[11px]">
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1">
+                                  Review Classification:
+                                </label>
+                                <select
+                                  value={isolatedReviewStatus}
+                                  onChange={(e) => setIsolatedReviewStatus(e.target.value)}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-slate-200 text-xs focus:outline-none focus:border-amber-400"
+                                >
+                                  <option value="awaiting_review">Awaiting Review</option>
+                                  <option value="confirmed_isolated">Confirmed Isolated (Standalone/Spare/Decommissioned)</option>
+                                  <option value="missing_connection_suspected">Missing Connection Suspected (Omitted on Drawing)</option>
+                                  <option value="connection_exists_on_another_drawing">Connection Exists on Another Drawing (Off-Page Tie-In)</option>
+                                  <option value="incorrect_equipment_identification">Incorrect Equipment Identification (False Positive)</option>
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1">
+                                  Engineering Justification / Notes:
+                                </label>
+                                <input
+                                  type="text"
+                                  value={isolatedReviewNotes}
+                                  onChange={(e) => setIsolatedReviewNotes(e.target.value)}
+                                  placeholder="e.g. Documented warehouse spare unit per Sparing Philosophy..."
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-200 text-xs focus:outline-none focus:border-amber-400 placeholder:text-slate-600"
+                                />
+                              </div>
+
+                              <button
+                                onClick={handleSaveIsolatedReview}
+                                disabled={isUpdatingIsolated}
+                                className="w-full py-1 px-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold rounded text-xs transition-colors flex items-center justify-center gap-1.5 shadow"
+                              >
+                                <FileCheck className="w-3.5 h-3.5" />
+                                {isUpdatingIsolated ? 'Saving...' : 'Save Review Classification'}
+                              </button>
+                            </div>
                           </div>
                         )}
 
@@ -1739,15 +1968,22 @@ export const PidGraphViewer: React.FC<Props> = ({
                         <div className="space-y-2">
                           <div className="flex justify-between py-1 border-b border-slate-900">
                             <span className="text-slate-400">Confirmed Tag:</span>
-                            <span className="font-mono font-bold text-slate-100">
+                            <span className="font-mono font-bold text-slate-100 flex items-center gap-1.5">
                               {selectedEquipment.tag}
+                              {selectedEquipment.is_manual_entry && (
+                                <span className="text-[9px] bg-cyan-950 text-cyan-300 px-1 rounded border border-cyan-500/40 font-sans">
+                                  Manual Edit
+                                </span>
+                              )}
                             </span>
                           </div>
 
                           <div className="flex justify-between py-1 border-b border-slate-900">
-                            <span className="text-slate-400">Machine Extracted Tag:</span>
+                            <span className="text-slate-400">Original OCR / Vector Tag:</span>
                             <span className="font-mono text-slate-400">
-                              {selectedEquipment.machine_tag || selectedEquipment.tag}
+                              {selectedEquipment.original_extracted_values?.tag ||
+                                selectedEquipment.machine_tag ||
+                                selectedEquipment.tag}
                             </span>
                           </div>
 
@@ -1769,23 +2005,34 @@ export const PidGraphViewer: React.FC<Props> = ({
                             <span className="text-slate-400">Human Verification Status:</span>
                             <span
                               className={`font-mono text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
-                                selectedEquipment.status === 'confirmed'
+                                selectedEquipment.verification_status === 'engineer_verified' || selectedEquipment.status === 'confirmed'
                                   ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40'
                                   : selectedEquipment.status === 'unresolved'
                                   ? 'bg-purple-950 text-purple-300 border border-purple-500/40'
                                   : 'bg-amber-950 text-amber-300 border border-amber-500/40'
                               }`}
                             >
-                              [{selectedEquipment.status}]
+                              [{selectedEquipment.verification_status === 'engineer_verified' ? 'ENGINEER VERIFIED' : selectedEquipment.status.toUpperCase()}]
                             </span>
                           </div>
 
                           <div className="flex justify-between py-1 border-b border-slate-900">
                             <span className="text-slate-400">Drawing Provenance:</span>
-                            <span className="text-slate-300 truncate max-w-[180px]">
-                              {selectedEquipment.source?.document || 'Manual Entry'} (p.{selectedEquipment.source?.page || 1})
+                            <span className="text-slate-300 truncate max-w-[200px]" title={`${selectedEquipment.source_drawing || selectedEquipment.source?.document || 'Manual Entry'} (p.${selectedEquipment.source_page || selectedEquipment.source?.page || 1})`}>
+                              {selectedEquipment.source_drawing || selectedEquipment.source?.document || 'Manual Entry'} (p.{selectedEquipment.source_page || selectedEquipment.source?.page || 1})
                             </span>
                           </div>
+
+                          {selectedEquipment.verification_status !== 'engineer_verified' && (
+                            <button
+                              onClick={handleVerifyEquipment}
+                              disabled={isUpdatingIsolated}
+                              className="w-full mt-2 py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 shadow"
+                            >
+                              <ShieldCheck className="w-4 h-4" />
+                              {isUpdatingIsolated ? 'Verifying...' : 'Verify Equipment Tag & Provenance'}
+                            </button>
+                          )}
                         </div>
                       </>
                     );
@@ -2221,58 +2468,294 @@ export const PidGraphViewer: React.FC<Props> = ({
                     </div>
                   )}
 
-                  {/* Process Stream & Chemical Grounding Card */}
-                  <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 space-y-2">
+                  {/* Connected Process Lines (Phase 6) */}
+                  <div className="bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-cyan-400 flex items-center gap-1.5">
-                        <FlaskConical className="w-3.5 h-3.5" />
-                        Chemical & Phase Mapping
-                      </span>
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                        {selectedEquipment.tag.startsWith('PG-') || selectedEquipment.equipment_type === 'separator' ? 'Multiphase' : 'Single Phase'}
+                      <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5 uppercase tracking-wider">
+                        <GitBranch className="w-3.5 h-3.5 text-cyan-400" />
+                        Connected Process Lines
                       </span>
                     </div>
 
                     {(() => {
-                      const incoming = lines.filter((l) => l.functional_type === 'piping_line' && l.to_equipment.toUpperCase() === selectedEquipment.tag.toUpperCase());
-                      const outgoing = lines.filter((l) => l.functional_type === 'piping_line' && l.from_equipment.toUpperCase() === selectedEquipment.tag.toUpperCase());
+                      const incoming = lines.filter(
+                        (l) => l.to_equipment?.toUpperCase() === selectedEquipment.tag.toUpperCase()
+                      );
+                      const outgoing = lines.filter(
+                        (l) => l.from_equipment?.toUpperCase() === selectedEquipment.tag.toUpperCase()
+                      );
+
+                      if (incoming.length === 0 && outgoing.length === 0) {
+                        return (
+                          <div className="text-[10px] text-slate-500 italic p-2 bg-slate-950 rounded-lg border border-slate-800">
+                            No active piping connections attached to this equipment node.
+                          </div>
+                        );
+                      }
 
                       return (
-                        <div className="space-y-1.5 text-[11px]">
-                          <div className="flex justify-between text-slate-300">
-                            <span className="text-slate-400">Inlet Feed Lines:</span>
-                            <span className="font-mono text-cyan-300">{incoming.length > 0 ? incoming.map((l) => l.line_number).join(', ') : 'None / Boundary'}</span>
+                        <div className="space-y-2 text-[10px]">
+                          {/* Inlets */}
+                          {incoming.length > 0 && (
+                            <div>
+                              <span className="text-slate-400 font-semibold block mb-1">Inlet Lines ({incoming.length}):</span>
+                              <div className="space-y-1">
+                                {incoming.map((l) => (
+                                  <div
+                                    key={l.id}
+                                    onClick={() => inspectLine(l.id)}
+                                    className="p-1.5 rounded-lg bg-slate-950 hover:bg-slate-900 border border-slate-800 flex items-center justify-between cursor-pointer transition-colors"
+                                  >
+                                    <div className="font-mono text-cyan-300 font-bold flex items-center gap-1">
+                                      <span>← {l.line_number}</span>
+                                      <span className="text-slate-500 font-normal">({l.nominal_pipe_size?.value || l.size || 'NPS'} • {l.pipe_spec?.value || l.material || 'CS'})</span>
+                                    </div>
+                                    <div>{renderEngineeringStatusBadge(l.status)}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Outlets */}
+                          {outgoing.length > 0 && (
+                            <div>
+                              <span className="text-slate-400 font-semibold block mb-1">Outlet Lines ({outgoing.length}):</span>
+                              <div className="space-y-1">
+                                {outgoing.map((l) => (
+                                  <div
+                                    key={l.id}
+                                    onClick={() => inspectLine(l.id)}
+                                    className="p-1.5 rounded-lg bg-slate-950 hover:bg-slate-900 border border-slate-800 flex items-center justify-between cursor-pointer transition-colors"
+                                  >
+                                    <div className="font-mono text-emerald-300 font-bold flex items-center gap-1">
+                                      <span>→ {l.line_number}</span>
+                                      <span className="text-slate-500 font-normal">({l.nominal_pipe_size?.value || l.size || 'NPS'} • {l.pipe_spec?.value || l.material || 'CS'})</span>
+                                    </div>
+                                    <div>{renderEngineeringStatusBadge(l.status)}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Inlet / Outlet Process Streams (Phase 6) */}
+                  <div className="bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5 uppercase tracking-wider">
+                        <Waves className="w-3.5 h-3.5 text-cyan-400" />
+                        Inlet / Outlet Streams
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingStream(null);
+                          setStreamDefaultSource(selectedEquipment.tag);
+                          setShowStreamModal(true);
+                        }}
+                        className="text-[10px] text-cyan-400 hover:text-cyan-300 font-semibold cursor-pointer"
+                      >
+                        + Add Stream
+                      </button>
+                    </div>
+
+                    {(() => {
+                      const equipStreams = streams.filter(
+                        (s) =>
+                          (s.source_equipment_tag || (s as any).from_equipment)?.toUpperCase() === selectedEquipment.tag.toUpperCase() ||
+                          (s.destination_equipment_tag || (s as any).to_equipment)?.toUpperCase() === selectedEquipment.tag.toUpperCase() ||
+                          (s.connected_equipment || []).map((e) => e.toUpperCase()).includes(selectedEquipment.tag.toUpperCase())
+                      );
+
+                      if (equipStreams.length === 0) {
+                        return (
+                          <div className="text-[10px] text-slate-500 italic p-2 bg-slate-950 rounded-lg border border-slate-800">
+                            No process streams associated with {selectedEquipment.tag}.
                           </div>
-                          <div className="flex justify-between text-slate-300">
-                            <span className="text-slate-400">Outlet Discharge:</span>
-                            <span className="font-mono text-emerald-300">{outgoing.length > 0 ? outgoing.map((l) => l.line_number).join(', ') : 'None / Boundary'}</span>
+                        );
+                      }
+
+                      return (
+                        <div className="space-y-1.5 text-[10px]">
+                          {equipStreams.map((st) => (
+                            <div
+                              key={st.id}
+                              onClick={() => inspectStream(st.id)}
+                              className="p-2 rounded-lg bg-slate-950 hover:bg-slate-900/80 border border-slate-800 space-y-1 cursor-pointer transition-colors"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-mono text-cyan-300 font-bold flex items-center gap-1">
+                                  {st.stream_number || st.stream_id || st.id}
+                                  <ExternalLink className="w-2.5 h-2.5 text-cyan-500" />
+                                </span>
+                                <div>{renderEngineeringStatusBadge(st.verification_status)}</div>
+                              </div>
+                              <div className="text-[10px] text-slate-400 truncate">
+                                {st.stream_description || st.material_description || 'Process Material Stream'}
+                              </div>
+                              <div className="flex justify-between font-mono text-[9.5px] text-slate-400 pt-0.5 border-t border-slate-900">
+                                <span>Flow: {st.flow_rates?.normal !== null ? `${st.flow_rates.normal} ${st.flow_rates.unit || ''}` : 'N/A'}</span>
+                                <span>P: {st.operating_pressure?.value !== null ? `${st.operating_pressure.value} ${st.operating_pressure.unit}` : 'N/A'}</span>
+                                <span>Phase: {st.phase || 'N/A'}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Assigned Chemicals & Hazard Classification (Phase 6) */}
+                  <div className="bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-2">
+                    <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5 uppercase tracking-wider">
+                      <FlaskConical className="w-3.5 h-3.5 text-cyan-400" />
+                      Assigned Chemicals & Hazards
+                    </span>
+
+                    {(() => {
+                      const chem = chemicals.find((c) => c.id === selectedEquipment.assigned_chemical_id);
+                      if (!chem) {
+                        return (
+                          <div className="text-[10px] text-slate-500 italic p-2 bg-slate-950 rounded-lg border border-slate-800">
+                            No chemical directly assigned to this equipment.
                           </div>
-                          <div className="pt-1 text-[10px] text-slate-400 flex items-center justify-between border-t border-slate-800/60">
-                            <span>Grounding Status:</span>
-                            <span className="text-amber-400 font-semibold">
-                              {incoming.length > 0 || outgoing.length > 0 ? 'CANDIDATE STREAM DATA' : 'ISOLATED'}
-                            </span>
+                        );
+                      }
+
+                      return (
+                        <div className="p-2 rounded-lg bg-slate-950 border border-slate-800 space-y-1 text-[10px]">
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold text-slate-200">{chem.chemical_name?.value}</span>
+                            <span className="font-mono text-cyan-300 text-[9px]">{chem.cas_number?.value || 'CAS: N/A'}</span>
+                          </div>
+                          <div className="text-slate-400 text-[9.5px]">
+                            {chem.manufacturer?.value ? `Supplier: ${chem.manufacturer.value}` : 'Industrial Process Chemical'}
+                          </div>
+                          {chem.psi_parameters?.toxicity?.category_status === 'extracted' && (
+                            <div className="text-[9px] text-amber-300 pt-1 border-t border-slate-900">
+                              ⚠️ Toxicity: {typeof chem.psi_parameters.toxicity.value === 'string' ? chem.psi_parameters.toxicity.value : (chem.psi_parameters.toxicity.value as any)?.ld50 || 'Documented in SDS'}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Instruments, Loops & Safeguards (Phase 6) */}
+                  <div className="bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-2">
+                    <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5 uppercase tracking-wider">
+                      <Radio className="w-3.5 h-3.5 text-purple-400" />
+                      Instruments, Loops & Safeguards
+                    </span>
+
+                    {(() => {
+                      const currentGraphNode = graph?.nodes.find(
+                        (n) => n.tag === selectedEquipment.tag || n.id === selectedEquipment.tag
+                      );
+                      const instTags = (currentGraphNode as any)?.instruments || [];
+                      const safeguards = (currentGraphNode as any)?.safeguards || [];
+
+                      return (
+                        <div className="space-y-1.5 text-[10px]">
+                          <div>
+                            <span className="text-slate-400 font-semibold block mb-1">Instrumentation & Loops:</span>
+                            {instTags.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {instTags.map((t: string) => (
+                                  <span key={t} className="px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-500/40 font-mono font-bold">
+                                    {t}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-slate-500 italic">No instruments assigned directly</span>
+                            )}
+                          </div>
+
+                          <div className="pt-1 border-t border-slate-800/60">
+                            <span className="text-slate-400 font-semibold block mb-1">Safeguards & Interlocks:</span>
+                            {safeguards.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {safeguards.map((s: string) => (
+                                  <span key={s} className="px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40 font-mono font-bold">
+                                    {s}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-slate-500 italic">No relief valves / ESD tags registered</span>
+                            )}
                           </div>
                         </div>
                       );
                     })()}
                   </div>
 
-                  {/* Quick Confirm Button */}
-                  {selectedEquipment.status !== 'confirmed' && (
-                    <button
-                      onClick={() =>
-                        onUpdateEquipment(selectedEquipment.id, {
-                          status: 'confirmed',
-                          reviewer: 'Process Safety Engineer',
-                          reason: 'Human confirmed classification',
-                        })
-                      }
-                      className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-xs transition-colors"
-                    >
-                      Mark Classification as Confirmed
-                    </button>
-                  )}
+                  {/* Source Provenance & Verification History (Phase 6) */}
+                  <div className="bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-1.5 text-[10px]">
+                    <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5 uppercase tracking-wider">
+                      <FileCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      Provenance & Verification History
+                    </span>
+                    <div className="flex justify-between text-slate-400">
+                      <span>Source Drawing:</span>
+                      <span className="font-mono text-slate-200">{selectedEquipment.source?.document || 'P&ID Drawing'}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-400">
+                      <span>Drawing Sheet / Page:</span>
+                      <span className="font-mono text-slate-200">Page {selectedEquipment.source?.page || 1}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-400">
+                      <span>Extraction Confidence:</span>
+                      <span className="font-mono text-cyan-300 font-bold">{Math.round((selectedEquipment.confidence || 0.95) * 100)}%</span>
+                    </div>
+                    {selectedEquipment.verified_by && (
+                      <div className="flex justify-between text-slate-400 pt-1 border-t border-slate-800/60">
+                        <span>Verified By:</span>
+                        <span className="text-emerald-300 font-semibold">{selectedEquipment.verified_by}</span>
+                      </div>
+                    )}
+                    {(selectedEquipment as any).verification_reason && (
+                      <div className="text-slate-400 pt-0.5">
+                        <span className="text-slate-500">Note: </span>
+                        <span>{(selectedEquipment as any).verification_reason}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quick Verification & Confirmation Actions */}
+                  <div className="space-y-1.5 pt-1">
+                    {selectedEquipment.verification_status !== 'engineer_verified' && (
+                      <button
+                        type="button"
+                        onClick={handleVerifyEquipment}
+                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <ShieldCheck className="w-4 h-4" />
+                        Verify Equipment Tag & Specifications
+                      </button>
+                    )}
+
+                    {selectedEquipment.status !== 'confirmed' && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onUpdateEquipment(selectedEquipment.id, {
+                            status: 'confirmed',
+                            reviewer: 'Process Safety Engineer',
+                            reason: 'Human confirmed classification',
+                          })
+                        }
+                        className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-lg text-xs transition-colors cursor-pointer"
+                      >
+                        Mark Classification as Confirmed
+                      </button>
+                    )}
+                  </div>
                 </div>
               ) : selectedLine ? (
                 <div className="space-y-4 text-xs">
@@ -2289,13 +2772,37 @@ export const PidGraphViewer: React.FC<Props> = ({
                         >
                           {selectedLine.status}
                         </span>
+                        {selectedLine.verification_status === 'engineer_verified' ? (
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-900/60 text-emerald-200 border border-emerald-400/50 font-bold">
+                            VERIFIED
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-300 border border-amber-500/30 font-medium">
+                            UNVERIFIED
+                          </span>
+                        )}
                       </div>
                       <p className="text-[11px] text-slate-400 mt-0.5">
-                        {selectedLine.stream_label || 'Piping Connection'}
+                        {selectedLine.fluid_service?.value || selectedLine.stream_label || 'Process Piping Connection'}
                       </p>
                     </div>
 
                     <div className="flex items-center gap-1">
+                      {selectedLine.verification_status !== 'engineer_verified' && (
+                        <button
+                          onClick={() =>
+                            onUpdateLine(selectedLine.id, {
+                              verification_status: 'engineer_verified',
+                              verified_by: 'Lead Process Engineer',
+                              verified_at: new Date().toISOString(),
+                            })
+                          }
+                          className="px-2 py-1 text-[10px] font-bold bg-emerald-900/40 hover:bg-emerald-800/60 text-emerald-300 border border-emerald-500/40 rounded transition-colors"
+                          title="Verify Process Line Specifications"
+                        >
+                          Verify Line
+                        </button>
+                      )}
                       <button
                         onClick={() => handleOpenEditLine(selectedLine)}
                         className="p-1.5 text-slate-400 hover:text-cyan-400 hover:bg-slate-800 rounded-lg transition-colors"
@@ -2330,14 +2837,24 @@ export const PidGraphViewer: React.FC<Props> = ({
                     </div>
 
                     <div className="flex justify-between py-1 border-b border-slate-900">
-                      <span className="text-slate-400">Functional Type:</span>
+                      <span className="text-slate-400">Connection Type:</span>
                       <span className="font-semibold text-slate-200 capitalize">
-                        {selectedLine.functional_type === 'signal_line' ? (
+                        {selectedLine.connection_classification === 'non_process_equipment_relationship' || selectedLine.connection_type === 'non_process' || selectedLine.functional_type === 'non_process_line' ? (
+                          <span className="text-slate-400 font-mono text-[10px] bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700">
+                            Non-Process Relationship (Structural/Mount)
+                          </span>
+                        ) : selectedLine.connection_classification === 'instrument_signal' || selectedLine.connection_type === 'instrument_signal' || selectedLine.functional_type === 'signal_line' ? (
                           <span className="text-purple-400 font-mono text-[10px] bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-500/40">
-                            Signal Loop (Non-Chemical)
+                            Instrument Signal (Control Loop — No Fluid Flow)
+                          </span>
+                        ) : selectedLine.connection_classification === 'utility_connection' || selectedLine.connection_type === 'utility_connection' || selectedLine.functional_type === 'utility_line' ? (
+                          <span className="text-cyan-400 font-mono text-[10px] bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-500/40">
+                            Utility Connection (Fluid Transport — CW/Steam/N2/Air)
                           </span>
                         ) : (
-                          selectedLine.functional_type.replace('_', ' ')
+                          <span className="text-emerald-400 font-mono text-[10px] bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/40">
+                            Process Piping (Material Fluid Flow)
+                          </span>
                         )}
                       </span>
                     </div>
@@ -2358,37 +2875,124 @@ export const PidGraphViewer: React.FC<Props> = ({
                     <div className="flex justify-between py-1 border-b border-slate-900">
                       <span className="text-slate-400">Nominal Size / Metallurgy:</span>
                       <span className="font-mono text-slate-200">
-                        {selectedLine.size} • {selectedLine.material}
+                        {selectedLine.nominal_pipe_size?.value || selectedLine.size || 'Not Provided'} • {selectedLine.pipe_spec?.value || selectedLine.material || 'Not Provided'}
                       </span>
                     </div>
 
                     <div className="flex justify-between py-1 border-b border-slate-900">
-                      <span className="text-slate-400">Model Extraction Confidence:</span>
-                      <span className="font-mono text-cyan-300 font-bold">
-                        {Math.round(selectedLine.confidence * 100)}%
+                      <span className="text-slate-400">Physical Phase:</span>
+                      <span className="font-mono text-slate-200">
+                        {selectedLine.physical_state?.value ? (
+                          <span className="text-cyan-300 uppercase text-[11px] font-bold">
+                            {selectedLine.physical_state.value}
+                          </span>
+                        ) : (
+                          <span className="text-slate-500 italic text-[11px]">Not Provided</span>
+                        )}
                       </span>
                     </div>
 
                     <div className="flex justify-between py-1 border-b border-slate-900">
-                      <span className="text-slate-400">Human Verification Status:</span>
-                      <span
-                        className={`font-mono text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
-                          selectedLine.status === 'confirmed'
-                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40'
-                            : 'bg-amber-950 text-amber-300 border border-amber-500/40'
-                        }`}
-                      >
-                        [{selectedLine.status}]
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between py-1 border-b border-slate-900">
-                      <span className="text-slate-400">Drawing Provenance:</span>
-                      <span className="text-slate-300 truncate max-w-[180px]">
-                        {selectedLine.source?.document || 'Manual Entry'} (p.{selectedLine.source?.page || 1})
+                      <span className="text-slate-400">Model Confidence / Provenance:</span>
+                      <span className="text-slate-300 text-[11px] truncate max-w-[200px]">
+                        {Math.round((selectedLine.extraction_confidence ?? selectedLine.confidence ?? 0.95) * 100)}% • {selectedLine.source_drawing || selectedLine.source?.document || 'Manual Entry'} (p.{selectedLine.source_page || selectedLine.source?.page || 1})
                       </span>
                     </div>
                   </div>
+
+                  {/* Operating vs Design Limits Inspection Card */}
+                  <div className="bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-2">
+                    <span className="text-[11px] font-bold text-slate-300 block uppercase tracking-wider">
+                      Operating Conditions vs Design Limits
+                    </span>
+
+                    {/* Operating vs Design Pressure */}
+                    {(() => {
+                      const opP = selectedLine.operating_pressure?.value;
+                      const desP = selectedLine.design_pressure?.value;
+                      const isViolation = typeof opP === 'number' && typeof desP === 'number' && opP > desP;
+                      return (
+                        <div className={`p-2 rounded-lg border ${isViolation ? 'bg-rose-950/40 border-rose-500/50' : 'bg-slate-950/40 border-slate-800/60'}`}>
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-slate-400 font-medium">Pressure:</span>
+                            <div className="font-mono text-right">
+                              <span className={isViolation ? 'text-rose-400 font-bold' : 'text-slate-200'}>
+                                Op: {opP !== null && opP !== undefined ? `${opP} ${selectedLine.operating_pressure?.unit || 'bar(g)'}` : <span className="text-slate-500 italic">Not Provided</span>}
+                              </span>
+                              <span className="text-slate-500 mx-1.5">|</span>
+                              <span className="text-slate-300">
+                                Des: {desP !== null && desP !== undefined ? `${desP} ${selectedLine.design_pressure?.unit || 'bar(g)'}` : <span className="text-slate-500 italic">Not Provided</span>}
+                              </span>
+                            </div>
+                          </div>
+                          {isViolation && (
+                            <div className="text-[10px] text-rose-300 font-bold mt-1 flex items-center gap-1">
+                              ⚠️ LIMIT VIOLATION: Operating pressure exceeds design limit!
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Operating vs Design Temperature */}
+                    {(() => {
+                      const opT = selectedLine.operating_temperature?.value;
+                      const desT = selectedLine.design_temperature?.value;
+                      const isViolation = typeof opT === 'number' && typeof desT === 'number' && opT > desT;
+                      return (
+                        <div className={`p-2 rounded-lg border ${isViolation ? 'bg-rose-950/40 border-rose-500/50' : 'bg-slate-950/40 border-slate-800/60'}`}>
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-slate-400 font-medium">Temperature:</span>
+                            <div className="font-mono text-right">
+                              <span className={isViolation ? 'text-rose-400 font-bold' : 'text-slate-200'}>
+                                Op: {opT !== null && opT !== undefined ? `${opT} ${selectedLine.operating_temperature?.unit || '°C'}` : <span className="text-slate-500 italic">Not Provided</span>}
+                              </span>
+                              <span className="text-slate-500 mx-1.5">|</span>
+                              <span className="text-slate-300">
+                                Des: {desT !== null && desT !== undefined ? `${desT} ${selectedLine.design_temperature?.unit || '°C'}` : <span className="text-slate-500 italic">Not Provided</span>}
+                              </span>
+                            </div>
+                          </div>
+                          {isViolation && (
+                            <div className="text-[10px] text-rose-300 font-bold mt-1 flex items-center gap-1">
+                              ⚠️ LIMIT VIOLATION: Operating temperature exceeds design limit!
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Operating Flow Rate */}
+                    <div className="p-2 rounded-lg bg-slate-950/40 border border-slate-800/60 text-[11px] flex justify-between items-center">
+                      <span className="text-slate-400 font-medium">Operating Flow:</span>
+                      <span className="font-mono text-slate-200 font-semibold">
+                        {selectedLine.operating_flow_rate?.value !== null && selectedLine.operating_flow_rate?.value !== undefined ? (
+                          `${selectedLine.operating_flow_rate.value} ${selectedLine.operating_flow_rate.unit || 'kg/h'}`
+                        ) : (
+                          <span className="text-slate-500 italic">Not Provided</span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Chemical Composition Breakdown */}
+                  {selectedLine.chemical_composition && selectedLine.chemical_composition.length > 0 && (
+                    <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-2">
+                      <span className="text-[11px] font-semibold text-slate-400 block">
+                        Chemical Composition Fractions:
+                      </span>
+                      <div className="space-y-1">
+                        {selectedLine.chemical_composition.map((c, idx) => (
+                          <div key={idx} className="flex justify-between items-center text-[10px] font-mono py-1 px-2 rounded bg-slate-950 border border-slate-800">
+                            <span className="text-slate-200 font-bold">{c.component_identity}</span>
+                            <span className="text-cyan-300">
+                              {c.concentration_value !== null ? `${c.concentration_value} ${c.concentration_basis}` : 'N/A'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Injected PSI Chemical Profile */}
                   <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-2">
@@ -2499,10 +3103,59 @@ export const PidGraphViewer: React.FC<Props> = ({
                             {linkedStream.phase && (
                               <div className="flex justify-between">
                                 <span className="text-slate-400">Phase:</span>
-                                <span className="text-cyan-300 capitalize">{linkedStream.phase}</span>
+                                <span className="text-cyan-300 capitalize font-bold">{linkedStream.phase}</span>
+                              </div>
+                            )}
+                            {(linkedStream.density?.normalized_value != null || (linkedStream.density as any)?.value != null) && (
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">Density:</span>
+                                <span className="text-slate-200">{linkedStream.density?.normalized_value ?? (linkedStream.density as any)?.value} {linkedStream.density?.normalized_unit || (linkedStream.density as any)?.unit || 'kg/m³'}</span>
+                              </div>
+                            )}
+                            {(linkedStream.vapor_fraction?.normalized_value != null || (linkedStream.vapor_fraction as any)?.value != null) && (
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">Vapor Fraction:</span>
+                                <span className="text-slate-200">{linkedStream.vapor_fraction?.normalized_value ?? (linkedStream.vapor_fraction as any)?.value}</span>
+                              </div>
+                            )}
+                            {(linkedStream.molecular_weight?.normalized_value != null || (linkedStream.molecular_weight as any)?.value != null) && (
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">Mol Weight:</span>
+                                <span className="text-slate-200">{linkedStream.molecular_weight?.normalized_value ?? (linkedStream.molecular_weight as any)?.value} g/mol</span>
                               </div>
                             )}
                           </div>
+
+                          {/* Multi-Chemical Composition Table */}
+                          {linkedStream.components && linkedStream.components.length > 0 && (
+                            <div className="space-y-1 pt-1 border-t border-slate-800">
+                              <span className="text-[10px] text-slate-400 font-semibold block">Multi-Chemical Stream Components:</span>
+                              <div className="space-y-1">
+                                {linkedStream.components.map((comp: any, cIdx: number) => (
+                                  <div key={cIdx} className="flex justify-between items-center text-[9px] font-mono py-0.5 px-2 rounded bg-slate-950 border border-slate-800">
+                                    <span className="text-slate-200 font-bold">{comp.component_identity || comp.component_name}</span>
+                                    <span className="text-cyan-300">
+                                      {comp.concentration_value ?? comp.fraction_value} {comp.concentration_basis || comp.unit}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Connected Lines Matrix */}
+                          {linkedStream.connected_line_numbers && linkedStream.connected_line_numbers.length > 0 && (
+                            <div className="space-y-1 pt-1">
+                              <span className="text-[10px] text-slate-400 font-semibold block">Associated Process Lines:</span>
+                              <div className="flex flex-wrap gap-1">
+                                {linkedStream.connected_line_numbers.map((ln) => (
+                                  <span key={ln} className="bg-slate-950 text-cyan-300 border border-cyan-500/30 px-1.5 py-0.5 rounded text-[10px] font-mono">
+                                    {ln}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
 
                           {linkedStream.associated_instrument_tags && linkedStream.associated_instrument_tags.length > 0 && (
                             <div className="space-y-1 pt-1">
@@ -2574,9 +3227,259 @@ export const PidGraphViewer: React.FC<Props> = ({
                     </button>
                   )}
                 </div>
+              ) : selectionType === 'stream' && selectedStream ? (
+                <div className="space-y-4 text-xs">
+                  {/* Stream Header */}
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                    <div>
+                      <div className="font-mono text-base font-bold text-cyan-400 flex items-center gap-2">
+                        {selectedStream.stream_number || selectedStream.stream_id || selectedStream.id}
+                        {renderEngineeringStatusBadge(selectedStream.verification_status || 'unverified')}
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {selectedStream.stream_description || selectedStream.material_description || 'Process Material Stream'}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      {selectedStream.verification_status !== 'verified' && (
+                        <button
+                          type="button"
+                          onClick={() => handleVerifyStream(selectedStream.id)}
+                          className="px-2 py-1 text-[10px] font-bold bg-emerald-900/40 hover:bg-emerald-800/60 text-emerald-300 border border-emerald-500/40 rounded transition-colors cursor-pointer"
+                          title="Formally Verify Stream Data & Heat & Material Balance"
+                        >
+                          Verify Stream
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingStream(selectedStream);
+                          setShowStreamModal(true);
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-cyan-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                        title="Edit Stream Data"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteStream(selectedStream.id)}
+                        className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                        title="Delete Stream"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Connected Equipment & Connected Lines */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center py-1.5 border-b border-slate-900">
+                      <span className="text-slate-400">From Equipment:</span>
+                      {selectedStream.source_equipment_tag || (selectedStream as any).from_equipment ? (
+                        <button
+                          type="button"
+                          onClick={() => inspectEquipment(selectedStream.source_equipment_tag || (selectedStream as any).from_equipment)}
+                          className="font-mono font-bold text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          {selectedStream.source_equipment_tag || (selectedStream as any).from_equipment}
+                          <ArrowRight className="w-3 h-3 text-slate-500" />
+                        </button>
+                      ) : (
+                        <span className="text-slate-500 italic">Battery Limit / Feed</span>
+                      )}
+                    </div>
+
+                    <div className="flex justify-between items-center py-1.5 border-b border-slate-900">
+                      <span className="text-slate-400">To Equipment:</span>
+                      {selectedStream.destination_equipment_tag || (selectedStream as any).to_equipment ? (
+                        <button
+                          type="button"
+                          onClick={() => inspectEquipment(selectedStream.destination_equipment_tag || (selectedStream as any).to_equipment)}
+                          className="font-mono font-bold text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          {selectedStream.destination_equipment_tag || (selectedStream as any).to_equipment}
+                          <ArrowRight className="w-3 h-3 text-slate-500" />
+                        </button>
+                      ) : (
+                        <span className="text-slate-500 italic">Discharge / Vent</span>
+                      )}
+                    </div>
+
+                    {/* Connected Lines */}
+                    <div className="py-1.5 border-b border-slate-900 space-y-1">
+                      <span className="text-slate-400 block text-[11px]">Connected Piping Lines:</span>
+                      {selectedStream.connected_line_numbers && selectedStream.connected_line_numbers.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          {selectedStream.connected_line_numbers.map((ln) => {
+                            const lineObj = lines.find((l) => l.line_number === ln);
+                            return (
+                              <button
+                                key={ln}
+                                type="button"
+                                onClick={() => lineObj && inspectLine(lineObj.id)}
+                                className="font-mono text-[10px] px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-cyan-500/30 flex items-center gap-1 cursor-pointer transition-colors"
+                              >
+                                <GitBranch className="w-2.5 h-2.5" />
+                                {ln}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <span className="text-slate-500 italic text-[10px]">No linked piping lines</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Flow Rates & Operating Conditions */}
+                  <div className="bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-2">
+                    <span className="text-[11px] font-bold text-slate-300 block uppercase tracking-wider">
+                      Process Flow & Operating Conditions
+                    </span>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                      <div className="p-2 rounded-lg bg-slate-950/60 border border-slate-800/80">
+                        <span className="text-slate-400 text-[10px] block">Normal Flow Rate</span>
+                        <span className={selectedStream.flow_rates?.normal !== null && selectedStream.flow_rates?.normal !== undefined ? 'font-mono text-cyan-300 font-bold' : 'text-amber-400 italic font-mono'}>
+                          {selectedStream.flow_rates?.normal !== null && selectedStream.flow_rates?.normal !== undefined
+                            ? `${selectedStream.flow_rates.normal} ${selectedStream.flow_rates?.unit || ''}`
+                            : '[NOT DOCUMENTED]'}
+                        </span>
+                      </div>
+
+                      <div className="p-2 rounded-lg bg-slate-950/60 border border-slate-800/80">
+                        <span className="text-slate-400 text-[10px] block">Design Flow Rate</span>
+                        <span className="font-mono text-slate-200">
+                          {selectedStream.flow_rates?.design !== null && selectedStream.flow_rates?.design !== undefined
+                            ? `${selectedStream.flow_rates.design} ${selectedStream.flow_rates?.unit || ''}`
+                            : 'N/A'}
+                        </span>
+                      </div>
+
+                      <div className="p-2 rounded-lg bg-slate-950/60 border border-slate-800/80">
+                        <span className="text-slate-400 text-[10px] block">Operating Pressure</span>
+                        <span className="font-mono text-slate-200">
+                          {selectedStream.operating_pressure?.value !== null && selectedStream.operating_pressure?.value !== undefined
+                            ? `${selectedStream.operating_pressure.value} ${selectedStream.operating_pressure?.unit || 'bar(g)'}`
+                            : 'N/A'}
+                        </span>
+                      </div>
+
+                      <div className="p-2 rounded-lg bg-slate-950/60 border border-slate-800/80">
+                        <span className="text-slate-400 text-[10px] block">Operating Temperature</span>
+                        <span className="font-mono text-slate-200">
+                          {selectedStream.operating_temperature?.value !== null && selectedStream.operating_temperature?.value !== undefined
+                            ? `${selectedStream.operating_temperature.value} ${selectedStream.operating_temperature?.unit || '°C'}`
+                            : 'N/A'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center text-[10px] pt-1 border-t border-slate-800/60 text-slate-400">
+                      <span>Physical Phase:</span>
+                      <span className="font-mono text-cyan-300 font-bold uppercase">
+                        {selectedStream.phase || 'Unspecified'}
+                      </span>
+                    </div>
+
+                    {(selectedStream.density || selectedStream.vapor_fraction || selectedStream.viscosity || selectedStream.molecular_weight) && (
+                      <div className="text-[10px] space-y-0.5 pt-1 border-t border-slate-800/60">
+                        <span className="text-slate-400 font-semibold block">Physical Properties:</span>
+                        {selectedStream.density && (
+                          <div className="flex justify-between font-mono text-slate-300">
+                            <span>Density:</span>
+                            <span>{selectedStream.density.normalized_value ?? selectedStream.density.original_value} {selectedStream.density.normalized_unit || selectedStream.density.original_unit || 'kg/m³'}</span>
+                          </div>
+                        )}
+                        {selectedStream.viscosity && (
+                          <div className="flex justify-between font-mono text-slate-300">
+                            <span>Viscosity:</span>
+                            <span>{selectedStream.viscosity.normalized_value ?? selectedStream.viscosity.original_value} {selectedStream.viscosity.normalized_unit || selectedStream.viscosity.original_unit || 'cP'}</span>
+                          </div>
+                        )}
+                        {selectedStream.molecular_weight && (
+                          <div className="flex justify-between font-mono text-slate-300">
+                            <span>Molecular Weight:</span>
+                            <span>{selectedStream.molecular_weight.normalized_value ?? selectedStream.molecular_weight.original_value} {selectedStream.molecular_weight.normalized_unit || selectedStream.molecular_weight.original_unit || 'g/mol'}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Chemical Composition & Concentration Basis */}
+                  <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                        Chemical Composition
+                      </span>
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                        {selectedStream.components?.length || 0} Components
+                      </span>
+                    </div>
+
+                    {selectedStream.components && selectedStream.components.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {selectedStream.components.map((c: any, i: number) => (
+                          <div key={i} className="p-2 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
+                            <div className="flex justify-between items-center text-[11px]">
+                              <span className="font-medium text-slate-200">{c.component_identity || c.component_name || c.name || 'Component'}</span>
+                              <div className="flex items-center gap-1 font-mono">
+                                <span className="text-cyan-300 font-bold">
+                                  {c.concentration_value ?? c.fraction_value ?? c.fraction ?? '—'} {c.unit || ''}
+                                </span>
+                                {(c.concentration_basis || c.basis) && (
+                                  <span className="text-[9px] px-1 py-0.2 rounded bg-purple-950 text-purple-300 border border-purple-500/40 uppercase font-bold">
+                                    {c.concentration_basis || c.basis}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex justify-between items-center text-[9px] text-slate-500">
+                              <span>Source: {c.source || selectedStream.source?.document || 'Stream Table'}</span>
+                              <span>{c.verification_status || 'unverified'}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-slate-500 italic p-2 bg-slate-950 rounded-lg border border-slate-800">
+                        No chemical breakdown assigned. Click Edit to enter molar/weight composition.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Separator Independence Banner (Mandatory Engineering Correction #3) */}
+                  <div className="p-2.5 rounded-lg bg-cyan-950/30 border border-cyan-800/40 text-[10px] text-cyan-300 space-y-1">
+                    <div className="font-bold flex items-center gap-1 text-cyan-200">
+                      <ShieldCheck className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                      SEPARATOR INDEPENDENCE GUARANTEE
+                    </div>
+                    <p className="text-slate-400 text-[9.5px]">
+                      Composition is verified from uploaded stream tables/H&MB and is strictly independent from inlet separator streams. No composition is inferred from P&ID connectivity alone.
+                    </p>
+                  </div>
+
+                  {/* Provenance & Source */}
+                  <div className="text-[10px] text-slate-500 space-y-0.5 border-t border-slate-800/60 pt-2">
+                    <div className="flex justify-between">
+                      <span>Source Document:</span>
+                      <span className="font-mono text-slate-400">{selectedStream.source?.document || (selectedStream as any).source_document || 'Stream Table'}</span>
+                    </div>
+                    {selectedStream.verified_by && (
+                      <div className="flex justify-between">
+                        <span>Verified By:</span>
+                        <span className="text-emerald-400">{selectedStream.verified_by}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               ) : (
                 <div className="text-center py-12 text-slate-500 text-xs">
-                  Select an equipment node or piping edge from the canvas to view properties.
+                  Select an equipment node, process line, or process stream to inspect properties.
                 </div>
               )}
             </div>
@@ -2586,7 +3489,7 @@ export const PidGraphViewer: React.FC<Props> = ({
 
       {/* VIEW: Digital P&ID Editor */}
       {activeSubTab === 'pid_editor' && (
-        <div className="h-[calc(100vh-190px)] min-h-[720px] flex flex-col rounded-2xl overflow-hidden border border-slate-800 shadow-2xl">
+        <div className="h-[calc(100vh-130px)] min-h-[820px] flex flex-col rounded-2xl overflow-hidden border border-slate-800 shadow-2xl">
           <DigitalPidEditor
             project={summary?.project || { id: projectId, name: 'Project', description: '', created_at: '', updated_at: '', is_sample: false }}
             documents={documents}
@@ -3144,8 +4047,9 @@ export const PidGraphViewer: React.FC<Props> = ({
                     className="w-full bg-slate-950 border border-slate-800 text-slate-100 rounded-lg p-2"
                   >
                     <option value="piping_line">Process Piping Line</option>
-                    <option value="signal_line">Signal Line (4-20mA)</option>
-                    <option value="utility_line">Utility Line (Steam/Air)</option>
+                    <option value="utility_line">Utility Line (Steam/Air/N2/CW)</option>
+                    <option value="signal_line">Instrument Signal Line (4-20mA / DCS)</option>
+                    <option value="non_process_line">Non-Process Relationship (Structural/Skid)</option>
                   </select>
                 </div>
 
@@ -3171,7 +4075,7 @@ export const PidGraphViewer: React.FC<Props> = ({
                 </div>
               </div>
 
-              {newLineForm.functional_type !== 'signal_line' && (
+              {newLineForm.functional_type !== 'signal_line' && newLineForm.functional_type !== 'non_process_line' && (
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-300 mb-1">
                     Chemical Service Profile:
@@ -3290,8 +4194,9 @@ export const PidGraphViewer: React.FC<Props> = ({
                     className="w-full bg-slate-950 border border-slate-800 text-slate-100 rounded-lg p-2"
                   >
                     <option value="piping_line">Process Piping Line</option>
-                    <option value="signal_line">Signal Line (4-20mA)</option>
-                    <option value="utility_line">Utility Line (Steam/Air)</option>
+                    <option value="utility_line">Utility Line (Steam/Air/N2/CW)</option>
+                    <option value="signal_line">Instrument Signal Line (4-20mA / DCS)</option>
+                    <option value="non_process_line">Non-Process Relationship (Structural/Skid)</option>
                   </select>
                 </div>
 

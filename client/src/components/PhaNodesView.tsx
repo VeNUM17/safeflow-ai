@@ -18,6 +18,9 @@ import {
   ArrowLeftRight,
   Check,
   CheckCircle,
+  Grid,
+  FileSpreadsheet,
+  Calculator,
 } from 'lucide-react';
 import {
   PhaStudyNode,
@@ -28,6 +31,9 @@ import {
   ChemicalRecord,
 } from '../types';
 import { StreamModal } from './StreamModal';
+import { HazopWorksheetTable } from './hazop/HazopWorksheetTable';
+import { LopaAssessmentPanel } from './hazop/LopaAssessmentPanel';
+import { RiskMatrixConfigView } from './hazop/RiskMatrixConfigView';
 
 interface PhaNodesViewProps {
   projectId: string;
@@ -71,6 +77,8 @@ export const PhaNodesView: React.FC<PhaNodesViewProps> = ({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(
     phaNodes[0]?.id || null
   );
+  const [activePhaTab, setActivePhaTab] = useState<'nodes' | 'hazop' | 'lopa' | 'matrix'>('nodes');
+  const [targetLopaId, setTargetLopaId] = useState<string | null>(null);
   const [isEditingModalOpen, setIsEditingModalOpen] = useState(false);
   const [isStreamModalOpen, setIsStreamModalOpen] = useState(false);
   const [editingStream, setEditingStream] = useState<ProcessStream | null>(null);
@@ -256,9 +264,78 @@ export const PhaNodesView: React.FC<PhaNodesViewProps> = ({
 
   return (
     <div className="space-y-6 font-sans">
-      {/* 1. HAZOP Readiness Status Card */}
-      <div
-        className={`p-4 rounded-xl border transition-all ${
+      {/* PHA / HAZOP / LOPA Navigation Tabs */}
+      <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-slate-900/90 rounded-2xl border border-slate-800">
+        <button
+          onClick={() => setActivePhaTab('nodes')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+            activePhaTab === 'nodes'
+              ? 'bg-cyan-600 text-white shadow-md'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+          }`}
+        >
+          <Network className="w-4 h-4" />
+          Study Nodes & Boundaries
+        </button>
+
+        <button
+          onClick={() => setActivePhaTab('hazop')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+            activePhaTab === 'hazop'
+              ? 'bg-cyan-600 text-white shadow-md'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+          }`}
+        >
+          <FileSpreadsheet className="w-4 h-4" />
+          IEC 61882 HAZOP Worksheet
+        </button>
+
+        <button
+          onClick={() => setActivePhaTab('lopa')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+            activePhaTab === 'lopa'
+              ? 'bg-cyan-600 text-white shadow-md'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+          }`}
+        >
+          <Calculator className="w-4 h-4" />
+          CCPS LOPA Engine
+        </button>
+
+        <button
+          onClick={() => setActivePhaTab('matrix')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+            activePhaTab === 'matrix'
+              ? 'bg-cyan-600 text-white shadow-md'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+          }`}
+        >
+          <Grid className="w-4 h-4" />
+          Risk Matrix Config (5×5)
+        </button>
+      </div>
+
+      {activePhaTab === 'hazop' && (
+        <HazopWorksheetTable
+          projectId={projectId}
+          onNavigateToLopa={(id) => {
+            setActivePhaTab('lopa');
+            setTargetLopaId(id);
+          }}
+        />
+      )}
+
+      {activePhaTab === 'lopa' && (
+        <LopaAssessmentPanel projectId={projectId} initialSelectedLopaId={targetLopaId} />
+      )}
+
+      {activePhaTab === 'matrix' && <RiskMatrixConfigView projectId={projectId} />}
+
+      {activePhaTab === 'nodes' && (
+        <>
+          {/* 1. HAZOP Readiness Status Card */}
+          <div
+            className={`p-4 rounded-xl border transition-all ${
           readiness?.ready
             ? 'bg-emerald-950/40 border-emerald-500/50 shadow-lg'
             : 'bg-amber-950/30 border-amber-500/40'
@@ -1517,6 +1594,8 @@ export const PhaNodesView: React.FC<PhaNodesViewProps> = ({
             }
           }}
         />
+      )}
+        </>
       )}
     </div>
   );

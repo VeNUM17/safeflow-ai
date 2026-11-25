@@ -7,6 +7,9 @@ import {
   EquipmentType,
   createDefaultSpecifications,
 } from '../types';
+import { PidConventionProfile } from '../types/conventionProfile';
+import { getConventionProfile } from './pidConventionService';
+import { findComponentForTag } from './componentRegistryService';
 
 export interface DetectedSymbolResult {
   objects: DrawingObject[];
@@ -15,12 +18,15 @@ export interface DetectedSymbolResult {
 
 /**
  * Maps detected tags and bounding boxes to physical P&ID symbols with explicit connection ports (nozzles).
+ * Configurable via PidConventionProfile to eliminate hardcoded assumptions.
  */
 export function detectDrawingSymbols(
   tags: { tag: string; type: string; bbox: BoundingBox; confidence: number }[],
   documentName: string,
-  pageNumber = 1
+  pageNumber = 1,
+  profile?: PidConventionProfile
 ): DetectedSymbolResult {
+  const activeProfile = profile || getConventionProfile();
   const objects: DrawingObject[] = [];
   const ports: EquipmentPort[] = [];
 
@@ -29,83 +35,15 @@ export function detectDrawingSymbols(
     const tagUpper = item.tag.toUpperCase();
     const prefix = tagUpper.split('-')[0];
 
-    let eqType: EquipmentType = 'vessel';
-    let subType = 'Process Equipment';
-    let symWidth = 50;
-    let symHeight = 50;
-
-    if (prefix === 'TK') {
-      eqType = 'tank';
-      subType = 'Storage Tank';
-      symWidth = 80;
-      symHeight = 80;
-    } else if (prefix === 'PG') {
-      eqType = 'vessel';
-      subType = 'Pig Receiver / Slug Catcher';
-      symWidth = 140;
-      symHeight = 60;
-    } else if (prefix === 'MX') {
-      eqType = 'mixing_tank';
-      subType = 'Mixing Tank';
-      symWidth = 90;
-      symHeight = 90;
-    } else if (prefix === 'P' || prefix === 'CP') {
-      eqType = 'pump';
-      subType = 'Centrifugal Transfer Pump';
-      symWidth = 36;
-      symHeight = 36;
-    } else if (prefix === 'R' || prefix === 'RX') {
-      eqType = 'reactor';
-      subType = 'Chemical Reactor';
-      symWidth = 90;
-      symHeight = 90;
-    } else if (prefix === 'E' || prefix === 'HX' || prefix === 'HE' || prefix === 'C') {
-      eqType = 'heat_exchanger';
-      subType = 'Shell & Tube Heat Exchanger';
-      symWidth = 72;
-      symHeight = 48;
-    } else if (prefix === 'HV' || prefix === 'NV' || prefix === 'BV' || prefix === 'MV') {
-      eqType = 'manual_valve';
-      subType = prefix === 'NV' ? 'Needle Valve' : prefix === 'BV' ? 'Ball Valve' : prefix === 'MV' ? 'Manifold Valve' : 'Manual Isolation Valve';
-      symWidth = 24;
-      symHeight = 24;
-    } else if (prefix === 'DV') {
-      eqType = 'drain_valve';
-      subType = 'Drain Isolation Valve';
-      symWidth = 24;
-      symHeight = 24;
-    } else if (prefix === 'NRV' || prefix === 'CV') {
-      eqType = 'isolation_valve';
-      subType = 'Non-Return Check Valve';
-      symWidth = 24;
-      symHeight = 24;
-    } else if (prefix === 'XV') {
-      eqType = 'isolation_valve';
-      subType = 'Emergency Shutdown Actuated Valve';
-      symWidth = 28;
-      symHeight = 28;
-    } else if (prefix === 'AG') {
-      eqType = 'agitator';
-      subType = 'Mechanical Mixer Agitator';
-      symWidth = 36;
-      symHeight = 36;
-    } else if (prefix === 'FCV' || prefix === 'PCV' || prefix === 'TCV' || prefix === 'LCV' || prefix === 'SDV' || prefix === 'BDV' || prefix === 'PSV' || prefix === 'PRV') {
-      eqType = 'control_valve';
-      subType = prefix === 'SDV' ? 'Shutdown Valve (ESD)' : prefix === 'BDV' ? 'Blowdown Valve' : prefix === 'PSV' ? 'Pressure Safety Relief Valve' : 'Flow / Pressure Control Valve';
-      symWidth = 26;
-      symHeight = 26;
-    } else if (prefix === 'SIS' || prefix === 'LS') {
-      eqType = 'instrument';
-      subType = 'Safety Instrumented System Logic';
-      symWidth = 32;
-      symHeight = 32;
-    } else if (prefix.startsWith('F') || prefix.startsWith('L') || prefix.startsWith('T') || prefix.startsWith('P')) {
-      eqType = 'instrument';
-      subType = prefix === 'LG' ? 'Level Gauge (Sight Glass)' : 'Process Instrumentation Transmitter';
-      symWidth = 28;
-      symHeight = 28;
-    }
-
+    const registryComponent = findComponentForTag(tagUpper, item.type);
+    const matchedRule = activeProfile.symbolClassificationRules.find(
+      (rule) => rule.prefixOrClass.toUpperCase() === prefix || rule.prefixOrClass.toUpperCase() === item.type.toUpperCase()
+    );
+    const eqType: EquipmentType = matchedRule?.targetType ?? registryComponent?.equipment_type ?? 'other';
+    const subType = matchedRule?.categoryDescription ?? registryComponent?.name ?? 'Unclassified symbol';
+    const viewBox = registryComponent?.symbol.viewBox.split(/\s+/).map(Number);
+    const symWidth = matchedRule?.defaultDimensions.width ?? viewBox?.[2] ?? 50;
+    const symHeight = matchedRule?.defaultDimensions.height ?? viewBox?.[3] ?? 50;
     const center: Coordinate2D = {
       x: item.bbox.x + item.bbox.w / 2,
       y: item.bbox.y + item.bbox.h / 2,
@@ -118,56 +56,54 @@ export function detectDrawingSymbols(
       h: symHeight,
     };
 
-    // Generate Standard Equipment Ports (Nozzles) placed at the perimeter of the physical symbol
-    const eqPorts: EquipmentPort[] = [
-      {
-        id: `port-${objId}-inlet-top`,
-        equipment_id: objId,
-        equipment_tag: tagUpper,
-        port_type: 'inlet',
-        position: { x: center.x, y: symbolBBox.y },
-        normal_vector: { x: 0, y: -1 },
-        connection_candidates: [],
-        confidence: item.confidence,
-      },
-      {
-        id: `port-${objId}-outlet-bottom`,
-        equipment_id: objId,
-        equipment_tag: tagUpper,
-        port_type: 'outlet',
-        position: { x: center.x, y: symbolBBox.y + symHeight },
-        normal_vector: { x: 0, y: 1 },
-        connection_candidates: [],
-        confidence: item.confidence,
-      },
-      {
-        id: `port-${objId}-side-left`,
-        equipment_id: objId,
-        equipment_tag: tagUpper,
-        port_type: 'bidirectional',
-        position: { x: symbolBBox.x, y: center.y },
-        normal_vector: { x: -1, y: 0 },
-        connection_candidates: [],
-        confidence: item.confidence,
-      },
-      {
-        id: `port-${objId}-side-right`,
-        equipment_id: objId,
-        equipment_tag: tagUpper,
-        port_type: 'bidirectional',
-        position: { x: symbolBBox.x + symWidth, y: center.y },
-        normal_vector: { x: 1, y: 0 },
-        connection_candidates: [],
-        confidence: item.confidence,
-      },
-    ];
+    const directionVectors: Record<string, Coordinate2D> = {
+      left: { x: -1, y: 0 },
+      right: { x: 1, y: 0 },
+      up: { x: 0, y: -1 },
+      down: { x: 0, y: 1 },
+    };
+    const registryViewBox = registryComponent?.symbol.viewBox.split(/\s+/).map(Number);
+    const useRegistryPorts = registryComponent && (!matchedRule || activeProfile.id === 'profile-isa-5-1');
+    const portDefinitions = useRegistryPorts
+      ? registryComponent.ports.map((port) => ({
+          id: port.id,
+          x: registryViewBox?.[2] ? ((port.x - (registryViewBox[0] || 0)) / registryViewBox[2]) * symWidth : symWidth / 2,
+          y: registryViewBox?.[3] ? ((port.y - (registryViewBox[1] || 0)) / registryViewBox[3]) * symHeight : symHeight / 2,
+          dir: port.dir,
+          portType: port.role,
+        }))
+      : (matchedRule?.defaultPorts || []).map((port) => ({
+          id: port.name,
+          x: (port.offsetRatio.x + 0.5) * symWidth,
+          y: (port.offsetRatio.y + 0.5) * symHeight,
+          dir: Math.abs(port.offsetRatio.x) > Math.abs(port.offsetRatio.y)
+            ? (port.offsetRatio.x < 0 ? 'left' : 'right')
+            : (port.offsetRatio.y < 0 ? 'up' : 'down'),
+          portType: port.type === 'flange' ? 'bidirectional' : port.type,
+        }));
 
-    ports.push(...eqPorts);
+    const eqPorts: EquipmentPort[] = portDefinitions.map((port) => ({
+      id: `port-${objId}-${port.id}`,
+      equipment_id: objId,
+      equipment_tag: tagUpper,
+      port_type: port.portType,
+      position: { x: symbolBBox.x + port.x, y: symbolBBox.y + port.y },
+      normal_vector: directionVectors[port.dir] || { x: 0, y: 0 },
+      connection_candidates: [],
+      confidence: item.confidence,
+    }));
 
-    const isValve = prefix === 'HV' || prefix === 'DV' || prefix === 'NRV' || prefix === 'XV' || prefix.endsWith('V');
-    const isInst = prefix.startsWith('F') || prefix.startsWith('L') || prefix.startsWith('T') || prefix.startsWith('P');
-    const objType = isValve ? 'valve' : isInst ? 'instrument' : 'equipment';
 
+    let objType: 'equipment' | 'valve' | 'instrument' | 'line_tag' | 'junction' = 'equipment';
+    if (registryComponent?.category === 'valve' || ['manual_valve', 'control_valve', 'isolation_valve', 'drain_valve'].includes(eqType)) {
+      objType = 'valve';
+    } else if (registryComponent?.category === 'instrument' || eqType === 'instrument') {
+      objType = 'instrument';
+    } else if (registryComponent?.category === 'line') {
+      objType = 'line_tag';
+    } else if (registryComponent?.category === 'connector') {
+      objType = 'junction';
+    }
     const drawingObj: DrawingObject = {
       id: objId,
       type: objType,
@@ -187,6 +123,9 @@ export function detectDrawingSymbols(
         confidence: item.confidence,
       },
       ports: eqPorts,
+      raw_properties: registryComponent
+        ? { component_class_id: registryComponent.class_id, inline: registryComponent.inline }
+        : {},
       specifications: createDefaultSpecifications(eqType),
     };
 

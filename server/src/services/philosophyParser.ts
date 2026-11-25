@@ -10,11 +10,17 @@ import {
   EnvironmentalDesignLimits,
 } from '../types';
 import { ExtractedDocumentContent } from './pdfExtractor';
+import { getComponentRegistry } from './componentRegistryService';
 
 // Regular expressions for tag and rule detection
 const EQUIPMENT_TAG_REGEX = /\b([A-Z]{1,4}-\d{3,5}[A-Z]?)\b/g;
 const INSTRUMENT_OR_VALVE_REGEX = /\b([A-Z]{2,4}-(?:\d{3,5}|LS-\d{3,5}|[A-Z0-9]+))\b/g;
-const NON_EQUIPMENT_TAG_PREFIXES = /^(I|INT|PT|TT|LT|FT|PSHH|LSHH|TSHH|LSLL|PSLL|PIC|LIC|TIC|FIC|PSV|BDV|XV|SDV|PCV|LCV|TCV|FCV|SIS|ESD)-/i;
+const instrumentAndValvePrefixes = getComponentRegistry().components
+  .filter((component) => component.category === 'instrument' || component.category === 'valve')
+  .flatMap((component) => component.tag_prefixes)
+  .filter((prefix, index, all) => all.indexOf(prefix) === index)
+  .sort((left, right) => right.length - left.length);
+const NON_EQUIPMENT_TAG_PREFIXES = new RegExp(`^(?:${instrumentAndValvePrefixes.join('|')})-`, 'i');
 const SIL_REGEX = /\bSIL[- ]?([1-4])\b/i;
 const FAIL_SAFE_FC_REGEX = /\b(fail[- ]?closed|fail[- ]?to[- ]?close|FC)\b/i;
 const FAIL_SAFE_FO_REGEX = /\b(fail[- ]?open|fail[- ]?to[- ]?open|FO)\b/i;

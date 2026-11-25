@@ -10,11 +10,24 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:5001',
+        target: 'http://127.0.0.1:5001',
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', (_err, _req, res) => {
+            if (res && 'writeHead' in res && !(res as any).headersSent) {
+              (res as any).writeHead(503, { 'Content-Type': 'application/json' });
+              (res as any).end(
+                JSON.stringify({
+                  success: false,
+                  error: 'PSI Backend Server is offline on port 5001. Please ensure the backend server is running.',
+                })
+              );
+            }
+          });
+        },
       },
       '/uploads': {
-        target: 'http://localhost:5001',
+        target: 'http://127.0.0.1:5001',
         changeOrigin: true,
       }
     }
